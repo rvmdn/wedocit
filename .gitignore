@@ -1,0 +1,55 @@
+# Operating System Files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE & Editor Configurations
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+
+# Node / NPM (jika nanti menggunakan build tools atau package manager)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build & Bundled Output (misal file zip/crx ekstensi untuk release)
+*.zip
+*.crx
+*.pem
+dist/
+build/
+out/
+
+# Environment & Credentials
+.env
+.env.local
+.env.*.local
+*.key
+
+# Temporary files & Logs
+logs/
+*.log
+scratch/
+tmp/
+temp/

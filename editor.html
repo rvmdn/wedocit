@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeDocIt - Unit Test Studio BNI</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="app-logo">
+        <svg class="logo-svg" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="url(#logo-grad)"/>
+          <path d="M7 8h10M7 12h10M7 16h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="logo-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#0284c7"/>
+              <stop offset="1" stop-color="#38bdf8"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="logo-title-wrap">
+          <span class="logo-name">WeDocIt</span>
+          <span class="logo-badge">Unit Test Studio</span>
+        </div>
+      </div>
+
+      <!-- DOKUMEN SELECTOR BAR -->
+      <div class="doc-selector-bar">
+        <span class="doc-label">📑 Dokumen:</span>
+        <select id="doc-selector" class="doc-dropdown" title="Pilih dokumen Unit Test yang sedang diedit">
+          <!-- Rendered dynamically -->
+        </select>
+        <button class="btn btn-primary btn-xs" id="btn-create-new-doc" title="Buat dokumen Unit Test baru">
+          ➕ Baru
+        </button>
+        <button class="btn btn-danger btn-xs" id="btn-delete-current-doc" title="Hapus dokumen ini">
+          🗑
+        </button>
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" id="btn-toggle-sidebar" title="Sembunyikan / Tampilkan Panel Metadata (Full Width Mode)">
+        ◀ Sembunyikan Metadata
+      </button>
+
+      <button class="btn btn-outline btn-sm" id="btn-add-step" title="Tambah Test Case Baru">
+        ➕ Tambah TC
+      </button>
+
+      <!-- Dropdown Opsi File JSON & MD -->
+      <div class="dropdown-wrapper">
+        <button class="btn btn-secondary btn-sm" id="btn-file-menu" title="Menu Opsi Impor / Ekspor">
+          ⚙️ File Opsi ▾
+        </button>
+        <div class="dropdown-menu" id="file-menu-dropdown">
+          <button class="dropdown-item" id="btn-import-json">📂 Impor JSON</button>
+          <button class="dropdown-item" id="btn-export-json">💾 Simpan JSON</button>
+          <button class="dropdown-item" id="btn-export-md">📑 Ekspor Markdown</button>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary btn-sm" id="btn-print-pdf" title="Cetak / PDF">
+        🖨️ Cetak / PDF
+      </button>
+
+      <button class="btn btn-primary btn-sm btn-export-word-main" id="btn-export-word" title="Ekspor Dokumen Resmi BNI Word (.docx)">
+        📄 Ekspor Word (.docx)
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-layout">
+    <!-- Left Column: Rich Metadata Panel -->
+    <aside class="sidebar-meta">
+      <div class="card meta-card">
+        <div class="card-header-flex">
+          <h2 class="card-title">⚙️ Metadata Dokumen</h2>
+          <span class="badge" style="background:#0284c7; color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px;">Format BNI EDV</span>
+        </div>
+
+        <!-- UTAMA: NAMA SKENARIO PENGUJIAN -->
+        <div class="form-group" style="background: rgba(2, 132, 199, 0.12); border: 1px solid #0284c7; padding: 7px 9px; border-radius: 6px;">
+          <label for="meta-scenario-name" style="color: #38bdf8; font-weight: 700; font-size: 11px; margin-bottom: 2px;">
+            🎯 Nama Skenario Uji Coba (Scenario)
+          </label>
+          <input type="text" id="meta-scenario-name" class="form-control" style="font-weight: 700; font-size: 12px;" placeholder="Contoh: Perbaikan RAP / Formasi Auditor">
+        </div>
+        
+        <div class="form-group">
+          <label for="meta-title">Judul Dokumen</label>
+          <input type="text" id="meta-title" class="form-control" placeholder="Unit Test Documentation - AMS FAST">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="meta-system">Sistem / Aplikasi</label>
+            <input type="text" id="meta-system" class="form-control" placeholder="AMS FAST">
+          </div>
+          <div class="form-group col">
+            <label for="meta-tc-id">Nomor CR / Defect</label>
+            <input type="text" id="meta-tc-id" class="form-control" placeholder="CR: 52419">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="meta-author">Prepared By (EDV / Penguji)</label>
+            <input type="text" id="meta-author" class="form-control" placeholder="Prepared by EDV Team">
+          </div>
+          <div class="form-group col">
+            <label for="meta-date">Tanggal Uji</label>
+            <input type="text" id="meta-date" class="form-control" placeholder="DD/MM/YYYY">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="meta-env">Environment</label>
+            <input type="text" id="meta-env" class="form-control" placeholder="Development / SIT">
+          </div>
+          <div class="form-group col">
+            <label for="meta-res">Resolusi Layar</label>
+            <input type="text" id="meta-res" class="form-control" placeholder="1366x768" value="1366x768">
+          </div>
+        </div>
+
+        <!-- Accordion for Scope & Preconditions (Saves vertical height on 768px screens) -->
+        <details class="meta-accordion" open>
+          <summary>▼ Lingkup & Prasyarat Pengujian</summary>
+          <div class="meta-accordion-body">
+            <div class="form-group">
+              <label for="meta-objective">Scope / Requirements</label>
+              <textarea id="meta-objective" class="form-control" rows="2" placeholder="Menjelaskan tujuan flow pengujian..."></textarea>
+            </div>
+            <div class="form-group">
+              <label for="meta-precondition">Preparations / Prasyarat</label>
+              <textarea id="meta-precondition" class="form-control" rows="2" placeholder="Prasyarat pengujian..."></textarea>
+            </div>
+          </div>
+        </details>
+
+        <!-- Dynamic Custom Metadata Attributes -->
+        <details class="meta-accordion">
+          <summary>▼ 🏷️ Custom Metadata Tags</summary>
+          <div class="meta-accordion-body">
+            <div class="custom-meta-header">
+              <span class="custom-meta-title">Tag Tambahan</span>
+              <button class="btn btn-outline btn-xs" id="btn-add-meta-field">➕ Tag Baru</button>
+            </div>
+            <div id="custom-meta-container" class="custom-meta-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </details>
+
+        <div class="meta-footer">
+          <button class="btn btn-danger btn-xs" id="btn-reset-steps">
+            🗑 Reset Sesi Ini ke 0
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Column: Step by Step List (Test Cases) -->
+    <section class="content-steps">
+      <div class="steps-header">
+        <h2 class="section-title">
+          Daftar Test Case (<span id="total-step-count">0</span> Test Case)
+        </h2>
+        <div class="steps-filter">
+          <span class="filter-tip">💡 Skenario: <b id="lbl-scenario-preview" style="color:#38bdf8;">Perbaikan RAP</b></span>
+        </div>
+      </div>
+
+      <div id="steps-container" class="steps-list">
+        <!-- Test Case Cards dynamically rendered here -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Image Zoom -->
+  <div id="modal-zoom" class="modal-overlay">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close-btn">&times;</button>
+      <img id="modal-img" src="" alt="Zoom Screenshot">
+    </div>
+  </div>
+
+  <input type="file" id="file-input-json" accept=".json" style="display:none;">
+
+  <script src="editor.js"></script>
+</body>
+</html>

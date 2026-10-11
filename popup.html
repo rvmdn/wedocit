@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>WeDocIt Popup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { width: 330px; background: #0f172a; color: #f8fafc; padding: 14px; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 12px; }
+    .logo-area { display: flex; align-items: center; gap: 8px; }
+    .logo-dot { width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; }
+    .title { font-size: 15px; font-weight: 700; color: #f8fafc; }
+    .version { font-size: 10px; background: #1e293b; color: #94a3b8; padding: 2px 6px; border-radius: 10px; }
+
+    /* Detected Menu Banner */
+    .menu-scanner-card {
+      background: #1e293b;
+      border: 1px solid #0284c7;
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.15);
+    }
+    .menu-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .menu-header-label { font-size: 11px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 4px; }
+    .menu-detected-text { font-size: 12px; font-weight: 600; color: #f1f5f9; line-height: 1.3; margin-bottom: 8px; word-break: break-word; }
+    .menu-actions { display: flex; gap: 6px; }
+    .btn-menu-action {
+      flex: 1;
+      padding: 4px 6px;
+      border-radius: 5px;
+      border: none;
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .btn-menu-primary { background: #0284c7; color: #fff; }
+    .btn-menu-primary:hover { background: #0369a1; }
+    .btn-menu-secondary { background: #334155; color: #cbd5e1; }
+    .btn-menu-secondary:hover { background: #475569; color: #fff; }
+
+    .doc-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .doc-label { font-size: 11px; color: #94a3b8; font-weight: 600; }
+    .doc-select {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      font-weight: 600;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .status-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-info { display: flex; flex-direction: column; gap: 2px; }
+    .status-label { font-size: 11px; color: #94a3b8; }
+    .status-val { font-size: 13px; font-weight: 600; color: #38bdf8; }
+    .steps-pill { background: #0284c7; color: #fff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+
+    .btn-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .btn {
+      width: 100%;
+      padding: 9px 14px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-primary { background: #ef4444; color: #fff; }
+    .btn-primary:hover { background: #dc2626; }
+    .btn-secondary { background: #0284c7; color: #fff; }
+    .btn-secondary:hover { background: #0369a1; }
+    .btn-outline { background: transparent; border: 1px solid #334155; color: #cbd5e1; }
+    .btn-outline:hover { background: #1e293b; color: #fff; }
+
+    .settings-box {
+      border-top: 1px solid #1e293b;
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .setting-item { display: flex; align-items: center; justify-content: space-between; }
+    input[type="checkbox"] { cursor: pointer; accent-color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-dot"></div>
+      <div class="title">WeDocIt</div>
+    </div>
+    <div class="version">v1.0 (ID)</div>
+  </div>
+
+  <!-- HASIL SCAN MENU AKTIF DARI UI -->
+  <div class="menu-scanner-card" id="scanner-box">
+    <div class="menu-header">
+      <span class="menu-header-label">🔍 Menu Halaman Ini:</span>
+      <span id="scan-status" style="font-size:10px; color:#10b981;">● Terdeteksi</span>
+    </div>
+    <div class="menu-detected-text" id="detected-menu-name">Memindai menu aktif di layar...</div>
+    <div id="detected-user-info" style="font-size:11px; color:#94a3b8; margin-bottom:8px; border-top:1px solid #334155; padding-top:6px; display:flex; flex-direction:column; gap:2px;">
+      <div>👤 <span style="color:#64748b;">Penguji:</span> <strong id="lbl-user-name" style="color:#f8fafc;">Memuat...</strong></div>
+      <div>🔑 <span style="color:#64748b;">Role:</span> <strong id="lbl-user-role" style="color:#38bdf8;">Memuat...</strong></div>
+    </div>
+    <div class="menu-actions">
+      <button class="btn-menu-action btn-menu-primary" id="btn-use-menu-new" title="Buat dokumen Unit Test baru sesuai menu halaman ini">
+        ➕ Buat Doc Menu Ini
+      </button>
+      <button class="btn-menu-action btn-menu-secondary" id="btn-use-menu-sync" title="Ganti skenario dokumen aktif saat ini ke menu ini">
+        🔄 Jadikan Skenario
+      </button>
+    </div>
+  </div>
+
+  <!-- DAFTAR DOKUMEN -->
+  <div class="doc-box">
+    <div class="doc-header">
+      <span class="doc-label">📑 Dokumen Unit Test:</span>
+      <button id="pop-btn-new-doc" title="Buat Dokumen Unit Test Baru" style="background:#0284c7; color:#fff; border:none; border-radius:4px; padding:2px 8px; font-size:11px; cursor:pointer; font-weight:700;">➕ Dokumen Baru</button>
+    </div>
+    <select id="pop-doc-selector" class="doc-select">
+    </select>
+  </div>
+
+  <!-- STATUS PEREKAMAN -->
+  <div class="status-card">
+    <div class="status-info">
+      <div class="status-label">Status Perekaman:</div>
+      <div class="status-val" id="rec-status">Siap Merekam</div>
+    </div>
+    <div class="steps-pill" id="step-counter">0 Langkah</div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btn-toggle-recording">
+      ⏺ Mulai Rekam Skenario
+    </button>
+    <button class="btn btn-secondary" id="btn-open-editor">
+      📑 Buka Dokumen Editor
+    </button>
+    <button class="btn btn-outline" id="btn-toggle-widget" style="font-size:12px; padding:7px;">
+      👁️ Buka / Tampilkan Floating Tools
+    </button>
+  </div>
+
+  <div class="settings-box">
+    <div class="setting-item">
+      <span>Auto Screenshot per klik</span>
+      <input type="checkbox" id="chk-auto-shot" checked>
+    </div>
+    <div class="setting-item">
+      <span>Highlight Merah Otomatis</span>
+      <input type="checkbox" id="chk-auto-highlight" checked>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
