@@ -175,18 +175,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = getActiveDoc();
     const m = doc.metadata || {};
 
-    if (metaScenarioName) metaScenarioName.value = m.scenarioName || 'Perbaikan RAP (Manajemen Audit Reguler)';
-    if (lblScenarioPreview) lblScenarioPreview.textContent = m.scenarioName || 'Perbaikan RAP';
-    if (metaTitle) metaTitle.value = m.title || 'Fixing Temuan PTR Modul Audit Pendalaman';
+    const todayStr = new Date().toLocaleDateString('id-ID');
+    const currentYearStr = String(new Date().getFullYear());
+
+    if (metaScenarioName) metaScenarioName.value = m.scenarioName || '';
+    if (lblScenarioPreview) lblScenarioPreview.textContent = m.scenarioName || 'Nama Skenario';
+    if (metaTitle) metaTitle.value = m.title || '';
     if (metaSystem) metaSystem.value = m.systemName || 'Audit Management System (AMS) Aplikasi FAST';
-    if (metaTcId) metaTcId.value = m.testCaseId || 'CR: 52419';
-    if (metaProjectNo) metaProjectNo.value = m.projectNo || '52419';
+    if (metaTcId) metaTcId.value = m.testCaseId || '';
+    if (metaProjectNo) metaProjectNo.value = m.projectNo || '';
     if (metaProjectType) metaProjectType.value = m.projectType || 'CR';
-    if (metaShortDesc) metaShortDesc.value = m.shortDescription || 'Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4';
-    if (metaStartDate) metaStartDate.value = m.startDate || '18 Agustus 2026';
-    if (metaEndDate) metaEndDate.value = m.endDate || '03 September 2026';
-    if (metaDate) metaDate.value = m.docDate || m.date || '21/10/2026';
-    if (metaCopyrightYear) metaCopyrightYear.value = m.copyrightYear || '2026';
+    if (metaShortDesc) metaShortDesc.value = m.shortDescription || '';
+    if (metaStartDate) metaStartDate.value = m.startDate || todayStr;
+    if (metaEndDate) metaEndDate.value = m.endDate || todayStr;
+    if (metaDate) metaDate.value = m.docDate || m.date || todayStr;
+    if (metaCopyrightYear) metaCopyrightYear.value = m.copyrightYear || currentYearStr;
 
     if (metaEnv) metaEnv.value = m.environment || 'Development / SIT';
     if (metaRes) {
@@ -208,10 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     devListContainer.innerHTML = '';
     const doc = getActiveDoc();
     if (!doc.metadata.developers || !Array.isArray(doc.metadata.developers)) {
-      doc.metadata.developers = [
-        { name: "Irvan Ramadan", npp: "822117" },
-        { name: "Raihanudin Rafif", npp: "822082" }
-      ];
+      doc.metadata.developers = [];
     }
 
     doc.metadata.developers.forEach((dev, index) => {
@@ -574,28 +574,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const replacePlaceholders = (xmlStr, isHeader = false) => {
           if (!xmlStr) return xmlStr;
 
-          // Replace Project No & Type
+          // 1. Replace Project No
           if (meta.projectNo) {
+            // Replace generic XML Project No cell value
+            xmlStr = xmlStr.replace(/(<w:t[^>]*>Project No<\/w:t>[\s\S]*?<w:t[^>]*>)([^<]*)(<\/w:t>)/i, `$1${escapeHtml(meta.projectNo)}$3`);
+            // Fallback for specific template value
             xmlStr = xmlStr.replace(/52419/g, escapeHtml(meta.projectNo));
           }
+
+          // 2. Replace Project Type
           if (meta.projectType) {
+            xmlStr = xmlStr.replace(/(<w:t[^>]*>Project Type<\/w:t>[\s\S]*?<w:t[^>]*>)([^<]*)(<\/w:t>)/i, `$1${escapeHtml(meta.projectType)}$3`);
             xmlStr = xmlStr.replace(/<w:t>CR<\/w:t>/g, `<w:t>${escapeHtml(meta.projectType)}</w:t>`);
           }
 
-          // Replace Short Description
+          // 3. Replace Short Description
           if (meta.shortDescription) {
+            xmlStr = xmlStr.replace(/(<w:t[^>]*>Short Description<\/w:t>[\s\S]*?<w:t[^>]*>)([^<]*)(<\/w:t>)/i, `$1${escapeHtml(meta.shortDescription)}$3`);
             xmlStr = xmlStr.replace(/Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4/g, escapeHtml(meta.shortDescription));
           }
 
-          // Replace Judul Dokumen & CR code di cover
+          // 4. Replace Document Title & CR Code
           if (meta.title) {
             xmlStr = xmlStr.replace(/Fixing Temuan PTR Modul Audit Pendalaman/g, escapeHtml(meta.title));
           }
           if (meta.testCaseId) {
+            xmlStr = xmlStr.replace(/CR:\s*[A-Za-z0-9_-]+/g, escapeHtml(meta.testCaseId));
             xmlStr = xmlStr.replace(/CR:\s*XXXXX/g, escapeHtml(meta.testCaseId));
           }
 
-          // Replace Dates
+          // 5. Replace Dates (Start Date & End Date)
           if (meta.startDate) {
             xmlStr = xmlStr.replace(/18\s*Agustus\s*2026|18\s*Agustus\s*202\s*6/g, escapeHtml(meta.startDate));
           }
@@ -604,17 +612,18 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           if (meta.docDate) {
             xmlStr = xmlStr.replace(/21\/10\/2026/g, escapeHtml(meta.docDate));
+            xmlStr = xmlStr.replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, escapeHtml(meta.docDate));
           }
           if (meta.copyrightYear) {
-            xmlStr = xmlStr.replace(/Copyright © \(2026\)/g, `Copyright © (${escapeHtml(meta.copyrightYear)})`);
+            xmlStr = xmlStr.replace(/Copyright © \(\d{4}\)/g, `Copyright © (${escapeHtml(meta.copyrightYear)})`);
           }
 
-          // Replace / Format Developers List
+          // 6. Replace Developer / Penguji List
           if (devs.length > 0) {
             const devHeaderStrings = devs.map(d => `[${d.name || ''}] / ${d.npp || '-'}`).join(' ');
-            // Replace developer names di header
+            // Generic pattern: cell developer di header tabel
+            xmlStr = xmlStr.replace(/(\[[\s\S]*?\]\s*\/\s*[\w-]+)/g, devHeaderStrings);
             xmlStr = xmlStr.replace(/\[\s*Irvan Ramadan\s*\]\s*\/\s*822117/g, devHeaderStrings);
-            // Replace developer names di cover page
             if (devs[0] && devs[0].name) {
               xmlStr = xmlStr.replace(/Irvan Ramadan/g, escapeHtml(devs[0].name));
             }

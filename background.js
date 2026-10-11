@@ -11,6 +11,7 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
   let precondStr = "1. User telah login ke aplikasi New AMS FAST menggunakan role yang memiliki akses ke modul terkait.\n2. Browser: Google Chrome / Microsoft Edge.";
   let customTags = [];
 
+  let defaultDevs = [];
   if (userProfile && (userProfile.nama || userProfile.npp)) {
     authorStr = userProfile.formattedAuthor || `${userProfile.nama} (${userProfile.npp}) - ${userProfile.primaryRole || ''}`.trim();
     precondStr = `1. User telah login ke aplikasi New AMS FAST menggunakan role yang memiliki hak akses modul ini:\n   - Nama / NPP  : ${userProfile.nama} (${userProfile.npp})\n   - Role        : ${userProfile.allRoles || userProfile.primaryRole || '-'}\n   - Unit/Divisi : ${userProfile.divisionName || '-'}\n2. Browser: Google Chrome / Microsoft Edge.`;
@@ -19,40 +20,42 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
       { key: "Role Penguji", value: userProfile.allRoles || userProfile.primaryRole || "" },
       { key: "Divisi", value: userProfile.divisionName || "DIVISI INTERNAL AUDIT" }
     ];
+    defaultDevs.push({
+      name: userProfile.nama || "",
+      npp: userProfile.npp || ""
+    });
   }
+
+  const today = new Date();
+  const formattedToday = today.toLocaleDateString('id-ID');
+  const currentYear = String(today.getFullYear());
+
   return {
     id: docId,
-    createdAt: new Date().toISOString(),
+    createdAt: today.toISOString(),
     metadata: {
       templateType: "BNI_EDV",
       scenarioName: scenarioName || "Pengujian Modul AMS FAST",
-      title: "Fixing Temuan PTR Modul Audit Pendalaman",
+      title: "Unit Test Documentation - " + (scenarioName || "AMS FAST"),
       systemName: "Audit Management System (AMS) Aplikasi FAST",
       testCaseId: crNumber || ("CR: " + Math.floor(10000 + Math.random() * 90000)),
-      projectNo: "52419",
+      projectNo: crNumber ? crNumber.replace(/[^0-9]/g, '') : "",
       projectType: "CR",
-      shortDescription: "Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4",
-      developers: [
-        { name: "Irvan Ramadan", npp: "822117" },
-        { name: "Raihanudin Rafif", npp: "822082" },
-        { name: "Intania Rahmadhilla", npp: "901217" },
-        { name: "Yashmine Hapsari", npp: "901147" },
-        { name: "Rama Almer Felix", npp: "-" }
-      ],
-      startDate: "18 Agustus 2026",
-      endDate: "03 September 2026",
-      docDate: "21/10/2026",
-      copyrightYear: "2026",
+      shortDescription: scenarioName ? ("Pengujian dan verifikasi fitur " + scenarioName) : "Pengujian dan verifikasi modul aplikasi New AMS FAST",
+      developers: defaultDevs,
+      startDate: formattedToday,
+      endDate: formattedToday,
+      docDate: formattedToday,
+      copyrightYear: currentYear,
       author: authorStr,
-      date: new Date().toLocaleDateString('id-ID'),
+      date: formattedToday,
       environment: "Development / SIT",
       screenResolution: "1366x768",
-      objective: "Requirement pengembangan pada CR ini adalah perbaikan temuan PTR AMS FAST - Aplikasi New AMS FAST Fase 3 dan 4.",
-      precondition: "1. User telah login ke aplikasi New AMS FAST menggunakan role yang sesuai.\n2. Penyesuaian Connection String API Backend pada environment.ts telah sesuai.",
-      customFields: [
-        { label: "Nomor CR / Defect", value: crNumber || "CR: 52419" },
-        { label: "Aplikasi", value: "New AMS FAST Fase 3 & 4" },
-        { label: "Scope Pengujian", value: "Perbaikan fitur RAP, RAT, dan Dokumen Persuratan" }
+      objective: "Requirement pengembangan pada modul ini adalah verifikasi alur proses pengujian - Aplikasi New AMS FAST.",
+      precondition: precondStr,
+      customFields: customTags.length > 0 ? customTags.map(t => ({ label: t.key, value: t.value })) : [
+        { label: "Aplikasi", value: "New AMS FAST" },
+        { label: "Scope Pengujian", value: scenarioName || "Unit Testing" }
       ]
     },
     activeTcId: tcId,
