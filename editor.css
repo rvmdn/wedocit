@@ -339,6 +339,54 @@ textarea.form-control {
   gap: 5px;
 }
 
+/* Developer & Penguji List styling */
+.dev-section-box {
+  background: #131c2e;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 7px;
+}
+
+.dev-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.dev-section-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.dev-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.dev-item-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.dev-item-row .dev-name {
+  flex: 1.5;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.dev-item-row .dev-npp {
+  width: 75px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
 .meta-kv-row {
   display: flex;
   gap: 5px;

@@ -39,6 +39,7 @@
     {
       "resources": [
         "editor.html",
+        "libs/*",
         "icons/*"
       ],
       "matches": [

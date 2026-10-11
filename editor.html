@@ -110,12 +110,50 @@
 
         <div class="form-row">
           <div class="form-group col">
-            <label for="meta-author">Prepared By (EDV / Penguji)</label>
-            <input type="text" id="meta-author" class="form-control" placeholder="Prepared by EDV Team">
+            <label for="meta-project-no">Project No</label>
+            <input type="text" id="meta-project-no" class="form-control" placeholder="52419">
           </div>
           <div class="form-group col">
-            <label for="meta-date">Tanggal Uji</label>
-            <input type="text" id="meta-date" class="form-control" placeholder="DD/MM/YYYY">
+            <label for="meta-project-type">Project Type</label>
+            <input type="text" id="meta-project-type" class="form-control" placeholder="CR">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="meta-short-desc">Short Description (Header)</label>
+          <input type="text" id="meta-short-desc" class="form-control" placeholder="Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4">
+        </div>
+
+        <!-- Section Penguji / Developer List (Nama & NPP) -->
+        <div class="dev-section-box">
+          <div class="dev-section-header">
+            <span class="dev-section-title">👨‍💻 Tim Penguji / Developer (Nama & NPP)</span>
+            <button type="button" class="btn btn-outline btn-xs" id="btn-add-dev">➕ Tambah</button>
+          </div>
+          <div id="dev-list-container" class="dev-list-container">
+            <!-- Dynamic Developers List -->
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="meta-start-date">Start Date</label>
+            <input type="text" id="meta-start-date" class="form-control" placeholder="18 Agustus 2026">
+          </div>
+          <div class="form-group col">
+            <label for="meta-end-date">End Date</label>
+            <input type="text" id="meta-end-date" class="form-control" placeholder="03 September 2026">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="meta-date">Tanggal Dokumen (Release)</label>
+            <input type="text" id="meta-date" class="form-control" placeholder="21/10/2026">
+          </div>
+          <div class="form-group col">
+            <label for="meta-copyright-year">Tahun Copyright</label>
+            <input type="text" id="meta-copyright-year" class="form-control" placeholder="2026" value="2026">
           </div>
         </div>
 
@@ -127,6 +165,20 @@
           <div class="form-group col">
             <label for="meta-res">Resolusi Layar</label>
             <input type="text" id="meta-res" class="form-control" placeholder="1366x768" value="1366x768">
+          </div>
+        </div>
+
+        <!-- File Template DOCX Option -->
+        <div class="form-group" style="margin-top: 6px; padding: 7px 9px; background: rgba(56, 189, 248, 0.08); border: 1px dashed #0284c7; border-radius: 6px;">
+          <label style="font-size: 11px; color: #38bdf8; font-weight: 700; margin-bottom: 3px; display:block;">
+            📎 Template .DOCX BNI (Opsional)
+          </label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input type="file" id="template-docx-file" accept=".docx" style="display:none;">
+            <button type="button" class="btn btn-secondary btn-xs" id="btn-choose-template" style="white-space:nowrap;">
+              📂 Unggah Template .docx
+            </button>
+            <span id="lbl-template-name" style="font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Template Standar BNI EDV</span>
           </div>
         </div>
 
@@ -194,6 +246,7 @@
 
   <input type="file" id="file-input-json" accept=".json" style="display:none;">
 
+  <script src="libs/jszip.min.js"></script>
   <script src="editor.js"></script>
 </body>
 </html>

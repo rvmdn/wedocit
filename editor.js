@@ -15,8 +15,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const metaTitle = document.getElementById('meta-title');
   const metaSystem = document.getElementById('meta-system');
   const metaTcId = document.getElementById('meta-tc-id');
-  const metaAuthor = document.getElementById('meta-author');
+  const metaProjectNo = document.getElementById('meta-project-no');
+  const metaProjectType = document.getElementById('meta-project-type');
+  const metaShortDesc = document.getElementById('meta-short-desc');
+  const devListContainer = document.getElementById('dev-list-container');
+  const btnAddDev = document.getElementById('btn-add-dev');
+  const metaStartDate = document.getElementById('meta-start-date');
+  const metaEndDate = document.getElementById('meta-end-date');
   const metaDate = document.getElementById('meta-date');
+  const metaCopyrightYear = document.getElementById('meta-copyright-year');
+  const templateDocxFile = document.getElementById('template-docx-file');
+  const btnChooseTemplate = document.getElementById('btn-choose-template');
+  const lblTemplateName = document.getElementById('lbl-template-name');
+  let customDocxTemplateBuffer = null;
+
   const metaEnv = document.getElementById('meta-env');
   const metaRes = document.getElementById('meta-res');
   const metaObjective = document.getElementById('meta-objective');
@@ -165,11 +177,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (metaScenarioName) metaScenarioName.value = m.scenarioName || 'Perbaikan RAP (Manajemen Audit Reguler)';
     if (lblScenarioPreview) lblScenarioPreview.textContent = m.scenarioName || 'Perbaikan RAP';
-    if (metaTitle) metaTitle.value = m.title || 'Unit Test Documentation - AMS FAST';
-    if (metaSystem) metaSystem.value = m.systemName || 'AMS FAST (Audit Management System)';
-    if (metaTcId) metaTcId.value = m.testCaseId || 'CR: 52419 - Unit Test';
-    if (metaAuthor) metaAuthor.value = m.author || 'Prepared by EDV Team';
-    if (metaDate) metaDate.value = m.date || new Date().toLocaleDateString('id-ID');
+    if (metaTitle) metaTitle.value = m.title || 'Fixing Temuan PTR Modul Audit Pendalaman';
+    if (metaSystem) metaSystem.value = m.systemName || 'Audit Management System (AMS) Aplikasi FAST';
+    if (metaTcId) metaTcId.value = m.testCaseId || 'CR: 52419';
+    if (metaProjectNo) metaProjectNo.value = m.projectNo || '52419';
+    if (metaProjectType) metaProjectType.value = m.projectType || 'CR';
+    if (metaShortDesc) metaShortDesc.value = m.shortDescription || 'Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4';
+    if (metaStartDate) metaStartDate.value = m.startDate || '18 Agustus 2026';
+    if (metaEndDate) metaEndDate.value = m.endDate || '03 September 2026';
+    if (metaDate) metaDate.value = m.docDate || m.date || '21/10/2026';
+    if (metaCopyrightYear) metaCopyrightYear.value = m.copyrightYear || '2026';
+
     if (metaEnv) metaEnv.value = m.environment || 'Development / SIT';
     if (metaRes) {
       if (!m.screenResolution || m.screenResolution === '1707x1067' || m.screenResolution === '1280x1024') {
@@ -180,9 +198,83 @@ document.addEventListener('DOMContentLoaded', () => {
     if (metaObjective) metaObjective.value = m.objective || '';
     if (metaPrecondition) metaPrecondition.value = m.precondition || '';
 
+    renderDevelopersList();
     renderCustomMetaFields();
     renderTestCases();
   }
+
+  function renderDevelopersList() {
+    if (!devListContainer) return;
+    devListContainer.innerHTML = '';
+    const doc = getActiveDoc();
+    if (!doc.metadata.developers || !Array.isArray(doc.metadata.developers)) {
+      doc.metadata.developers = [
+        { name: "Irvan Ramadan", npp: "822117" },
+        { name: "Raihanudin Rafif", npp: "822082" }
+      ];
+    }
+
+    doc.metadata.developers.forEach((dev, index) => {
+      const row = document.createElement('div');
+      row.className = 'dev-item-row';
+      row.innerHTML = `
+        <input type="text" class="form-control dev-name" value="${escapeHtml(dev.name || '')}" placeholder="Nama Lengkap">
+        <input type="text" class="form-control dev-npp" value="${escapeHtml(dev.npp || '')}" placeholder="NPP">
+        <button type="button" class="btn btn-danger btn-sm btn-del-dev" style="padding:2px 6px; font-size:11px;" title="Hapus developer">&times;</button>
+      `;
+
+      const nameInput = row.querySelector('.dev-name');
+      const nppInput = row.querySelector('.dev-npp');
+      const delBtn = row.querySelector('.btn-del-dev');
+
+      nameInput.addEventListener('input', () => {
+        dev.name = nameInput.value;
+        saveActiveDocState();
+      });
+
+      nppInput.addEventListener('input', () => {
+        dev.npp = nppInput.value;
+        saveActiveDocState();
+      });
+
+      delBtn.addEventListener('click', () => {
+        doc.metadata.developers.splice(index, 1);
+        saveActiveDocState();
+        renderDevelopersList();
+      });
+
+      devListContainer.appendChild(row);
+    });
+  }
+
+  btnAddDev?.addEventListener('click', () => {
+    const doc = getActiveDoc();
+    if (!doc.metadata.developers) doc.metadata.developers = [];
+    doc.metadata.developers.push({ name: "", npp: "" });
+    saveActiveDocState();
+    renderDevelopersList();
+  });
+
+  // Template DOCX upload handling
+  btnChooseTemplate?.addEventListener('click', () => {
+    templateDocxFile?.click();
+  });
+
+  templateDocxFile?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        customDocxTemplateBuffer = loadEvt.target.result;
+        if (lblTemplateName) {
+          lblTemplateName.textContent = '✅ ' + file.name;
+          lblTemplateName.style.color = '#38bdf8';
+        }
+        alert(`Template "${file.name}" berhasil dimuat! Saat Anda klik "Ekspor Word", placeholder akan langsung di-replace ke dalam dokumen template ini.`);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  });
 
   function renderCustomMetaFields() {
     if (!customMetaContainer) return;
@@ -232,21 +324,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function saveActiveDocState() {
     const doc = getActiveDoc();
+    const devs = doc.metadata?.developers || [];
+    const formattedAuthors = devs.map(d => d.name ? `${d.name} / ${d.npp || '-'}` : '').filter(Boolean).join(', ');
+
     doc.metadata = {
       ...doc.metadata,
-      scenarioName: metaScenarioName.value,
-      title: metaTitle.value,
-      systemName: metaSystem.value,
-      testCaseId: metaTcId.value,
-      author: metaAuthor.value,
-      date: metaDate.value,
-      environment: metaEnv.value,
-      screenResolution: metaRes.value || '1366x768',
-      objective: metaObjective.value,
-      precondition: metaPrecondition.value,
+      scenarioName: metaScenarioName ? metaScenarioName.value : '',
+      title: metaTitle ? metaTitle.value : '',
+      systemName: metaSystem ? metaSystem.value : '',
+      testCaseId: metaTcId ? metaTcId.value : '',
+      projectNo: metaProjectNo ? metaProjectNo.value : '',
+      projectType: metaProjectType ? metaProjectType.value : 'CR',
+      shortDescription: metaShortDesc ? metaShortDesc.value : '',
+      developers: devs,
+      author: formattedAuthors || 'Prepared by EDV Team',
+      startDate: metaStartDate ? metaStartDate.value : '',
+      endDate: metaEndDate ? metaEndDate.value : '',
+      docDate: metaDate ? metaDate.value : '',
+      date: metaDate ? metaDate.value : new Date().toLocaleDateString('id-ID'),
+      copyrightYear: metaCopyrightYear ? metaCopyrightYear.value : '2026',
+      environment: metaEnv ? metaEnv.value : '',
+      screenResolution: metaRes ? (metaRes.value || '1366x768') : '1366x768',
+      objective: metaObjective ? metaObjective.value : '',
+      precondition: metaPrecondition ? metaPrecondition.value : '',
       customFields: doc.metadata.customFields || []
     };
-    if (lblScenarioPreview) lblScenarioPreview.textContent = metaScenarioName.value;
+    if (lblScenarioPreview) lblScenarioPreview.textContent = doc.metadata.scenarioName;
     chrome.runtime.sendMessage({
       type: 'UPDATE_STATE',
       payload: { documents: sessionData.documents }
@@ -254,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDocSelector();
   }
 
-  [metaScenarioName, metaTitle, metaSystem, metaTcId, metaAuthor, metaDate, metaEnv, metaRes, metaObjective, metaPrecondition].forEach(el => {
+  [metaScenarioName, metaTitle, metaSystem, metaTcId, metaProjectNo, metaProjectType, metaShortDesc, metaStartDate, metaEndDate, metaDate, metaCopyrightYear, metaEnv, metaRes, metaObjective, metaPrecondition].forEach(el => {
     el?.addEventListener('input', saveActiveDocState);
   });
 
@@ -452,15 +555,108 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
-  // EXPORT WORD: 100% IDENTICAL TO BNI EDV UNIT TEST (EDV_Unit_Test_AMS FAST PTR v.1.0.docx)
+  // EXPORT WORD: DUAL ENGINE (NATIVE DOCX TEMPLATE REPLACER + CLEAN DOC EXPORT)
   // =========================================================================
-  btnExportWord?.addEventListener('click', () => {
+  btnExportWord?.addEventListener('click', async () => {
     saveActiveDocState();
     const doc = getActiveDoc();
     const meta = doc.metadata || {};
     const tcs = doc.testCases || [];
     const scenarioName = meta.scenarioName || 'Perbaikan RAP';
+    const devs = meta.developers || [];
 
+    // JIKA USER MEMILIH TEMPLATE DOCX (ATAU FILE TEMPLATE DIUNGGAH)
+    if (customDocxTemplateBuffer && window.JSZip) {
+      try {
+        const zip = await JSZip.loadAsync(customDocxTemplateBuffer);
+        
+        // Helper replace XML string
+        const replacePlaceholders = (xmlStr, isHeader = false) => {
+          if (!xmlStr) return xmlStr;
+
+          // Replace Project No & Type
+          if (meta.projectNo) {
+            xmlStr = xmlStr.replace(/52419/g, escapeHtml(meta.projectNo));
+          }
+          if (meta.projectType) {
+            xmlStr = xmlStr.replace(/<w:t>CR<\/w:t>/g, `<w:t>${escapeHtml(meta.projectType)}</w:t>`);
+          }
+
+          // Replace Short Description
+          if (meta.shortDescription) {
+            xmlStr = xmlStr.replace(/Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4/g, escapeHtml(meta.shortDescription));
+          }
+
+          // Replace Judul Dokumen & CR code di cover
+          if (meta.title) {
+            xmlStr = xmlStr.replace(/Fixing Temuan PTR Modul Audit Pendalaman/g, escapeHtml(meta.title));
+          }
+          if (meta.testCaseId) {
+            xmlStr = xmlStr.replace(/CR:\s*XXXXX/g, escapeHtml(meta.testCaseId));
+          }
+
+          // Replace Dates
+          if (meta.startDate) {
+            xmlStr = xmlStr.replace(/18\s*Agustus\s*2026|18\s*Agustus\s*202\s*6/g, escapeHtml(meta.startDate));
+          }
+          if (meta.endDate) {
+            xmlStr = xmlStr.replace(/03\s*September\s*2026|03\s*September\s*202\s*6/g, escapeHtml(meta.endDate));
+          }
+          if (meta.docDate) {
+            xmlStr = xmlStr.replace(/21\/10\/2026/g, escapeHtml(meta.docDate));
+          }
+          if (meta.copyrightYear) {
+            xmlStr = xmlStr.replace(/Copyright © \(2026\)/g, `Copyright © (${escapeHtml(meta.copyrightYear)})`);
+          }
+
+          // Replace / Format Developers List
+          if (devs.length > 0) {
+            const devHeaderStrings = devs.map(d => `[${d.name || ''}] / ${d.npp || '-'}`).join(' ');
+            // Replace developer names di header
+            xmlStr = xmlStr.replace(/\[\s*Irvan Ramadan\s*\]\s*\/\s*822117/g, devHeaderStrings);
+            // Replace developer names di cover page
+            if (devs[0] && devs[0].name) {
+              xmlStr = xmlStr.replace(/Irvan Ramadan/g, escapeHtml(devs[0].name));
+            }
+          }
+
+          return xmlStr;
+        };
+
+        // Update word/header1.xml
+        const headerFile = zip.file('word/header1.xml');
+        if (headerFile) {
+          const headerXml = await headerFile.async('text');
+          const updatedHeaderXml = replacePlaceholders(headerXml, true);
+          zip.file('word/header1.xml', updatedHeaderXml);
+        }
+
+        // Update word/document.xml
+        const docFile = zip.file('word/document.xml');
+        if (docFile) {
+          const docXml = await docFile.async('text');
+          const updatedDocXml = replacePlaceholders(docXml, false);
+          zip.file('word/document.xml', updatedDocXml);
+        }
+
+        // Generate and download modified docx
+        const newDocxBlob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        const url = URL.createObjectURL(newDocxBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (meta.testCaseId || 'Unit_Test').replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + (scenarioName || 'AMS').replace(/[^a-zA-Z0-9_-]/g, '_') + '.docx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      } catch (err) {
+        console.error('Error modifying docx template:', err);
+        alert('Gagal memproses file template .docx. Beralih ke ekspor dokumen standar.');
+      }
+    }
+
+    // FALLBACK / STANDAR EXPORT (HTML Word Document yang kompatibel 100% dengan MS Word)
     let tableRowsHtml = '';
     const totalTcs = tcs.length || 1;
 
@@ -537,6 +733,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `;
     });
+
+    const devHeaderString = devs.map(d => `${d.name} (${d.npp || '-'})`).join(', ');
 
     const docContent = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -631,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="doc-header">
           <h1>${escapeHtml(meta.title)}</h1>
           <p class="doc-subtitle">${escapeHtml(meta.systemName)} | ${escapeHtml(meta.testCaseId)}</p>
-          <p style="font-size: 9.5pt; color: #555; margin: 4px 0 0 0;">${escapeHtml(meta.author)} | Tanggal: ${escapeHtml(meta.date)}</p>
+          <p style="font-size: 9.5pt; color: #555; margin: 4px 0 0 0;">${escapeHtml(devHeaderString || meta.author)} | Tanggal: ${escapeHtml(meta.docDate || meta.date)}</p>
         </div>
 
         <h2>A. Business Requirements & Scope</h2>
@@ -643,14 +841,20 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>${escapeHtml(meta.testCaseId)}</td>
           </tr>
           <tr>
+            <td class="meta-label">Project No / Type</td>
+            <td>${escapeHtml(meta.projectNo || '-')} (${escapeHtml(meta.projectType || 'CR')})</td>
+            <td class="meta-label">Short Description</td>
+            <td>${escapeHtml(meta.shortDescription || '-')}</td>
+          </tr>
+          <tr>
             <td class="meta-label">Skenario Uji Utama</td>
             <td colspan="3" style="font-weight: bold; color: #003366;">${escapeHtml(scenarioName)}</td>
           </tr>
           <tr>
-            <td class="meta-label">Prepared By (EDV)</td>
-            <td>${escapeHtml(meta.author)}</td>
-            <td class="meta-label">Tanggal Pelaksanaan</td>
-            <td>${escapeHtml(meta.date)}</td>
+            <td class="meta-label">Tim Developer / EDV</td>
+            <td>${escapeHtml(devHeaderString || meta.author)}</td>
+            <td class="meta-label">Periode Pengerjaan</td>
+            <td>${escapeHtml(meta.startDate || '-')} s/d ${escapeHtml(meta.endDate || '-')}</td>
           </tr>
           <tr>
             <td class="meta-label">Environment Target</td>
@@ -703,7 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <td style="text-align: center; border: none; width: 50%;">
                 <p>Prepared by (EDV / Tester):</p>
                 <br><br><br><br>
-                <p><b>( ${escapeHtml(meta.author || '........................................')} )</b></p>
+                <p><b>( ${escapeHtml(devHeaderString || meta.author || '........................................')} )</b></p>
               </td>
               <td style="text-align: center; border: none; width: 50%;">
                 <p>Reviewed & Approved by (Lead / PKA):</p>
