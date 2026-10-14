@@ -40,7 +40,8 @@
       "resources": [
         "editor.html",
         "libs/*",
-        "icons/*"
+        "icons/*",
+        "templates/*"
       ],
       "matches": [
         "<all_urls>"

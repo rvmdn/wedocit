@@ -18,9 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const lblUserRole = document.getElementById('lbl-user-role');
 
   let activeScannedContext = {
-    menuName: 'Halaman AMS FAST',
+    menuName: 'Halaman Pengujian',
     breadcrumbPath: '',
-    scenarioName: 'Pengujian Modul AMS FAST'
+    scenarioName: 'Pengujian Alur Modul'
   };
 
   // SCAN ACTIVE TAB UI
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function fallbackScan(tab) {
-    const title = tab.title ? tab.title.split(/[-–|]/)[0].trim() : 'Halaman AMS FAST';
+    const title = tab.title ? tab.title.split(/[-–|]/)[0].trim() : 'Halaman Pengujian';
     activeScannedContext = {
       menuName: title,
       breadcrumbPath: '',
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function displayScannedContext(ctx) {
     if (detectedMenuNameEl) {
-      detectedMenuNameEl.textContent = ctx.breadcrumbPath || ctx.menuName || 'Halaman AMS FAST';
+      detectedMenuNameEl.textContent = ctx.breadcrumbPath || ctx.menuName || 'Halaman Pengujian';
     }
     if (scanStatusEl) {
       scanStatusEl.textContent = '● Terdeteksi dari Layar';
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnUseMenuNew?.addEventListener('click', () => {
     const sc = prompt(
       'Konfirmasi Nama Skenario Dokumen Unit Test Baru:',
-      activeScannedContext.scenarioName || 'Pengujian Modul AMS FAST'
+      activeScannedContext.scenarioName || 'Pengujian Alur Modul'
     );
     if (!sc) return;
     const cr = prompt('Nomor CR / Defect:', 'CR: Unit Test - ' + (activeScannedContext.menuName || ''));
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnUseMenuSync?.addEventListener('click', () => {
     const sc = prompt(
       'Ubah Skenario Dokumen Aktif ke Menu Ini:',
-      activeScannedContext.scenarioName || 'Pengujian Modul AMS FAST'
+      activeScannedContext.scenarioName || 'Pengujian Alur Modul'
     );
     if (!sc) return;
     chrome.runtime.sendMessage({
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
   popBtnNewDoc?.addEventListener('click', () => {
     const sc = prompt(
       'Masukkan Nama Skenario Dokumen Unit Test Baru:',
-      activeScannedContext.scenarioName || 'Pengujian Modul AMS FAST'
+      activeScannedContext.scenarioName || 'Pengujian Alur Modul'
     );
     if (!sc) return;
     const cr = prompt('Masukkan Nomor CR / Defect:', 'CR: Unit Test - ' + (activeScannedContext.menuName || ''));

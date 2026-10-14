@@ -53,3 +53,7 @@ logs/
 scratch/
 tmp/
 temp/
+
+# User Word Templates (agar file template internal/korporat tidak ikut ter-push ke GitHub)
+templates/*
+!templates/README.md

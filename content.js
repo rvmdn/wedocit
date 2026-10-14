@@ -1006,11 +1006,10 @@
   async function fetchUserProfile() {
     if (cachedUserProfile) return cachedUserProfile;
 
-    // 1. Direct fetch ke endpoint Profile AMS FAST dengan session cookies browser
+    // 1. Direct fetch ke endpoint Profile dengan session cookies browser
     const endpoints = [
       '/api/Auth/Profile',
-      '/Auth/Profile',
-      'https://amsfast.bni.co.id/api/Auth/Profile'
+      '/Auth/Profile'
     ];
 
     for (const ep of endpoints) {

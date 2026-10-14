@@ -8,17 +8,17 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
   const tcId = 'tc_' + Date.now();
   
   let authorStr = "Prepared by EDV Team";
-  let precondStr = "1. User telah login ke aplikasi New AMS FAST menggunakan role yang memiliki akses ke modul terkait.\n2. Browser: Google Chrome / Microsoft Edge.";
+  let precondStr = "1. User telah login ke aplikasi web menggunakan role yang memiliki akses ke modul terkait.\n2. Browser: Google Chrome / Microsoft Edge.";
   let customTags = [];
 
   let defaultDevs = [];
   if (userProfile && (userProfile.nama || userProfile.npp)) {
     authorStr = userProfile.formattedAuthor || `${userProfile.nama} (${userProfile.npp}) - ${userProfile.primaryRole || ''}`.trim();
-    precondStr = `1. User telah login ke aplikasi New AMS FAST menggunakan role yang memiliki hak akses modul ini:\n   - Nama / NPP  : ${userProfile.nama} (${userProfile.npp})\n   - Role        : ${userProfile.allRoles || userProfile.primaryRole || '-'}\n   - Unit/Divisi : ${userProfile.divisionName || '-'}\n2. Browser: Google Chrome / Microsoft Edge.`;
+    precondStr = `1. User telah login ke aplikasi web menggunakan role yang memiliki hak akses modul ini:\n   - Nama / NPP  : ${userProfile.nama} (${userProfile.npp})\n   - Role        : ${userProfile.allRoles || userProfile.primaryRole || '-'}\n   - Unit/Divisi : ${userProfile.divisionName || '-'}\n2. Browser: Google Chrome / Microsoft Edge.`;
     customTags = [
       { key: "Penguji (NPP)", value: `${userProfile.nama} (${userProfile.npp})` },
       { key: "Role Penguji", value: userProfile.allRoles || userProfile.primaryRole || "" },
-      { key: "Divisi", value: userProfile.divisionName || "DIVISI INTERNAL AUDIT" }
+      { key: "Divisi", value: userProfile.divisionName || "IT Development" }
     ];
     defaultDevs.push({
       name: userProfile.nama || "",
@@ -35,13 +35,13 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
     createdAt: today.toISOString(),
     metadata: {
       templateType: "BNI_EDV",
-      scenarioName: scenarioName || "Pengujian Modul AMS FAST",
-      title: "Unit Test Documentation - " + (scenarioName || "AMS FAST"),
-      systemName: "Audit Management System (AMS) Aplikasi FAST",
+      scenarioName: scenarioName || "Pengujian Alur Modul",
+      title: "Unit Test Documentation - " + (scenarioName || "Unit Test"),
+      systemName: "Sistem Informasi / Web Application",
       testCaseId: crNumber || ("CR: " + Math.floor(10000 + Math.random() * 90000)),
       projectNo: crNumber ? crNumber.replace(/[^0-9]/g, '') : "",
       projectType: "CR",
-      shortDescription: scenarioName ? ("Pengujian dan verifikasi fitur " + scenarioName) : "Pengujian dan verifikasi modul aplikasi New AMS FAST",
+      shortDescription: scenarioName ? ("Pengujian dan verifikasi fitur " + scenarioName) : "Pengujian dan verifikasi modul aplikasi",
       developers: defaultDevs,
       startDate: formattedToday,
       endDate: formattedToday,
@@ -51,10 +51,10 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
       date: formattedToday,
       environment: "Development / SIT",
       screenResolution: "1366x768",
-      objective: "Requirement pengembangan pada modul ini adalah verifikasi alur proses pengujian - Aplikasi New AMS FAST.",
+      objective: "Requirement pengembangan pada modul ini adalah verifikasi alur proses pengujian fitur terkait.",
       precondition: precondStr,
       customFields: customTags.length > 0 ? customTags.map(t => ({ label: t.key, value: t.value })) : [
-        { label: "Aplikasi", value: "New AMS FAST" },
+        { label: "Tipe Pengujian", value: "Unit Test" },
         { label: "Scope Pengujian", value: scenarioName || "Unit Testing" }
       ]
     },
@@ -76,7 +76,7 @@ function initStorage() {
   chrome.storage.local.get(['sessionData'], (res) => {
     let data = res.sessionData;
     if (!data || !data.documents || data.documents.length === 0) {
-      const defaultDoc = createDefaultDoc("Pengujian Modul AMS FAST", "CR: Unit Test");
+      const defaultDoc = createDefaultDoc("Pengujian Alur Modul", "CR: Unit Test");
       data = {
         isRecording: false,
         isPaused: false,
@@ -151,7 +151,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.userProfile && (message.userProfile.nama || message.userProfile.npp)) {
           const u = message.userProfile;
           activeDoc.metadata.author = u.formattedAuthor || `${u.nama} (${u.npp}) - ${u.primaryRole || ''}`.trim();
-          activeDoc.metadata.precondition = `1. User telah login ke aplikasi New AMS FAST menggunakan role yang memiliki hak akses modul ini:\n   - Nama / NPP  : ${u.nama} (${u.npp})\n   - Role        : ${u.allRoles || u.primaryRole || '-'}\n   - Unit/Divisi : ${u.divisionName || '-'}\n2. Browser: Google Chrome / Microsoft Edge.`;
+          activeDoc.metadata.precondition = `1. User telah login ke aplikasi web menggunakan role yang memiliki hak akses modul ini:\n   - Nama / NPP  : ${u.nama} (${u.npp})\n   - Role        : ${u.allRoles || u.primaryRole || '-'}\n   - Unit/Divisi : ${u.divisionName || '-'}\n2. Browser: Google Chrome / Microsoft Edge.`;
           if (!activeDoc.metadata.customFields) activeDoc.metadata.customFields = [];
           if (!activeDoc.metadata.customFields.some(f => f.key === 'Penguji (NPP)')) {
             activeDoc.metadata.customFields.push({ key: "Penguji (NPP)", value: `${u.nama} (${u.npp})` });

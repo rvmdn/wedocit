@@ -37,7 +37,7 @@
 ---
 
 ## 📖 Cara Penggunaan
-1. Buka aplikasi web yang ingin diuji (misal: AMS Fast).
+1. Buka aplikasi web yang ingin diuji.
 2. Klik tombol **Mulai Rekam** pada floating bar di pojok kanan bawah (atau via icon popup WeDocIt).
 3. Lakukan alur pengujian seperti biasa.
 4. Setelah selesai, klik **⏹ Selesai**.

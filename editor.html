@@ -68,7 +68,17 @@
         🖨️ Cetak / PDF
       </button>
 
-      <button class="btn btn-primary btn-sm btn-export-word-main" id="btn-export-word" title="Ekspor Dokumen Resmi BNI Word (.docx)">
+      <!-- Format Export Selector -->
+      <div class="export-format-wrapper" style="display: flex; align-items: center; gap: 6px; background: #162032; padding: 2px 8px; border-radius: 6px; border: 1px solid #23354d;">
+        <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">Format:</span>
+        <select id="export-format-select" class="form-control" style="font-size: 11px; padding: 2px 6px; height: 26px; width: auto; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-weight: 600; cursor: pointer;">
+          <option value="bni_edv" selected>🏛️ EDV - BNI (Template Resmi)</option>
+          <option value="standard">📄 Umum (Standar WeDocIt)</option>
+          <option value="custom">📎 Template Kustom...</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary btn-sm btn-export-word-main" id="btn-export-word" title="Ekspor Dokumen Word (.docx)">
         📄 Ekspor Word (.docx)
       </button>
     </div>
@@ -89,29 +99,29 @@
           <label for="meta-scenario-name" style="color: #38bdf8; font-weight: 700; font-size: 11px; margin-bottom: 2px;">
             🎯 Nama Skenario Uji Coba (Scenario)
           </label>
-          <input type="text" id="meta-scenario-name" class="form-control" style="font-weight: 700; font-size: 12px;" placeholder="Contoh: Perbaikan RAP / Formasi Auditor">
+          <input type="text" id="meta-scenario-name" class="form-control" style="font-weight: 700; font-size: 12px;" placeholder="Contoh: Modul Pelaksanaan Audit / Verifikasi Alur">
         </div>
         
         <div class="form-group">
           <label for="meta-title">Judul Dokumen</label>
-          <input type="text" id="meta-title" class="form-control" placeholder="Unit Test Documentation - AMS FAST">
+          <input type="text" id="meta-title" class="form-control" placeholder="Unit Test Documentation - Nama Modul">
         </div>
 
         <div class="form-row">
           <div class="form-group col">
             <label for="meta-system">Sistem / Aplikasi</label>
-            <input type="text" id="meta-system" class="form-control" placeholder="AMS FAST">
+            <input type="text" id="meta-system" class="form-control" placeholder="Nama Aplikasi / Sistem">
           </div>
           <div class="form-group col">
             <label for="meta-tc-id">Nomor CR / Defect</label>
-            <input type="text" id="meta-tc-id" class="form-control" placeholder="CR: 52419">
+            <input type="text" id="meta-tc-id" class="form-control" placeholder="CR: 12345">
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group col">
             <label for="meta-project-no">Project No</label>
-            <input type="text" id="meta-project-no" class="form-control" placeholder="52419">
+            <input type="text" id="meta-project-no" class="form-control" placeholder="12345">
           </div>
           <div class="form-group col">
             <label for="meta-project-type">Project Type</label>
@@ -121,7 +131,7 @@
 
         <div class="form-group">
           <label for="meta-short-desc">Short Description (Header)</label>
-          <input type="text" id="meta-short-desc" class="form-control" placeholder="Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4">
+          <input type="text" id="meta-short-desc" class="form-control" placeholder="Deskripsi singkat perbaikan / pengujian modul">
         </div>
 
         <!-- Section Penguji / Developer List (Nama & NPP) -->
@@ -159,40 +169,72 @@
 
         <div class="form-row">
           <div class="form-group col">
+            <label for="meta-doc-version">Versi Dokumen</label>
+            <input type="text" id="meta-doc-version" class="form-control" placeholder="V1.0" value="V1.0">
+          </div>
+          <div class="form-group col">
             <label for="meta-env">Environment</label>
             <input type="text" id="meta-env" class="form-control" placeholder="Development / SIT">
           </div>
+        </div>
+
+        <div class="form-row">
           <div class="form-group col">
             <label for="meta-res">Resolusi Layar</label>
             <input type="text" id="meta-res" class="form-control" placeholder="1366x768" value="1366x768">
           </div>
         </div>
 
-        <!-- File Template DOCX Option -->
-        <div class="form-group" style="margin-top: 6px; padding: 7px 9px; background: rgba(56, 189, 248, 0.08); border: 1px dashed #0284c7; border-radius: 6px;">
-          <label style="font-size: 11px; color: #38bdf8; font-weight: 700; margin-bottom: 3px; display:block;">
-            📎 Template .DOCX BNI (Opsional)
-          </label>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <input type="file" id="template-docx-file" accept=".docx" style="display:none;">
-            <button type="button" class="btn btn-secondary btn-xs" id="btn-choose-template" style="white-space:nowrap;">
-              📂 Unggah Template .docx
-            </button>
-            <span id="lbl-template-name" style="font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Template Standar BNI EDV</span>
+        <!-- Live File Name Preview -->
+        <div style="margin-top: 4px; margin-bottom: 6px; padding: 6px 9px; background: #0f172a; border: 1px solid #1e293b; border-radius: 6px;">
+          <div style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">📁 Format Nama File Unduhan:</div>
+          <div id="lbl-filename-preview" style="font-size: 11px; font-weight: 700; color: #38bdf8; word-break: break-all; font-family: monospace;">
+            EDV_Unit_Test_CR_xxxxx_Pelaksanaan_Audit_V1.0.docx
           </div>
         </div>
 
-        <!-- Accordion for Scope & Preconditions (Saves vertical height on 768px screens) -->
+        <!-- File Template DOCX Option -->
+        <div class="template-config-box" style="margin-top: 6px; padding: 8px 10px; background: rgba(2, 132, 199, 0.08); border: 1px dashed #0284c7; border-radius: 6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+            <label style="font-size: 11px; color: #38bdf8; font-weight: 700; margin: 0;">
+              📎 Template .DOCX BNI / Custom
+            </label>
+            <span id="badge-template-status" style="font-size: 9.5px; background: #162032; color: #94a3b8; padding: 2px 6px; border-radius: 4px; border: 1px solid #23354d;">
+              Mengecek folder...
+            </span>
+          </div>
+
+          <div style="font-size: 10px; color: #94a3b8; line-height: 1.35; margin-bottom: 6px;">
+            Taruh file template resmi Anda di folder:<br>
+            <code style="background:#0f172a; color:#38bdf8; padding:1px 4px; border-radius:3px; word-break:break-all;">wedocit/templates/template-bni-edv.docx</code>
+          </div>
+
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input type="file" id="template-docx-file" accept=".docx" style="display:none;">
+            <button type="button" class="btn btn-secondary btn-xs" id="btn-choose-template" style="white-space:nowrap; font-size:10.5px;">
+              📂 Unggah / Ganti Template
+            </button>
+            <span id="lbl-template-name" style="font-size: 10px; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              template-bni-edv.docx
+            </span>
+          </div>
+        </div>
+
+        <!-- Accordion for Scope & Preconditions (Screen 2 & Screen 4) -->
         <details class="meta-accordion" open>
-          <summary>▼ Lingkup & Prasyarat Pengujian</summary>
+          <summary>▼ Lingkup & Prasyarat Pengujian (Screen 2 & 4)</summary>
           <div class="meta-accordion-body">
             <div class="form-group">
-              <label for="meta-objective">Scope / Requirements</label>
-              <textarea id="meta-objective" class="form-control" rows="2" placeholder="Menjelaskan tujuan flow pengujian..."></textarea>
+              <label for="meta-acceptance-criteria">1.1 Business Acceptance Criteria ({bussiness_criteria})</label>
+              <textarea id="meta-acceptance-criteria" class="form-control" rows="2" placeholder="Menjelaskan kriteria penerimaan pengujian..."></textarea>
             </div>
             <div class="form-group">
-              <label for="meta-precondition">Preparations / Prasyarat</label>
-              <textarea id="meta-precondition" class="form-control" rows="2" placeholder="Prasyarat pengujian..."></textarea>
+              <label for="meta-scope">1.2 Scope ({scope_unit_test})</label>
+              <textarea id="meta-scope" class="form-control" rows="2" placeholder="Lingkup pengujian sistem / aplikasi..."></textarea>
+            </div>
+            <div class="form-group">
+              <label for="meta-precondition">2.2 Preparations (Screen 4 Static/Catatan Tambahan)</label>
+              <textarea id="meta-precondition" class="form-control" rows="1" placeholder="Catatan tambahan prasyarat (opsional)..."></textarea>
             </div>
           </div>
         </details>

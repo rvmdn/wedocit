@@ -24,13 +24,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const metaEndDate = document.getElementById('meta-end-date');
   const metaDate = document.getElementById('meta-date');
   const metaCopyrightYear = document.getElementById('meta-copyright-year');
+  const metaDocVersion = document.getElementById('meta-doc-version');
+  const lblFilenamePreview = document.getElementById('lbl-filename-preview');
   const templateDocxFile = document.getElementById('template-docx-file');
   const btnChooseTemplate = document.getElementById('btn-choose-template');
   const lblTemplateName = document.getElementById('lbl-template-name');
+  const badgeTemplateStatus = document.getElementById('badge-template-status');
+  const exportFormatSelect = document.getElementById('export-format-select');
+
   let customDocxTemplateBuffer = null;
+  let bundledDocxTemplateBuffer = null;
+  let activeTemplateFileName = '';
 
   const metaEnv = document.getElementById('meta-env');
   const metaRes = document.getElementById('meta-res');
+  const metaAcceptanceCriteria = document.getElementById('meta-acceptance-criteria');
+  const metaScope = document.getElementById('meta-scope');
   const metaObjective = document.getElementById('meta-objective');
   const metaPrecondition = document.getElementById('meta-precondition');
   const customMetaContainer = document.getElementById('custom-meta-container');
@@ -199,8 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
       metaRes.value = m.screenResolution;
     }
     if (metaObjective) metaObjective.value = m.objective || '';
+    if (metaAcceptanceCriteria) metaAcceptanceCriteria.value = m.acceptanceCriteria || m.objective || '';
+    if (metaScope) metaScope.value = m.scope || '';
     if (metaPrecondition) metaPrecondition.value = m.precondition || '';
+    if (metaDocVersion) metaDocVersion.value = m.docVersion || 'V1.0';
 
+    updateFilenamePreview();
     renderDevelopersList();
     renderCustomMetaFields();
     renderTestCases();
@@ -255,9 +268,46 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDevelopersList();
   });
 
+  // Auto-detect template in wedocit/templates/template-bni-edv.docx
+  async function loadBundledTemplate() {
+    try {
+      const url = chrome.runtime.getURL('templates/template-bni-edv.docx');
+      const res = await fetch(url);
+      if (res.ok) {
+        bundledDocxTemplateBuffer = await res.arrayBuffer();
+        if (badgeTemplateStatus) {
+          badgeTemplateStatus.textContent = '🟢 Template Siap';
+          badgeTemplateStatus.style.color = '#34d399';
+          badgeTemplateStatus.style.borderColor = 'rgba(52, 211, 153, 0.4)';
+        }
+        if (lblTemplateName && !customDocxTemplateBuffer) {
+          lblTemplateName.textContent = 'templates/template-bni-edv.docx';
+          lblTemplateName.style.color = '#34d399';
+        }
+        return true;
+      }
+    } catch (err) {
+      console.log('Template bundled not found:', err);
+    }
+    if (badgeTemplateStatus && !customDocxTemplateBuffer) {
+      badgeTemplateStatus.textContent = '🟡 Belum ada di folder';
+      badgeTemplateStatus.style.color = '#f59e0b';
+      badgeTemplateStatus.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+    }
+    return false;
+  }
+  loadBundledTemplate();
+
   // Template DOCX upload handling
   btnChooseTemplate?.addEventListener('click', () => {
     templateDocxFile?.click();
+  });
+
+  exportFormatSelect?.addEventListener('change', () => {
+    const val = exportFormatSelect.value;
+    if (val === 'custom' && !customDocxTemplateBuffer) {
+      templateDocxFile?.click();
+    }
   });
 
   templateDocxFile?.addEventListener('change', (e) => {
@@ -266,11 +316,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const reader = new FileReader();
       reader.onload = (loadEvt) => {
         customDocxTemplateBuffer = loadEvt.target.result;
+        activeTemplateFileName = file.name;
         if (lblTemplateName) {
           lblTemplateName.textContent = '✅ ' + file.name;
           lblTemplateName.style.color = '#38bdf8';
         }
-        alert(`Template "${file.name}" berhasil dimuat! Saat Anda klik "Ekspor Word", placeholder akan langsung di-replace ke dalam dokumen template ini.`);
+        if (badgeTemplateStatus) {
+          badgeTemplateStatus.textContent = '🟢 File Dimuat';
+          badgeTemplateStatus.style.color = '#38bdf8';
+          badgeTemplateStatus.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        }
+        alert(`Template "${file.name}" berhasil dimuat! Siap digunakan untuk ekspor dokumen Word format resmi.`);
       };
       reader.readAsArrayBuffer(file);
     }
@@ -343,13 +399,17 @@ document.addEventListener('DOMContentLoaded', () => {
       docDate: metaDate ? metaDate.value : '',
       date: metaDate ? metaDate.value : new Date().toLocaleDateString('id-ID'),
       copyrightYear: metaCopyrightYear ? metaCopyrightYear.value : '2026',
+      docVersion: metaDocVersion ? metaDocVersion.value : 'V1.0',
       environment: metaEnv ? metaEnv.value : '',
       screenResolution: metaRes ? (metaRes.value || '1366x768') : '1366x768',
-      objective: metaObjective ? metaObjective.value : '',
+      acceptanceCriteria: metaAcceptanceCriteria ? metaAcceptanceCriteria.value : '',
+      scope: metaScope ? metaScope.value : '',
+      objective: metaAcceptanceCriteria ? metaAcceptanceCriteria.value : (metaObjective ? metaObjective.value : ''),
       precondition: metaPrecondition ? metaPrecondition.value : '',
       customFields: doc.metadata.customFields || []
     };
     if (lblScenarioPreview) lblScenarioPreview.textContent = doc.metadata.scenarioName;
+    updateFilenamePreview();
     chrome.runtime.sendMessage({
       type: 'UPDATE_STATE',
       payload: { documents: sessionData.documents }
@@ -357,7 +417,42 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDocSelector();
   }
 
-  [metaScenarioName, metaTitle, metaSystem, metaTcId, metaProjectNo, metaProjectType, metaShortDesc, metaStartDate, metaEndDate, metaDate, metaCopyrightYear, metaEnv, metaRes, metaObjective, metaPrecondition].forEach(el => {
+  // Standarisasi Format Nama File Unduhan: EDV_Unit_Test_CR_{cr}_{skenario}_{versi}.{ext}
+  function getFormattedDocFilename(ext = 'docx') {
+    const doc = getActiveDoc();
+    const meta = doc.metadata || {};
+
+    // 1. Nomor CR / Defect
+    let crRaw = (meta.projectNo || meta.testCaseId || 'xxxxx').trim();
+    let crClean = crRaw.replace(/^CR\s*[:\-_]?\s*/i, '').trim();
+    if (!crClean) crClean = 'xxxxx';
+    let crPart = 'CR_' + crClean.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // 2. Nama Skenario
+    let scRaw = (meta.scenarioName || 'Pelaksanaan_Audit').trim();
+    let scClean = scRaw
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (!scClean) scClean = 'Pelaksanaan_Audit';
+
+    // 3. Versi Dokumen
+    let verRaw = (meta.docVersion || (metaDocVersion ? metaDocVersion.value : 'V1.0') || 'V1.0').trim();
+    let verClean = verRaw.replace(/[^a-zA-Z0-9_.]/g, '');
+    if (!verClean) verClean = '1.0';
+    if (!verClean.toUpperCase().startsWith('V')) {
+      verClean = 'V' + verClean;
+    }
+
+    return `EDV_Unit_Test_${crPart}_${scClean}_${verClean}.${ext}`;
+  }
+
+  function updateFilenamePreview() {
+    if (!lblFilenamePreview) return;
+    lblFilenamePreview.textContent = getFormattedDocFilename('docx');
+  }
+
+  [metaScenarioName, metaTitle, metaSystem, metaTcId, metaProjectNo, metaProjectType, metaShortDesc, metaStartDate, metaEndDate, metaDate, metaCopyrightYear, metaDocVersion, metaEnv, metaRes, metaAcceptanceCriteria, metaScope, metaObjective, metaPrecondition].forEach(el => {
     el?.addEventListener('input', saveActiveDocState);
   });
 
@@ -565,95 +660,311 @@ document.addEventListener('DOMContentLoaded', () => {
     const scenarioName = meta.scenarioName || 'Perbaikan RAP';
     const devs = meta.developers || [];
 
-    // JIKA USER MEMILIH TEMPLATE DOCX (ATAU FILE TEMPLATE DIUNGGAH)
-    if (customDocxTemplateBuffer && window.JSZip) {
+    const selectedFormat = exportFormatSelect ? exportFormatSelect.value : 'bni_edv';
+    const isUsingTemplate = (selectedFormat === 'bni_edv' || selectedFormat === 'custom');
+    let templateBufferToUse = customDocxTemplateBuffer || bundledDocxTemplateBuffer;
+
+    if (isUsingTemplate && !templateBufferToUse) {
+      // Coba load bundled template jika belum dimuat
+      await loadBundledTemplate();
+      templateBufferToUse = customDocxTemplateBuffer || bundledDocxTemplateBuffer;
+    }
+
+    if (isUsingTemplate && !templateBufferToUse) {
+      const chooseUpload = confirm(
+        'Template resmi BNI EDV belum ditemukan di:\n' +
+        'wedocit/templates/template-bni-edv.docx\n\n' +
+        '• Klik "OK" untuk memilih file template .docx Anda secara manual.\n' +
+        '• Klik "Cancel" untuk mengekspor dalam Format Umum (Standar WeDocIt).'
+      );
+      if (chooseUpload) {
+        templateDocxFile?.click();
+        return;
+      }
+    }
+
+    // =========================================================================
+    // JIKA MEMILIH TEMPLATE RESMI EDV - BNI / CUSTOM TEMPLATE .DOCX
+    // =========================================================================
+    if (isUsingTemplate && templateBufferToUse && window.JSZip) {
       try {
-        const zip = await JSZip.loadAsync(customDocxTemplateBuffer);
-        
-        // Helper replace XML string
-        const replacePlaceholders = (xmlStr, isHeader = false) => {
+        const zip = await JSZip.loadAsync(templateBufferToUse);
+
+        const crValue = meta.projectNo || meta.testCaseId || 'CR: Unit Test';
+        const projectTypeValue = meta.projectType || 'CR';
+        const shortDescValue = meta.shortDescription || '';
+        const startDateValue = meta.startDate || new Date().toLocaleDateString('id-ID');
+        const endDateValue = meta.endDate || new Date().toLocaleDateString('id-ID');
+        const docDateValue = meta.docDate || meta.date || new Date().toLocaleDateString('id-ID');
+        const copyrightYearValue = meta.copyrightYear || String(new Date().getFullYear());
+        const docTitleValue = meta.title || ('Unit Test Documentation - ' + (scenarioName || 'AMS FAST'));
+        const systemNameValue = meta.systemName || 'Audit Management System (AMS) Aplikasi FAST';
+        const acceptanceCriteriaValue = meta.acceptanceCriteria || meta.objective || '';
+        const scopeValue = meta.scope || meta.precondition || '';
+
+        // Format Tim Developer
+        let devHeaderFormatted = '';
+        let devNamesOnly = '';
+        let devNppOnly = '';
+        if (devs.length > 0) {
+          devHeaderFormatted = devs.map(d => `[${d.name || ''}] / ${d.npp || '-'}`).join('\n');
+          devNamesOnly = devs.map(d => d.name || '').filter(Boolean).join('\n');
+          devNppOnly = devs.map(d => d.npp || '').filter(Boolean).join('\n');
+        } else {
+          devHeaderFormatted = `[${meta.author || 'Developer'}] / -`;
+          devNamesOnly = meta.author || 'EDV Team';
+          devNppOnly = '-';
+        }
+
+        // Mapping Seluruh Placeholder Resmi
+        const placeholderMap = {
+          // 1. Header Table (Sesuai Gambar Revisi)
+          '[{developer}] / {npp}': devHeaderFormatted,
+          '[{developer}]': `[${devNamesOnly}]`,
+          '{developer}': devNamesOnly,
+          '{npp}': devNppOnly,
+          '[{tanggal_mulai}]': startDateValue,
+          '{tanggal_mulai}': startDateValue,
+          '[{tanggal_selesai}]': endDateValue,
+          '{tanggal_selesai}': endDateValue,
+          '{cr_unit_test}': crValue,
+          '{deskripsi_singkat}': shortDescValue,
+
+          // 2. Cover Screen 1 & Halaman Lainnya
+          '{judul_unit_test}': docTitleValue,
+          '{nama_aplikasi}': systemNameValue,
+          '{tanggal_dokumen}': docDateValue,
+          '{tahun}': copyrightYearValue,
+          '{bussiness_criteria}': acceptanceCriteriaValue,
+          '{scope_unit_test}': scopeValue
+        };
+
+        // Helper: Replace placeholder dalam XML dengan aman antar run <w:r>
+        const replaceDocxPlaceholders = (xmlStr, replacements) => {
           if (!xmlStr) return xmlStr;
+          return xmlStr.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (pXml) => {
+            let fullText = '';
+            const textMatches = pXml.match(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g) || [];
+            textMatches.forEach(tTag => {
+              const inner = tTag.replace(/^<w:t\b[^>]*>|<\/w:t>$/g, '');
+              fullText += inner;
+            });
 
-          // 1. Replace Project No
-          if (meta.projectNo) {
-            // Replace generic XML Project No cell value
-            xmlStr = xmlStr.replace(/(<w:t[^>]*>Project No<\/w:t>[\s\S]*?<w:t[^>]*>)([^<]*)(<\/w:t>)/i, `$1${escapeHtml(meta.projectNo)}$3`);
-            // Fallback for specific template value
-            xmlStr = xmlStr.replace(/52419/g, escapeHtml(meta.projectNo));
+            let modified = false;
+            let newText = fullText;
+            for (const [key, val] of Object.entries(replacements)) {
+              if (newText.includes(key)) {
+                newText = newText.split(key).join(val);
+                modified = true;
+              }
+            }
+
+            if (!modified) return pXml;
+
+            const formattedVal = newText.replace(/\n/g, '</w:t><w:br/><w:t>');
+            let firstReplaced = false;
+            return pXml.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (match, attrs) => {
+              if (!firstReplaced) {
+                firstReplaced = true;
+                return `<w:t xml:space="preserve"${attrs ? ' ' + attrs.replace(/xml:space="[^"]*"/, '') : ''}>${formattedVal}</w:t>`;
+              } else {
+                return `<w:t></w:t>`;
+              }
+            });
+          });
+        };
+
+        // Helper: Clone baris tabel Screen 3 (Unit Test Scenario Table)
+        const expandTableRowRepeater = (xmlStr, testCases, scName) => {
+          if (!xmlStr) return xmlStr;
+          return xmlStr.replace(/<w:tr\b[^>]*>[\s\S]*?<\/w:tr>/g, (trXml) => {
+            if (!trXml.includes('{no}') && !trXml.includes('{test_case}') && !trXml.includes('{ekspektasi}')) {
+              return trXml;
+            }
+            const safeTcs = (testCases && testCases.length > 0) ? testCases : [{
+              title: 'Pengujian Alur',
+              expectedResult: 'Sistem merespons proses dengan benar.',
+              status: 'OK'
+            }];
+
+            return safeTcs.map((tc, idx) => {
+              const rowMap = {
+                '{no}': String(idx + 1),
+                '{skenario}': scName || 'Skenario Pengujian',
+                '{test_case}': tc.title || `Test Case ${idx + 1}`,
+                '{ekspektasi}': tc.expectedResult || 'Berhasil',
+                '{result}': tc.status || 'OK'
+              };
+              return replaceDocxPlaceholders(trXml, rowMap);
+            }).join('');
+          });
+        };
+
+        // Helper: Injeksi Screen 5 ({unit_test_process}) beserta evidens screenshot
+        const injectUnitTestProcess = async (xmlStr) => {
+          if (!xmlStr || !xmlStr.includes('{unit_test_process}')) return xmlStr;
+
+          let relsXml = '';
+          const relsFile = zip.file('word/_rels/document.xml.rels');
+          if (relsFile) {
+            relsXml = await relsFile.async('text');
+          } else {
+            relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
           }
 
-          // 2. Replace Project Type
-          if (meta.projectType) {
-            xmlStr = xmlStr.replace(/(<w:t[^>]*>Project Type<\/w:t>[\s\S]*?<w:t[^>]*>)([^<]*)(<\/w:t>)/i, `$1${escapeHtml(meta.projectType)}$3`);
-            xmlStr = xmlStr.replace(/<w:t>CR<\/w:t>/g, `<w:t>${escapeHtml(meta.projectType)}</w:t>`);
-          }
-
-          // 3. Replace Short Description
-          if (meta.shortDescription) {
-            xmlStr = xmlStr.replace(/(<w:t[^>]*>Short Description<\/w:t>[\s\S]*?<w:t[^>]*>)([^<]*)(<\/w:t>)/i, `$1${escapeHtml(meta.shortDescription)}$3`);
-            xmlStr = xmlStr.replace(/Perbaikan temuan PTR prioritas AMS FAST Fase 3 dan 4/g, escapeHtml(meta.shortDescription));
-          }
-
-          // 4. Replace Document Title & CR Code
-          if (meta.title) {
-            xmlStr = xmlStr.replace(/Fixing Temuan PTR Modul Audit Pendalaman/g, escapeHtml(meta.title));
-          }
-          if (meta.testCaseId) {
-            xmlStr = xmlStr.replace(/CR:\s*[A-Za-z0-9_-]+/g, escapeHtml(meta.testCaseId));
-            xmlStr = xmlStr.replace(/CR:\s*XXXXX/g, escapeHtml(meta.testCaseId));
-          }
-
-          // 5. Replace Dates (Start Date & End Date)
-          if (meta.startDate) {
-            xmlStr = xmlStr.replace(/18\s*Agustus\s*2026|18\s*Agustus\s*202\s*6/g, escapeHtml(meta.startDate));
-          }
-          if (meta.endDate) {
-            xmlStr = xmlStr.replace(/03\s*September\s*2026|03\s*September\s*202\s*6/g, escapeHtml(meta.endDate));
-          }
-          if (meta.docDate) {
-            xmlStr = xmlStr.replace(/21\/10\/2026/g, escapeHtml(meta.docDate));
-            xmlStr = xmlStr.replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, escapeHtml(meta.docDate));
-          }
-          if (meta.copyrightYear) {
-            xmlStr = xmlStr.replace(/Copyright © \(\d{4}\)/g, `Copyright © (${escapeHtml(meta.copyrightYear)})`);
-          }
-
-          // 6. Replace Developer / Penguji List
-          if (devs.length > 0) {
-            const devHeaderStrings = devs.map(d => `[${d.name || ''}] / ${d.npp || '-'}`).join(' ');
-            // Generic pattern: cell developer di header tabel
-            xmlStr = xmlStr.replace(/(\[[\s\S]*?\]\s*\/\s*[\w-]+)/g, devHeaderStrings);
-            xmlStr = xmlStr.replace(/\[\s*Irvan Ramadan\s*\]\s*\/\s*822117/g, devHeaderStrings);
-            if (devs[0] && devs[0].name) {
-              xmlStr = xmlStr.replace(/Irvan Ramadan/g, escapeHtml(devs[0].name));
+          const ctFile = zip.file('[Content_Types].xml');
+          if (ctFile) {
+            let contentTypesXml = await ctFile.async('text');
+            if (!contentTypesXml.includes('Extension="png"')) {
+              contentTypesXml = contentTypesXml.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>');
+              zip.file('[Content_Types].xml', contentTypesXml);
             }
           }
 
-          return xmlStr;
+          let imgCounter = Date.now() % 10000;
+          let generatedXml = '';
+          const safeTcs = (tcs && tcs.length > 0) ? tcs : [{
+            title: 'Pengujian Alur Modul',
+            expectedResult: 'Sistem merespons proses dengan benar.',
+            status: 'OK',
+            steps: []
+          }];
+
+          for (let tcIdx = 0; tcIdx < safeTcs.length; tcIdx++) {
+            const tc = safeTcs[tcIdx];
+            const tcNum = tcIdx + 1;
+
+            generatedXml += `
+              <w:p>
+                <w:pPr><w:spacing w:before="240" w:after="80"/></w:pPr>
+                <w:r>
+                  <w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="003366"/></w:rPr>
+                  <w:t xml:space="preserve">3.1.${tcNum} ${escapeXml(tc.title || 'Test Case ' + tcNum)}</w:t>
+                </w:r>
+              </w:p>
+              <w:p>
+                <w:pPr><w:spacing w:before="0" w:after="140"/></w:pPr>
+                <w:r>
+                  <w:rPr><w:i/><w:sz w:val="20"/><w:color w:val="555555"/></w:rPr>
+                  <w:t xml:space="preserve">Hasil yang Diharapkan: ${escapeXml(tc.expectedResult || '-')}  |  Status: ${escapeXml(tc.status || 'OK')}</w:t>
+                </w:r>
+              </w:p>
+            `;
+
+            const steps = tc.steps || [];
+            for (let sIdx = 0; sIdx < steps.length; sIdx++) {
+              const s = steps[sIdx];
+              const sNum = sIdx + 1;
+              const stepText = `${sNum}. ${s.actionDescription || s.title || 'Aktivitas ' + sNum}` + (s.inputData && s.inputData !== '-' ? ` (Input: ${s.inputData})` : '');
+
+              generatedXml += `
+                <w:p>
+                  <w:pPr><w:spacing w:before="100" w:after="60"/></w:pPr>
+                  <w:r>
+                    <w:rPr><w:sz w:val="21"/></w:rPr>
+                    <w:t xml:space="preserve">${escapeXml(stepText)}</w:t>
+                  </w:r>
+                </w:p>
+              `;
+
+              if (s.screenshot && s.screenshot.startsWith('data:image')) {
+                imgCounter++;
+                const imgFileName = `wedocit_evidens_${imgCounter}.png`;
+                const relId = `rIdWeDocIt_${imgCounter}`;
+
+                try {
+                  const uint8Data = base64ToUint8Array(s.screenshot);
+                  zip.file(`word/media/${imgFileName}`, uint8Data);
+
+                  const relEntry = `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${imgFileName}"/>`;
+                  relsXml = relsXml.replace('</Relationships>', `${relEntry}</Relationships>`);
+
+                  generatedXml += `
+                    <w:p>
+                      <w:pPr>
+                        <w:jc w:val="center"/>
+                        <w:spacing w:before="100" w:after="200"/>
+                      </w:pPr>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline distT="0" distB="0" distL="0" distR="0">
+                            <wp:extent cx="5400000" cy="3037500"/>
+                            <wp:effectExtent l="0" t="0" r="0" b="0"/>
+                            <wp:docPr id="${imgCounter}" name="Evidens_${imgCounter}"/>
+                            <wp:cNvGraphicFramePr>
+                              <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+                            </wp:cNvGraphicFramePr>
+                            <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                                <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                                  <pic:nvPicPr>
+                                    <pic:cNvPr id="${imgCounter}" name="Evidens_${imgCounter}"/>
+                                    <pic:cNvPicPr/>
+                                  </pic:nvPicPr>
+                                  <pic:blipFill>
+                                    <a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${relId}"/>
+                                    <a:stretch><a:fillRect/></a:stretch>
+                                  </pic:blipFill>
+                                  <pic:spPr>
+                                    <a:xfrm>
+                                      <a:off x="0" y="0"/>
+                                      <a:ext cx="5400000" cy="3037500"/>
+                                    </a:xfrm>
+                                    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                                  </pic:spPr>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  `;
+                } catch (eImg) {
+                  console.warn('Failed embedding image in docx:', eImg);
+                }
+              }
+            }
+          }
+
+          if (relsFile) {
+            zip.file('word/_rels/document.xml.rels', relsXml);
+          }
+
+          return xmlStr.replace(/<w:p\b[^>]*>[\s\S]*?\{unit_test_process\}[\s\S]*?<\/w:p>/g, generatedXml);
         };
 
-        // Update word/header1.xml
-        const headerFile = zip.file('word/header1.xml');
-        if (headerFile) {
-          const headerXml = await headerFile.async('text');
-          const updatedHeaderXml = replacePlaceholders(headerXml, true);
-          zip.file('word/header1.xml', updatedHeaderXml);
+        // 1. Update Seluruh Header & Footer XML
+        for (const relativePath of Object.keys(zip.files)) {
+          if (/^word\/(header|footer)\d*\.xml$/i.test(relativePath)) {
+            const hFile = zip.file(relativePath);
+            if (hFile) {
+              const hXml = await hFile.async('text');
+              const updatedHXml = replaceDocxPlaceholders(hXml, placeholderMap);
+              zip.file(relativePath, updatedHXml);
+            }
+          }
         }
 
-        // Update word/document.xml
+        // 2. Update word/document.xml (Cover, Body, Header Table, Screen 3 Table, Screen 5 Evidens)
         const docFile = zip.file('word/document.xml');
         if (docFile) {
-          const docXml = await docFile.async('text');
-          const updatedDocXml = replacePlaceholders(docXml, false);
-          zip.file('word/document.xml', updatedDocXml);
+          let docXml = await docFile.async('text');
+          docXml = replaceDocxPlaceholders(docXml, placeholderMap);
+          docXml = expandTableRowRepeater(docXml, tcs, scenarioName);
+          docXml = await injectUnitTestProcess(docXml);
+          zip.file('word/document.xml', docXml);
         }
 
-        // Generate and download modified docx
-        const newDocxBlob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        // 3. Generate dan Unduh Dokumen .docx
+        const newDocxBlob = await zip.generateAsync({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
         const url = URL.createObjectURL(newDocxBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = (meta.testCaseId || 'Unit_Test').replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + (scenarioName || 'AMS').replace(/[^a-zA-Z0-9_-]/g, '_') + '.docx';
+        a.download = getFormattedDocFilename('docx');
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -661,11 +972,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       } catch (err) {
         console.error('Error modifying docx template:', err);
-        alert('Gagal memproses file template .docx. Beralih ke ekspor dokumen standar.');
+        alert('Gagal memproses file template .docx. Beralih ke ekspor format umum.');
       }
     }
 
-    // FALLBACK / STANDAR EXPORT (HTML Word Document yang kompatibel 100% dengan MS Word)
+    // =========================================================================
+    // FORMAT UMUM / STANDAR WEDOCIT (HTML WORD DOCUMENT LENGKAP 5 HALAMAN)
+    // =========================================================================
     let tableRowsHtml = '';
     const totalTcs = tcs.length || 1;
 
@@ -841,46 +1154,38 @@ document.addEventListener('DOMContentLoaded', () => {
           <p style="font-size: 9.5pt; color: #555; margin: 4px 0 0 0;">${escapeHtml(devHeaderString || meta.author)} | Tanggal: ${escapeHtml(meta.docDate || meta.date)}</p>
         </div>
 
-        <h2>A. Business Requirements & Scope</h2>
-        <table class="meta-table">
+        <!-- Header Table Sesuai Format Revisi BNI EDV -->
+        <table class="meta-table" style="margin-bottom: 20px;">
           <tr>
-            <td class="meta-label">Aplikasi / Sistem</td>
-            <td>${escapeHtml(meta.systemName)}</td>
-            <td class="meta-label">Nomor CR / Defect</td>
-            <td>${escapeHtml(meta.testCaseId)}</td>
+            <td class="meta-label" style="width: 18%;">Project No</td>
+            <td style="width: 32%; font-weight: bold;">${escapeHtml(meta.projectNo || meta.testCaseId || '-')}</td>
+            <td class="meta-label" style="width: 18%;">Developer</td>
+            <td style="width: 32%;">${escapeHtml(devHeaderString || meta.author)}</td>
           </tr>
           <tr>
-            <td class="meta-label">Project No / Type</td>
-            <td>${escapeHtml(meta.projectNo || '-')} (${escapeHtml(meta.projectType || 'CR')})</td>
+            <td class="meta-label">Project Type</td>
+            <td><b>${escapeHtml(meta.projectType || 'CR')}</b></td>
+            <td class="meta-label">Start Date</td>
+            <td>[${escapeHtml(meta.startDate || '-')}]</td>
+          </tr>
+          <tr>
             <td class="meta-label">Short Description</td>
             <td>${escapeHtml(meta.shortDescription || '-')}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">Skenario Uji Utama</td>
-            <td colspan="3" style="font-weight: bold; color: #003366;">${escapeHtml(scenarioName)}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">Tim Developer / EDV</td>
-            <td>${escapeHtml(devHeaderString || meta.author)}</td>
-            <td class="meta-label">Periode Pengerjaan</td>
-            <td>${escapeHtml(meta.startDate || '-')} s/d ${escapeHtml(meta.endDate || '-')}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">Environment Target</td>
-            <td>${escapeHtml(meta.environment)}</td>
-            <td class="meta-label">Resolusi Layar</td>
-            <td>${escapeHtml(meta.screenResolution)}</td>
-          </tr>
-          ${customMetaRows}
-          <tr>
-            <td class="meta-label">Scope / Requirements</td>
-            <td colspan="3">${escapeHtml(meta.objective).replace(/\n/g, '<br>')}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">Preparations</td>
-            <td colspan="3">${escapeHtml(meta.precondition).replace(/\n/g, '<br>')}</td>
+            <td class="meta-label">End Date</td>
+            <td>[${escapeHtml(meta.endDate || '-')}]</td>
           </tr>
         </table>
+
+        <h2>1. Business Requirements & Scope</h2>
+        <h3 style="font-size: 11pt; color: #003366; margin-top: 14px; margin-bottom: 6px;">1.1 Business Acceptance Criteria</h3>
+        <p style="font-size: 10.5pt; color: #222; margin-bottom: 12px; line-height: 1.4;">
+          ${escapeHtml(meta.acceptanceCriteria || meta.objective || '-').replace(/\n/g, '<br>')}
+        </p>
+
+        <h3 style="font-size: 11pt; color: #003366; margin-top: 14px; margin-bottom: 6px;">1.2 Scope</h3>
+        <p style="font-size: 10.5pt; color: #222; margin-bottom: 16px; line-height: 1.4;">
+          ${escapeHtml(meta.scope || meta.precondition || '-').replace(/\n/g, '<br>')}
+        </p>
 
         <h2>B. Unit Test Summary (Tabel Skenario & Test Case)</h2>
         <table class="main-table">
@@ -934,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (meta.testCaseId || 'Unit_Test').replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + (scenarioName || 'AMS').replace(/[^a-zA-Z0-9_-]/g, '_') + '.doc';
+    a.download = getFormattedDocFilename('doc');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -971,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (meta.testCaseId || 'Unit_Test') + '.md';
+    a.download = getFormattedDocFilename('md');
     a.click();
     URL.revokeObjectURL(url);
   });
@@ -1025,5 +1330,26 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  function escapeXml(text) {
+    if (!text) return '';
+    return text.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  function base64ToUint8Array(base64) {
+    const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, '');
+    const binaryString = atob(cleanBase64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
   }
 });
