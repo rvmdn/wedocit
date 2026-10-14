@@ -74,12 +74,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Load State
-  chrome.runtime.sendMessage({ type: 'GET_STATE', full: true }, (res) => {
-    if (res && res.data) {
-      sessionData = res.data;
-      renderDocSelector();
-      populateActiveDoc();
+  let isSavingLocally = false;
+  let saveDebounceTimer = null;
+
+  // Load State (Direct from Local Storage with Service Worker Fallback)
+  function loadFreshState(callback) {
+    chrome.storage.local.get(['sessionData'], (localRes) => {
+      if (localRes && localRes.sessionData && localRes.sessionData.documents) {
+        sessionData = localRes.sessionData;
+        renderDocSelector();
+        populateActiveDoc();
+        if (callback) callback();
+      } else {
+        chrome.runtime.sendMessage({ type: 'GET_STATE', full: true }, (res) => {
+          if (res && res.data) {
+            sessionData = res.data;
+            renderDocSelector();
+            populateActiveDoc();
+          }
+          if (callback) callback();
+        });
+      }
+    });
+  }
+
+  // Load state immediately
+  loadFreshState();
+
+  // 1. Auto-refresh saat tab editor difokuskan / dibuka kembali
+  window.addEventListener('focus', () => {
+    const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+    if (!isTyping) {
+      loadFreshState();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+      if (!isTyping) {
+        loadFreshState();
+      }
+    }
+  });
+
+  // 2. Dengarkan sinyal RELOAD_EDITOR dari background saat "Buka Editor" diklik
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'RELOAD_EDITOR') {
+      loadFreshState();
+    }
+  });
+
+  // 3. Dengarkan event perubahan storage dari background / content script
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.sessionData) {
+      if (isSavingLocally) return;
+      const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+      if (!isTyping) {
+        loadFreshState();
+      }
     }
   });
 
@@ -379,6 +432,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function saveActiveDocState() {
+    isSavingLocally = true;
+    if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(() => {
+      isSavingLocally = false;
+    }, 600);
+
     const doc = getActiveDoc();
     const devs = doc.metadata?.developers || [];
     const formattedAuthors = devs.map(d => d.name ? `${d.name} / ${d.npp || '-'}` : '').filter(Boolean).join(', ');
@@ -802,7 +861,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Helper: Injeksi Screen 5 ({unit_test_process}) beserta evidens screenshot
         const injectUnitTestProcess = async (xmlStr) => {
-          if (!xmlStr || !xmlStr.includes('{unit_test_process}')) return xmlStr;
+          if (!xmlStr) return xmlStr;
+
+          // Cek apakah ada paragraph yang memuat tag unit_test_process (tahan pemisahan tag <w:r>)
+          let hasUnitTestProcessTag = false;
+          const pCheckList = xmlStr.match(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g) || [];
+          for (const p of pCheckList) {
+            let pTxt = '';
+            const tMatches = p.match(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g) || [];
+            tMatches.forEach(t => pTxt += t.replace(/^<w:t\b[^>]*>|<\/w:t>$/g, ''));
+            if (pTxt.includes('unit_test_process')) {
+              hasUnitTestProcessTag = true;
+              break;
+            }
+          }
+
+          if (!hasUnitTestProcessTag) return xmlStr;
 
           let relsXml = '';
           const relsFile = zip.file('word/_rels/document.xml.rels');
@@ -931,7 +1005,16 @@ document.addEventListener('DOMContentLoaded', () => {
             zip.file('word/_rels/document.xml.rels', relsXml);
           }
 
-          return xmlStr.replace(/<w:p\b[^>]*>[\s\S]*?\{unit_test_process\}[\s\S]*?<\/w:p>/g, generatedXml);
+          // Ganti paragraph yang innerText-nya memuat unit_test_process dengan XML yang di-generate
+          return xmlStr.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (pXml) => {
+            let pTxt = '';
+            const tMatches = pXml.match(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g) || [];
+            tMatches.forEach(t => pTxt += t.replace(/^<w:t\b[^>]*>|<\/w:t>$/g, ''));
+            if (pTxt.includes('unit_test_process')) {
+              return generatedXml;
+            }
+            return pXml;
+          });
         };
 
         // 1. Update Seluruh Header & Footer XML

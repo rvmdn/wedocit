@@ -384,8 +384,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const editorUrl = chrome.runtime.getURL('editor.html');
     chrome.tabs.query({ url: editorUrl }, (tabs) => {
       if (tabs && tabs.length > 0) {
-        chrome.tabs.update(tabs[0].id, { active: true });
-        chrome.windows.update(tabs[0].windowId, { focused: true });
+        chrome.tabs.update(tabs[0].id, { active: true }, () => {
+          chrome.windows.update(tabs[0].windowId, { focused: true });
+          try {
+            chrome.tabs.sendMessage(tabs[0].id, { type: 'RELOAD_EDITOR' }, () => {
+              if (chrome.runtime.lastError) {
+                // Ignore if tab is not listening yet
+              }
+            });
+          } catch (e) {}
+        });
       } else {
         chrome.tabs.create({ url: editorUrl });
       }

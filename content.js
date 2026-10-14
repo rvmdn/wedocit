@@ -1282,13 +1282,30 @@
   
   function hideWidget() {
     if (rootContainer) {
-      rootContainer.style.visibility = 'hidden';
+      rootContainer.style.setProperty('display', 'none', 'important');
+      rootContainer.style.setProperty('visibility', 'hidden', 'important');
+      rootContainer.style.setProperty('opacity', '0', 'important');
+    }
+    const bar = shadowRoot?.querySelector('.floating-bar');
+    if (bar) {
+      bar.style.setProperty('display', 'none', 'important');
+      bar.style.setProperty('visibility', 'hidden', 'important');
+      bar.style.setProperty('opacity', '0', 'important');
     }
   }
 
   function showWidget() {
+    if (sessionData.isWidgetClosed) return;
     if (rootContainer) {
-      rootContainer.style.visibility = 'visible';
+      rootContainer.style.setProperty('display', 'block', 'important');
+      rootContainer.style.setProperty('visibility', 'visible', 'important');
+      rootContainer.style.setProperty('opacity', '1', 'important');
+    }
+    const bar = shadowRoot?.querySelector('.floating-bar');
+    if (bar) {
+      bar.style.setProperty('display', isMinimized ? 'inline-flex' : 'flex', 'important');
+      bar.style.setProperty('visibility', 'visible', 'important');
+      bar.style.setProperty('opacity', '1', 'important');
     }
   }
 
@@ -1298,14 +1315,23 @@
         resolve('');
         return;
       }
-      // HIDE WEDOCIT WIDGET BEFORE CAPTURE
+      // 1. Sembunyikan widget WeDocIt secara total dari render tree
       hideWidget();
-      // Brief 40ms wait so browser paints the screen without WeDocIt
-      await new Promise(r => setTimeout(r, 40));
 
+      // 2. Paksa reflow dan tunggu frame GPU compositor di-repaint tanpa widget
+      if (document.body) void document.body.offsetHeight;
+      await new Promise((r) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(r, 85);
+          });
+        });
+      });
+
+      // 3. Ambil screenshot layar
       try {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, (res) => {
-          // RESTORE WEDOCIT WIDGET IMMEDIATELY AFTER CAPTURE
+          // 4. Munculkan kembali widget WeDocIt setelah capture selesai
           showWidget();
           try {
             if (chrome.runtime && chrome.runtime.lastError) {
@@ -1351,11 +1377,34 @@
       return; // Cukup lengkapi data mandatory di form, tidak perlu screenshot/langkah per klik field
     }
 
-    // 2. HANYA TANGKAP TOMBOL / ELEMEN AKSI NYATA (BUTTON, LINK NAVIGASI, TAB, CHECKBOX/RADIO)
+    // 2. TANGKAP TOMBOL & LINK NAVIGASI / MENU SIDEBAR / TAB / CHECKBOX / RADIO
     const clickable = target.closest(`
       button,
       .p-button,
       [role="button"],
+      a,
+      [role="menuitem"],
+      [role="treeitem"],
+      [role="link"],
+      summary,
+      nav li,
+      aside li,
+      .sidebar li,
+      .sidebar-item,
+      .ActionListItem,
+      .ActionListContent,
+      [data-component="ActionList.Item"],
+      .layout-menuitem a,
+      .layout-menuitem,
+      .menu-item,
+      .nav-link,
+      .sidebar a,
+      nav a,
+      aside a,
+      .p-panelmenu-header,
+      .p-panelmenu-header-link,
+      .p-menuitem-link,
+      .p-treenode-content,
       input[type="submit"], input[type="button"],
       .p-dialog-header-close,
       [role="tab"], .p-tabview-nav-link,
@@ -1366,7 +1415,7 @@
       tr[pSelectableRow]
     `);
 
-    // JIKA BUKAN TOMBOL / AKSI NYATA, ABAIKAN!
+    // JIKA BUKAN TOMBOL / LINK NAVIGASI / AKSI NYATA, ABAIKAN!
     if (!clickable) {
       return;
     }
