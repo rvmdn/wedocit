@@ -61,6 +61,7 @@
         rootContainer.parentNode.removeChild(rootContainer);
         rootContainer = null;
       }
+      document.removeEventListener('mousedown', onMouseDownHandler, true);
       document.removeEventListener('click', onClickHandler, true);
       document.removeEventListener('change', onChangeHandler, true);
       window.removeEventListener('keydown', onKeydownHandler);
@@ -241,6 +242,7 @@
 
     if (isRecordingActive) {
       if (!isListenersAttached) {
+        document.addEventListener('mousedown', onMouseDownHandler, true);
         document.addEventListener('click', onClickHandler, true);
         document.addEventListener('change', onChangeHandler, true);
         isListenersAttached = true;
@@ -250,6 +252,7 @@
       }
     } else {
       if (isListenersAttached) {
+        document.removeEventListener('mousedown', onMouseDownHandler, true);
         document.removeEventListener('click', onClickHandler, true);
         document.removeEventListener('change', onChangeHandler, true);
         isListenersAttached = false;
@@ -319,8 +322,9 @@
       type: 'ADD_STEP',
       step: {
         title: `Notifikasi: "${summary || fullText}"`,
-        action: `Sistem memunculkan notifikasi: "${fullText}".`,
-        expected: `Sistem berhasil memproses aksi dan menampilkan notifikasi sukses (${summary || fullText}).`,
+        actionDescription: `Sistem menampilkan pesan konfirmasi: "${fullText}".`,
+        inputData: '-',
+        expectedResult: `Sistem berhasil memproses aksi sebelumnya dan menyajikan pesan konfirmasi (${summary || fullText}).`,
         actual: 'Sistem menampilkan notifikasi sukses sesuai ekspektasi.',
         status: 'Pass',
         screenshot: screenshot,
@@ -803,10 +807,10 @@
       }
 
       // 3. Susun data langkah evidens
-      const stepTitle = `Tampilan menu/halaman "${currentMenu}"`;
-      const actionDesc = `Pengguna membuka dan menampilkan layar menu [${currentMenu}].`;
-      const expected = `Halaman menu [${currentMenu}] tampil dengan baik dan seluruh elemen halaman termuat lengkap.`;
-      const actual = `Menu [${currentMenu}] berhasil ditampilkan.`;
+      const stepTitle = `Verifikasi Tampilan Antarmuka "${currentMenu}"`;
+      const actionDesc = `Pengguna membuka dan meninjau seluruh tata letak (layout) serta komponen modul [${currentMenu}].`;
+      const expected = `Halaman antarmuka [${currentMenu}] termuat dengan baik, tabel/data tersaji lengkap, dan seluruh kontrol fungsional aktif.`;
+      const actual = `Seluruh komponen antarmuka modul [${currentMenu}] tampil secara lengkap dan siap digunakan.`;
 
       // 4. Tambahkan sebagai Langkah Baru di Test Case aktif
       safeSendMessage({
@@ -1215,6 +1219,39 @@
           label = directText;
         }
       }
+
+      // 1. Deteksi Tooltip & Directive Attributes (PrimeNG, Bootstrap, Angular)
+      if (!label) {
+        const tooltipVal = el.getAttribute('pTooltip') ||
+                           el.getAttribute('ng-reflect-text') ||
+                           el.getAttribute('data-pr-tooltip') ||
+                           el.getAttribute('tooltip') ||
+                           el.getAttribute('data-tooltip') ||
+                           el.getAttribute('data-original-title');
+        if (tooltipVal && tooltipVal.trim()) label = tooltipVal.trim();
+      }
+
+      // 2. Deteksi Icon Classes untuk Tombol Ikon (PrimeNG, FontAwesome, Bootstrap)
+      if (!label) {
+        const iconEl = el.querySelector('[class*="pi-"], [class*="fa-"], [class*="bi-"], [class*="icon-"]') || el;
+        const classNames = (iconEl.className || '').toString();
+
+        if (/pi-pencil|pi-edit|fa-pencil|fa-edit/i.test(classNames)) label = 'Ubah (Edit)';
+        else if (/pi-trash|fa-trash/i.test(classNames)) label = 'Hapus (Delete)';
+        else if (/pi-plus|fa-plus/i.test(classNames)) label = 'Tambah Data';
+        else if (/pi-search|fa-search|pi-filter/i.test(classNames)) label = 'Cari / Filter';
+        else if (/pi-download|fa-download/i.test(classNames)) label = 'Unduh';
+        else if (/pi-upload|fa-upload/i.test(classNames)) label = 'Unggah';
+        else if (/pi-check|fa-check/i.test(classNames)) label = 'Setujui (Approve)';
+        else if (/pi-times|fa-times/i.test(classNames)) label = 'Tutup / Batal';
+        else if (/pi-eye|fa-eye/i.test(classNames)) label = 'Lihat Detail';
+        else if (/pi-refresh|fa-sync|fa-redo/i.test(classNames)) label = 'Refresh Data';
+        else if (/pi-print|fa-print/i.test(classNames)) label = 'Cetak Dokumen';
+        else if (/pi-save|fa-save/i.test(classNames)) label = 'Simpan';
+        else if (/pi-arrow-left|pi-chevron-left/i.test(classNames)) label = 'Kembali';
+        else if (/pi-cog|fa-cog/i.test(classNames)) label = 'Pengaturan';
+        else if (/pi-copy|fa-copy/i.test(classNames)) label = 'Salin Data';
+      }
     }
 
     // Forbid generic HTML tags like 'p', 'div', 'span' from becoming labels
@@ -1235,52 +1272,99 @@
     return meta;
   }
 
+  const EXCLUDED_FIELD_SELECTOR = `
+    input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+    textarea, .p-inputtextarea,
+    .ql-editor, p-editor, .p-editor, [contenteditable="true"],
+    .p-inputtext, .p-calendar, .p-datepicker,
+    .p-fileupload, .p-fileupload-choose, .p-fileupload-buttonbar,
+    label
+  `;
+
+  const CLICKABLE_SELECTOR = `
+    button,
+    .p-button,
+    [role="button"],
+    a,
+    [role="menuitem"],
+    [role="treeitem"],
+    [role="link"],
+    summary,
+    nav li,
+    aside li,
+    .sidebar li,
+    .sidebar-item,
+    .ActionListItem,
+    .ActionListContent,
+    [data-component="ActionList.Item"],
+    .layout-menuitem a,
+    .layout-menuitem,
+    .menu-item,
+    .nav-link,
+    .sidebar a,
+    nav a,
+    aside a,
+    .p-panelmenu-header,
+    .p-panelmenu-header-link,
+    .p-menuitem-link,
+    .p-treenode-content,
+    input[type="submit"], input[type="button"],
+    .p-dialog-header-close,
+    [role="tab"], .p-tabview-nav-link,
+    .p-splitbutton-defaultbutton, .p-splitbutton-menubutton,
+    .p-dropdown,
+    input[type="checkbox"], input[type="radio"],
+    .p-checkbox, .p-radiobutton,
+    tr[pSelectableRow]
+  `;
+
+  let isWidgetPreHidden = false;
+  let preHideTimer = null;
+
   function highlightElement(el) {
-    return new Promise((resolve) => {
-      const rect = el.getBoundingClientRect();
-      const highlight = document.createElement('div');
-      highlight.id = 'wedocit-target-highlight';
-      highlight.style.cssText = `
-        position: fixed;
-        left: ${rect.left - 2}px;
-        top: ${rect.top - 2}px;
-        width: ${rect.width + 4}px;
-        height: ${rect.height + 4}px;
-        border: 2px solid #ef4444;
-        border-radius: 4px;
-        box-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
-        z-index: 2147483646;
-        pointer-events: none;
-      `;
+    const rect = el.getBoundingClientRect();
+    const highlight = document.createElement('div');
+    highlight.id = 'wedocit-target-highlight';
+    highlight.style.cssText = `
+      position: fixed;
+      left: ${rect.left - 2}px;
+      top: ${rect.top - 2}px;
+      width: ${rect.width + 4}px;
+      height: ${rect.height + 4}px;
+      border: 2px solid #ef4444;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
+      z-index: 2147483646;
+      pointer-events: none;
+    `;
 
-      const badge = document.createElement('div');
-      badge.style.cssText = `
-        position: absolute;
-        top: -12px;
-        left: -2px;
-        background: #ef4444;
-        color: #fff;
-        font-size: 9px;
-        font-weight: 800;
-        padding: 1px 4px;
-        border-radius: 3px;
-        text-transform: uppercase;
-      `;
-      badge.textContent = 'KLIK';
-      highlight.appendChild(badge);
+    const badge = document.createElement('div');
+    badge.style.cssText = `
+      position: absolute;
+      top: -12px;
+      left: -2px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    `;
+    badge.textContent = 'KLIK';
+    highlight.appendChild(badge);
 
-      document.body.appendChild(highlight);
+    document.body.appendChild(highlight);
+    // Paksa synchronous layout reflow agar border merah seketika ter-paint
+    void highlight.offsetHeight;
 
-      setTimeout(() => {
-        resolve(() => {
-          if (highlight.parentNode) highlight.parentNode.removeChild(highlight);
-        });
-      }, 50);
-    });
+    return () => {
+      if (highlight.parentNode) highlight.parentNode.removeChild(highlight);
+    };
   }
 
-  
   function hideWidget() {
+    isWidgetPreHidden = true;
     if (rootContainer) {
       rootContainer.style.setProperty('display', 'none', 'important');
       rootContainer.style.setProperty('visibility', 'hidden', 'important');
@@ -1295,6 +1379,11 @@
   }
 
   function showWidget() {
+    isWidgetPreHidden = false;
+    if (preHideTimer) {
+      clearTimeout(preHideTimer);
+      preHideTimer = null;
+    }
     if (sessionData.isWidgetClosed) return;
     if (rootContainer) {
       rootContainer.style.setProperty('display', 'block', 'important');
@@ -1309,29 +1398,60 @@
     }
   }
 
+  // Pre-Hide di event mousedown: Sembunyikan widget lebih awal saat mouse ditekan
+  function onMouseDownHandler(e) {
+    if (!isExtensionValid()) {
+      cleanupDeadExtension();
+      return;
+    }
+    if (!sessionData.isRecording || sessionData.isPaused) return;
+    if (rootContainer && rootContainer.contains(e.target)) return;
+
+    const target = e.target;
+    if (!target) return;
+
+    if (target.closest(EXCLUDED_FIELD_SELECTOR)) return;
+
+    const clickable = target.closest(CLICKABLE_SELECTOR);
+    if (!clickable || clickable === document.body || clickable === document.documentElement) return;
+    if (clickable.closest('.p-fileupload, .p-fileupload-choose')) return;
+
+    // Sembunyikan widget seketika! Jeda fisik jari saat menekan tombol mouse (70-150ms)
+    // memberi waktu bagi GPU browser untuk me-render layar bersih tanpa widget SEBELUM event click terjadi.
+    hideWidget();
+
+    // Safety timer: jika user batal klik / lepas mouse di luar target, kembalikan widget
+    if (preHideTimer) clearTimeout(preHideTimer);
+    preHideTimer = setTimeout(() => {
+      if (!isCapturing) {
+        showWidget();
+      }
+    }, 700);
+  }
+
   function captureScreenshot() {
     return new Promise(async (resolve) => {
       if (!isExtensionValid()) {
         resolve('');
         return;
       }
-      // 1. Sembunyikan widget WeDocIt secara total dari render tree
-      hideWidget();
+      isCapturing = true;
 
-      // 2. Paksa reflow dan tunggu frame GPU compositor di-repaint tanpa widget
-      if (document.body) void document.body.offsetHeight;
-      await new Promise((r) => {
-        requestAnimationFrame(() => {
+      // Jika belum di-prehide (misal klik via keyboard Enter / touch tap), sembunyikan sekarang
+      if (!isWidgetPreHidden) {
+        hideWidget();
+        if (document.body) void document.body.offsetHeight;
+        await new Promise((r) => {
           requestAnimationFrame(() => {
-            setTimeout(r, 85);
+            setTimeout(r, 40);
           });
         });
-      });
+      }
 
-      // 3. Ambil screenshot layar
+      // Ambil screenshot seketika (< 3ms) sebelum SPA router membongkar halaman lama
       try {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, (res) => {
-          // 4. Munculkan kembali widget WeDocIt setelah capture selesai
+          isCapturing = false;
           showWidget();
           try {
             if (chrome.runtime && chrome.runtime.lastError) {
@@ -1346,13 +1466,239 @@
           }
         });
       } catch (e) {
+        isCapturing = false;
         showWidget();
         resolve('');
       }
     });
   }
 
-  // Click Handler (Hanya menangkap BUTTON / aksi nyata, abaikan pengisian field, komentar, dan upload dokumen)
+  // Intelligent Semantic Wording Generator (Menghasilkan kalimat formal standar QA / Audit BNI)
+  function generateSmartWording(el, meta, tagName) {
+    let label = (meta.computedLabel || '').trim();
+    const cleanLabel = label.replace(/^["'\[\]]+|["'\[\]]+$/g, '').trim();
+    const lLower = cleanLabel.toLowerCase();
+
+    let title = meta.customTitle || '';
+    let action = '';
+    let expected = meta.customExpected || '';
+    let actual = 'Berhasil dieksekusi sesuai spesifikasi.';
+    let inputData = '-';
+
+    // 1. SIMPAN / SAVE / PERBARUI / REKAM
+    if (/^(simpan|save|perbarui|update|rekam|simpan data|save changes)$/i.test(cleanLabel) || /simpan|save/i.test(lLower)) {
+      title = title || (/^(simpan|save|rekam|perbarui)/i.test(cleanLabel) ? cleanLabel : `Simpan ${cleanLabel}`);
+      action = `Pengguna menekan tombol "${cleanLabel}" untuk menyimpan perubahan data ke dalam sistem.`;
+      expected = expected || `Sistem memvalidasi formulir dan berhasil menyimpan data dengan menampilkan pesan konfirmasi sukses.`;
+      actual = `Data berhasil disimpan ke basis data sistem.`;
+    }
+    // 2. TAMBAH / CREATE / BARU / ADD / NEW / BUAT
+    else if (/^(tambah|create|tambah data|baru|new|add|buat|tambah baru)$/i.test(cleanLabel) || /tambah|create|buat baru/i.test(lLower)) {
+      title = title || (/^(tambah|create|baru|new|add|buat)/i.test(cleanLabel) ? cleanLabel : `Tambah ${cleanLabel}`);
+      action = `Pengguna memilih tombol "${cleanLabel}" untuk memulai penginputan data baru.`;
+      expected = expected || `Sistem merespons dengan menampilkan formulir input pembuatan data baru dalam kondisi siap diisi.`;
+      actual = `Formulir tambah data berhasil dimuat.`;
+    }
+    // 3. UBAH / EDIT / MODIFY / PERBAIKI / KOREKSI
+    else if (/^(ubah|edit|modify|koreksi|perbaiki)$/i.test(cleanLabel) || /edit|ubah/i.test(lLower)) {
+      title = title || (/^(ubah|edit|modify|koreksi)/i.test(cleanLabel) ? cleanLabel : `Ubah Data ${cleanLabel}`);
+      action = `Pengguna menekan tombol "${cleanLabel}" pada data terpilih untuk melakukan penyesuaian informasi.`;
+      expected = expected || `Sistem memuat data eksisting ke dalam formulir pengubahan agar dapat disunting oleh pengguna.`;
+      actual = `Formulir edit data ditampilkan dengan data eksisting lengkap.`;
+    }
+    // 4. HAPUS / DELETE / REMOVE / BATALKAN ITEM
+    else if (/^(hapus|delete|remove|destroy)$/i.test(cleanLabel) || /hapus|delete/i.test(lLower)) {
+      title = title || `Hapus Data Terpilih`;
+      action = `Pengguna memilih tombol "${cleanLabel}" untuk menghapus item data yang dipilih.`;
+      expected = expected || `Sistem memunculkan dialog konfirmasi penghapusan data sebelum mengeksekusi penghapusan.`;
+      actual = `Dialog konfirmasi hapus muncul dengan tepat.`;
+    }
+    // 5. KIRIM / SUBMIT / AJUKAN / PROPOSE / FORWARD
+    else if (/^(kirim|submit|ajukan|propose|request|forward)$/i.test(cleanLabel) || /submit|kirim|ajukan/i.test(lLower)) {
+      title = title || (/^(kirim|submit|ajukan|propose)/i.test(cleanLabel) ? cleanLabel : `Kirim ${cleanLabel}`);
+      action = `Pengguna menekan tombol "${cleanLabel}" untuk meneruskan data ke tahap verifikasi/persetujuan.`;
+      expected = expected || `Sistem memproses pengiriman data dan memperbarui status menjadi menunggu persetujuan (Pending Approval).`;
+      actual = `Pengajuan berhasil dikirimkan ke alur verifikasi selanjutnya.`;
+    }
+    // 6. APPROVE / SETUJUI / VERIFIKASI / VALIDASI / REKOMENDASI
+    else if (/^(setujui|approve|verifikasi|validasi|rekomendasi)$/i.test(cleanLabel) || /approve|setuju|verifikasi/i.test(lLower)) {
+      title = title || `Persetujuan (Approve) Data`;
+      action = `Pengguna melakukan persetujuan dengan menekan tombol "${cleanLabel}".`;
+      expected = expected || `Sistem mencatat persetujuan pengguna dan memperbarui status dokumen menjadi Disetujui (Approved).`;
+      actual = `Persetujuan berhasil dicatat oleh sistem.`;
+    }
+    // 7. TOLAK / REJECT / RETURN / KEMBALIKAN
+    else if (/^(tolak|reject|kembalikan|return)$/i.test(cleanLabel) || /reject|tolak|kembalikan/i.test(lLower)) {
+      title = title || `Penolakan (Reject) Pengajuan`;
+      action = `Pengguna memilih opsi "${cleanLabel}" untuk menolak pengajuan atau mengembalikannya ke pemohon.`;
+      expected = expected || `Sistem meminta catatan alasan penolakan dan memperbarui status pengajuan menjadi Ditolak / Perlu Perbaikan.`;
+      actual = `Status penolakan pengajuan berhasil diproses.`;
+    }
+    // 8. RESET / BERSIHKAN / CLEAR (Harus dicek SEBELUM filter/cari)
+    else if (/^(reset|bersihkan|clear|batal filter)$/i.test(cleanLabel) || /reset|clear|bersihkan/i.test(lLower)) {
+      title = title || `Reset Parameter Pencarian`;
+      action = `Pengguna memilih tombol "${cleanLabel}" untuk mengosongkan seluruh kriteria filter.`;
+      expected = expected || `Seluruh kolom input filter dikosongkan dan tabel kembali menampilkan semua data semula.`;
+      actual = `Filter berhasil direset ke kondisi default.`;
+    }
+    // 9. CARI / FILTER / TEMUKAN / SEARCH
+    else if (/^(cari|filter|search|temukan|apply filter)$/i.test(cleanLabel) || /cari|search|filter/i.test(lLower)) {
+      title = title || `Pencarian / Filter Data`;
+      action = `Pengguna menekan tombol "${cleanLabel}" untuk menyaring data berdasarkan parameter filter yang ditentukan.`;
+      expected = expected || `Sistem menyaring dan menyajikan daftar data tabel yang relevan sesuai kriteria pencarian.`;
+      actual = `Hasil pencarian data berhasil ditampilkan pada tabel.`;
+    }
+    // 10. UNDUH / EXPORT / DOWNLOAD / CETAK / PRINT
+    else if (/^(unduh|download|export|ekspor|cetak|print)$/i.test(cleanLabel) || /unduh|download|export|cetak/i.test(lLower)) {
+      title = title || `Ekspor / Unduh Berkas Dokumen`;
+      action = `Pengguna memilih aksi "${cleanLabel}" untuk mengunduh berkas laporan/dokumen dari sistem.`;
+      expected = expected || `Sistem mengenerate berkas dokumen dan otomatis terunduh ke perangkat pengguna dengan format yang valid.`;
+      actual = `Berkas dokumen berhasil diunduh tanpa kendala.`;
+    }
+    // 11. UNGGAH / UPLOAD / BROWSE / IMPORT
+    else if (/^(unggah|upload|import|impor|pilih berkas)$/i.test(cleanLabel) || /upload|unggah|import/i.test(lLower)) {
+      title = title || `Unggah Berkas Lampiran`;
+      action = `Pengguna memilih tombol "${cleanLabel}" untuk melampirkan berkas dokumen ke dalam sistem.`;
+      expected = expected || `Sistem memvalidasi berkas yang dipilih dan menampilkan pratinjau lampiran yang siap disimpan.`;
+      actual = `Berkas lampiran berhasil dipilih dan diproses.`;
+    }
+    // 12. BATAL / KEMBALI / CANCEL / CLOSE / BACK / TUTUP
+    else if (/^(batal|kembali|cancel|close|tutup|back)$/i.test(cleanLabel) || /batal|kembali|cancel|close|tutup/i.test(lLower)) {
+      title = title || `Batal / Kembali ke Halaman Sebelumnya`;
+      action = `Pengguna menekan tombol "${cleanLabel}" untuk membatalkan proses dan menutup dialog/halaman aktif.`;
+      expected = expected || `Sistem menghentikan operasi tanpa menyimpan perubahan dan mengarahkan kembali ke tampilan sebelumnya.`;
+      actual = `Operasi dibatalkan dan sistem kembali ke layar awal.`;
+    }
+    // 13. DETAIL / LIHAT / VIEW / RINCIAN / INFO
+    else if (/^(lihat|detail|view|rincian|informasi|info)$/i.test(cleanLabel) || /detail|lihat|rincian/i.test(lLower)) {
+      title = title || `Lihat Rincian Data`;
+      action = `Pengguna memilih aksi "${cleanLabel}" untuk meninjau rincian informasi data terkait.`;
+      expected = expected || `Sistem menampilkan pop-up atau halaman detail dengan informasi data yang lengkap.`;
+      actual = `Rincian data berhasil ditampilkan secara detail.`;
+    }
+    // 14. REFRESH / MUAT ULANG / RELOAD / SYNC
+    else if (/^(refresh|muat ulang|reload|sync|singkronisasi)$/i.test(cleanLabel) || /refresh|reload|sync/i.test(lLower)) {
+      title = title || `Muat Ulang (Refresh) Data`;
+      action = `Pengguna menekan tombol "${cleanLabel}" untuk memperbarui data terkini dari server.`;
+      expected = expected || `Sistem melakukan pembaruan data dan menyajikan versi data yang paling mutakhir.`;
+      actual = `Data tabel/halaman berhasil diperbarui.`;
+    }
+    // 15. NAVIGASI / MENU SIDEBAR / TAB HEADER
+    else if (tagName === 'A' || el.classList.contains('p-tabview-nav-link') || el.getAttribute('role') === 'tab' || el.closest('nav, aside, .sidebar, .layout-menuitem')) {
+      const isTab = el.getAttribute('role') === 'tab' || el.classList.contains('p-tabview-nav-link');
+      if (isTab) {
+        title = title || `Pindah ke Tab "${cleanLabel}"`;
+        action = `Pengguna beralih ke tab navigasi [${cleanLabel}] untuk melihat rincian kategori tersebut.`;
+        expected = expected || `Sistem menampilkan konten dan formulir yang berada di bawah tab [${cleanLabel}].`;
+        actual = `Tab [${cleanLabel}] aktif dan konten berhasil ditampilkan.`;
+      } else {
+        title = title || `Navigasi ke Menu "${cleanLabel}"`;
+        action = `Pengguna memilih menu navigasi [${cleanLabel}] pada sidebar aplikasi.`;
+        expected = expected || `Halaman diarahkan ke modul [${cleanLabel}] dan seluruh komponen termuat dengan lengkap.`;
+        actual = `Halaman modul [${cleanLabel}] berhasil dimuat.`;
+      }
+    }
+    // 16. DROPDOWN (PrimeNG Dropdown / Select)
+    else if (el.classList.contains('p-dropdown') || el.closest('.p-dropdown')) {
+      title = title || `Buka Pilihan "${cleanLabel}"`;
+      action = `Pengguna mengklik dropdown [${cleanLabel}] untuk meninjau opsi yang tersedia.`;
+      expected = expected || `Sistem membuka panel daftar opsi dropdown yang dapat dipilih.`;
+      actual = `Daftar pilihan dropdown berhasil ditampilkan.`;
+    }
+    // 17. CHECKBOX / RADIO BUTTON
+    else if (tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
+      const isChecked = el.checked;
+      title = title || `${isChecked ? 'Centang' : 'Hapus centang'} Opsi "${cleanLabel}"`;
+      action = `Pengguna ${isChecked ? 'mencentang' : 'menghapus centang'} opsi [${cleanLabel}].`;
+      expected = expected || `Status opsi [${cleanLabel}] berhasil diperbarui menjadi ${isChecked ? 'Aktif (Checked)' : 'Tidak Aktif (Unchecked)'}.`;
+      actual = `Status pilihan [${cleanLabel}] berhasil disesuaikan.`;
+      inputData = isChecked ? 'Checked' : 'Unchecked';
+    }
+    // 18. BARIS TABEL (tr)
+    else if (el.closest('tr')) {
+      const tr = el.closest('tr');
+      const tds = Array.from(tr.querySelectorAll('td'))
+        .map(td => td.innerText ? td.innerText.trim().replace(/\s+/g, ' ') : '')
+        .filter(t => t.length > 0 && t !== '-' && !/^(edit|hapus|detail|pilih|aksi)$/i.test(t));
+      const rowId = tds[0] || tds[1] || cleanLabel || 'Data';
+      title = title || `Pilih Baris Data [${rowId.substring(0, 30)}]`;
+      action = `Pengguna memilih baris data "${rowId.substring(0, 40)}" pada tabel untuk peninjauan lebih lanjut.`;
+      expected = expected || `Baris data [${rowId.substring(0, 30)}] terpilih dan sistem menampilkan rincian data terkait.`;
+      actual = `Baris data [${rowId.substring(0, 30)}] berhasil dipilih.`;
+      inputData = rowId.substring(0, 40);
+    }
+    // 19. PAGINASI TABEL (PrimeNG Paginator)
+    else if (el.closest('.p-paginator') || el.classList.contains('p-paginator-page') || el.classList.contains('p-paginator-next') || el.classList.contains('p-paginator-prev')) {
+      if (el.classList.contains('p-paginator-next') || el.classList.contains('p-paginator-last')) {
+        title = title || 'Navigasi ke Halaman Berikutnya';
+        action = 'Pengguna berpindah ke halaman data berikutnya pada pagination tabel.';
+        expected = expected || 'Sistem menampilkan baris data untuk halaman selanjutnya.';
+        actual = 'Halaman berikutnya pada tabel berhasil dimuat.';
+      } else if (el.classList.contains('p-paginator-prev') || el.classList.contains('p-paginator-first')) {
+        title = title || 'Navigasi ke Halaman Sebelumnya';
+        action = 'Pengguna kembali ke halaman data sebelumnya pada pagination tabel.';
+        expected = expected || 'Sistem menampilkan baris data untuk halaman sebelumnya.';
+        actual = 'Halaman sebelumnya pada tabel berhasil dimuat.';
+      } else {
+        const pageNum = el.innerText ? el.innerText.trim() : 'Terkait';
+        title = title || `Pindah ke Halaman ${pageNum}`;
+        action = `Pengguna memilih halaman ke-${pageNum} pada pagination tabel data.`;
+        expected = expected || `Sistem menyajikan baris data untuk halaman ke-${pageNum}.`;
+        actual = `Data halaman ke-${pageNum} berhasil ditampilkan.`;
+      }
+    }
+    // 20. SORTING KOLOM TABEL
+    else if (el.closest('.p-sortable-column') || el.classList.contains('p-sortable-column')) {
+      const colHeader = el.innerText ? el.innerText.trim().replace(/\s+/g, ' ') : cleanLabel;
+      title = title || `Urutkan Kolom [${colHeader}]`;
+      action = `Pengguna mengklik header kolom [${colHeader}] untuk mengubah urutan (sorting) data tabel.`;
+      expected = expected || `Sistem mengurutkan seluruh rekaman data pada tabel berdasarkan kolom [${colHeader}].`;
+      actual = `Data tabel berhasil diurutkan berdasarkan kolom [${colHeader}].`;
+    }
+    // 21. DIALOG CLOSE BUTTON
+    else if (el.closest('.p-dialog-header-close') || el.classList.contains('p-dialog-header-close')) {
+      title = title || 'Tutup Jendela Dialog';
+      action = 'Pengguna menutup jendela dialog pop-up yang sedang aktif.';
+      expected = expected || 'Jendela dialog tertutup dan antarmuka kembali ke halaman utama.';
+      actual = 'Jendela dialog berhasil ditutup.';
+    }
+    // 22. GENERAL FALLBACK DENGAN KONTEKS LOKAL (Menghindari "Klik 'Tombol'")
+    else {
+      let displayLabel = cleanLabel;
+      const isGeneric = !displayLabel || /^(tombol|elemen ui|menu \/ tautan|aksi|button|klik)$/i.test(displayLabel);
+
+      if (isGeneric) {
+        // Ambil konteks terdekat (judul card, modal, atau form legend)
+        const nearbyHeading = el.closest('.p-card, .card, fieldset, .p-panel, .p-dialog, form')
+          ?.querySelector('.p-card-title, .card-title, legend, .p-panel-title, .p-dialog-title, h1, h2, h3, h4')
+          ?.innerText?.trim();
+
+        if (el.classList.contains('p-button-danger') || el.classList.contains('btn-danger')) {
+          displayLabel = nearbyHeading ? `Batalkan / Hapus (${nearbyHeading.substring(0, 25)})` : 'Batalkan Tindakan';
+        } else if (el.classList.contains('p-button-success') || el.classList.contains('btn-success')) {
+          displayLabel = nearbyHeading ? `Konfirmasi (${nearbyHeading.substring(0, 25)})` : 'Konfirmasi Transaksi';
+        } else if (nearbyHeading) {
+          displayLabel = `Proses pada ${nearbyHeading.substring(0, 30)}`;
+        } else {
+          displayLabel = 'Proses Langkah Pengujian';
+        }
+
+        title = title || `${displayLabel}`;
+        action = `Pengguna mengeksekusi aksi [${displayLabel}] untuk melanjutkan alur fungsionalitas sistem.`;
+        expected = expected || `Sistem merespons proses [${displayLabel}] dengan mengeksekusi fungsi terkait secara akurat.`;
+        actual = `Aksi [${displayLabel}] berhasil diproses oleh sistem.`;
+      } else {
+        title = title || `Aksi "${displayLabel}"`;
+        action = `Pengguna menekan tombol atau opsi [${displayLabel}] untuk melanjutkan proses pengujian.`;
+        expected = expected || `Sistem memproses tindakan [${displayLabel}] dan memperbarui antarmuka aplikasi.`;
+        actual = `Tindakan [${displayLabel}] berhasil dieksekusi oleh sistem.`;
+      }
+    }
+
+    return { title, action, expected, actual, inputData };
+  }
+
+  // Click Handler
   function onClickHandler(e) {
     if (!isExtensionValid()) {
       cleanupDeadExtension();
@@ -1364,58 +1710,14 @@
     const target = e.target;
     if (!target) return;
 
-    // 1. ABAIKAN FIELD INPUT TEKS, TEXTAREA, KOMENTAR / RICH TEXT EDITOR, DATEPICKER, DAN UPLOAD FILE
-    const isExcludedField = target.closest(`
-      input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
-      textarea, .p-inputtextarea,
-      .ql-editor, p-editor, .p-editor, [contenteditable="true"],
-      .p-inputtext, .p-calendar, .p-datepicker,
-      .p-fileupload, .p-fileupload-choose, .p-fileupload-buttonbar,
-      label
-    `);
+    // 1. ABAIKAN FIELD INPUT TEKS, TEXTAREA, KOMENTAR, DATEPICKER, DAN UPLOAD FILE
+    const isExcludedField = target.closest(EXCLUDED_FIELD_SELECTOR);
     if (isExcludedField) {
-      return; // Cukup lengkapi data mandatory di form, tidak perlu screenshot/langkah per klik field
+      return;
     }
 
     // 2. TANGKAP TOMBOL & LINK NAVIGASI / MENU SIDEBAR / TAB / CHECKBOX / RADIO
-    const clickable = target.closest(`
-      button,
-      .p-button,
-      [role="button"],
-      a,
-      [role="menuitem"],
-      [role="treeitem"],
-      [role="link"],
-      summary,
-      nav li,
-      aside li,
-      .sidebar li,
-      .sidebar-item,
-      .ActionListItem,
-      .ActionListContent,
-      [data-component="ActionList.Item"],
-      .layout-menuitem a,
-      .layout-menuitem,
-      .menu-item,
-      .nav-link,
-      .sidebar a,
-      nav a,
-      aside a,
-      .p-panelmenu-header,
-      .p-panelmenu-header-link,
-      .p-menuitem-link,
-      .p-treenode-content,
-      input[type="submit"], input[type="button"],
-      .p-dialog-header-close,
-      [role="tab"], .p-tabview-nav-link,
-      .p-splitbutton-defaultbutton, .p-splitbutton-menubutton,
-      .p-dropdown,
-      input[type="checkbox"], input[type="radio"],
-      .p-checkbox, .p-radiobutton,
-      tr[pSelectableRow]
-    `);
-
-    // JIKA BUKAN TOMBOL / LINK NAVIGASI / AKSI NYATA, ABAIKAN!
+    const clickable = target.closest(CLICKABLE_SELECTOR);
     if (!clickable) {
       return;
     }
@@ -1427,44 +1729,24 @@
 
     if (clickable === document.body || clickable === document.documentElement) return;
 
+    if (preHideTimer) {
+      clearTimeout(preHideTimer);
+      preHideTimer = null;
+    }
+
     const shouldCapture = sessionData.autoScreenshot === true || e.altKey === true;
     const meta = extractElementMetadata(clickable);
-    const label = meta.computedLabel;
     const tagName = clickable.tagName.toUpperCase();
 
-    let stepTitle = meta.customTitle || `Klik ${label}`;
-    let actionDesc = `Pengguna melakukan aksi klik pada [${label}].`;
-    let expected = meta.customExpected || `Sistem merespons aksi klik [${label}] dengan tepat.`;
-
-    if (tagName === 'BUTTON' || clickable.classList.contains('p-button') || clickable.getAttribute('role') === 'button') {
-      stepTitle = meta.customTitle || `Klik tombol "${label}"`;
-      actionDesc = `Pengguna mengklik tombol [${label}].`;
-      expected = meta.customExpected || `Sistem mengeksekusi aksi dari tombol [${label}].`;
-    } else if (tagName === 'A' || clickable.classList.contains('p-tabview-nav-link') || clickable.getAttribute('role') === 'tab') {
-      stepTitle = meta.customTitle || `Buka menu / tab "${label}"`;
-      actionDesc = `Pengguna memilih menu atau tab [${label}].`;
-      expected = meta.customExpected || `Halaman diarahkan ke menu/tab [${label}].`;
-    } else if (clickable.classList.contains('p-dropdown') || clickable.closest('.p-dropdown')) {
-      stepTitle = meta.customTitle || `Buka pilihan "${label}"`;
-      actionDesc = `Pengguna membuka pilihan dropdown [${label}].`;
-      expected = meta.customExpected || `Sistem menampilkan daftar pilihan dropdown.`;
-    } else if (tagName === 'INPUT' && (clickable.type === 'checkbox' || clickable.type === 'radio')) {
-      const isChecked = clickable.checked;
-      stepTitle = meta.customTitle || `${isChecked ? 'Centang' : 'Hapus centang'} opsi "${label}"`;
-      actionDesc = `Pengguna mengubah status pilihan [${label}].`;
-      expected = meta.customExpected || `Pilihan [${label}] berhasil disesuaikan.`;
-    } else if (clickable.closest('tr')) {
-      stepTitle = meta.customTitle || `Pilih baris pada tabel`;
-      actionDesc = `Pengguna memilih baris data [${label}] pada tabel.`;
-      expected = meta.customExpected || `Baris data terpilih dan sistem menampilkan rincian data.`;
-    }
+    // Generate wording kaya dan bervariasi sesuai semantik tombol / menu
+    const wording = generateSmartWording(clickable, meta, tagName);
 
     (async () => {
       let screenshot = '';
       if (shouldCapture) {
         let cleanupHighlight = () => {};
         if (sessionData.autoHighlight !== false) {
-          cleanupHighlight = await highlightElement(clickable);
+          cleanupHighlight = highlightElement(clickable);
         }
         screenshot = await captureScreenshot();
         cleanupHighlight();
@@ -1473,17 +1755,17 @@
       safeSendMessage({
         type: 'ADD_STEP',
         step: {
-          title: stepTitle,
-          actionDescription: actionDesc,
-          inputData: '-',
-          expectedResult: expected,
-          actual: 'Berhasil dieksekusi.',
+          title: wording.title,
+          actionDescription: wording.action,
+          inputData: wording.inputData || '-',
+          expectedResult: wording.expected,
+          actual: wording.actual,
           status: 'Pass',
           screenshot: screenshot,
           metadata: meta
         }
       }, () => {
-        showToast(`✔ Tombol "${label}" tercatat!`);
+        showToast(`✔ "${wording.title}" tercatat!`);
       });
     })();
   }
@@ -1499,23 +1781,19 @@
     const target = e.target;
     if (!target) return;
 
-    // HANYA proses SELECT dropdown jika ada (Abaikan input teks, textarea, komentar, upload)
     const tagName = target.tagName.toUpperCase();
     if (tagName === 'SELECT') {
       const meta = extractElementMetadata(target);
       const label = meta.computedLabel;
       const selectedOption = target.options[target.selectedIndex]?.text || target.value;
-      const stepTitle = meta.customTitle || `Pilih opsi "${selectedOption}" pada dropdown "${label}"`;
-      const actionDesc = `Pengguna memilih opsi [${selectedOption}] pada dropdown [${label}].`;
-      const expected = meta.customExpected || `Opsi [${selectedOption}] terpilih.`;
+      const stepTitle = meta.customTitle || `Pilih [${label}]: "${selectedOption}"`;
+      const actionDesc = `Pengguna menentukan pilihan "${selectedOption}" pada dropdown [${label}].`;
+      const expected = meta.customExpected || `Sistem menerapkan opsi "${selectedOption}" dan memperbarui data/tampilan pada field [${label}].`;
 
       (async () => {
         let screenshot = '';
         if (sessionData.autoScreenshot === true) {
-          let cleanupHighlight = () => {};
-          if (sessionData.autoHighlight) {
-            cleanupHighlight = await highlightElement(target);
-          }
+          const cleanupHighlight = highlightElement(target);
           screenshot = await captureScreenshot();
           cleanupHighlight();
         }
@@ -1527,7 +1805,7 @@
             actionDescription: actionDesc,
             inputData: selectedOption,
             expectedResult: expected,
-            actual: 'Opsi berhasil dipilih.',
+            actual: `Opsi "${selectedOption}" berhasil diterapkan.`,
             status: 'Pass',
             metadata: meta,
             screenshot: screenshot

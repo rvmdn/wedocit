@@ -3,6 +3,46 @@ chrome.runtime.onInstalled.addListener(() => {
   initStorage();
 });
 
+const DEFAULT_TC_PATTERNS = [
+  {
+    title: "Verifikasi Akses Menu & Tampilan Halaman Modul",
+    expectedResult: "Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif."
+  },
+  {
+    title: "Pengujian Pencarian & Penyaringan (Filter) Data",
+    expectedResult: "Sistem menyaring data secara akurat sesuai kriteria parameter pencarian yang dimasukkan pengguna."
+  },
+  {
+    title: "Pengujian Input Formulir & Validasi Simpan Data Baru",
+    expectedResult: "Sistem memvalidasi keabsahan data formulir dan menyimpan rekaman baru dengan menampilkan notifikasi sukses."
+  },
+  {
+    title: "Pengujian Pemutakhiran (Ubah/Edit) Informasi Data",
+    expectedResult: "Perubahan informasi data berhasil tersimpan ke sistem dan terefleksi langsung pada daftar data."
+  },
+  {
+    title: "Pengujian Alur Verifikasi / Persetujuan (Approval)",
+    expectedResult: "Alur persetujuan berjalan sesuai hierarki kewenangan dan status pengajuan terbarui menjadi Disetujui (Approved)."
+  },
+  {
+    title: "Pengujian Ekspor Data & Unduh Berkas Laporan",
+    expectedResult: "Sistem berhasil mengenerate berkas dokumen laporan dalam format yang valid tanpa kendala."
+  },
+  {
+    title: "Pengujian Validasi Form & Penanganan Error Input",
+    expectedResult: "Sistem memunculkan pesan validasi yang jelas pada field mandatory dan mencegah penyimpanan data yang keliru."
+  }
+];
+
+function getContextualTcDetails(num) {
+  const idx = Math.max(0, (num || 1) - 1) % DEFAULT_TC_PATTERNS.length;
+  const p = DEFAULT_TC_PATTERNS[idx];
+  return {
+    title: `TC ${num || 1}: ${p.title}`,
+    expectedResult: p.expectedResult
+  };
+}
+
 function createDefaultDoc(scenarioName, crNumber, userProfile) {
   const docId = 'doc_' + Date.now();
   const tcId = 'tc_' + Date.now();
@@ -63,8 +103,8 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
       {
         id: tcId,
         tcNumber: 1,
-        title: "Test Case 1",
-        expectedResult: "Sistem merespons proses dengan benar dan berhasil.",
+        title: getContextualTcDetails(1).title,
+        expectedResult: getContextualTcDetails(1).expectedResult,
         status: "OK",
         steps: []
       }
@@ -238,12 +278,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const current = res.sessionData || {};
       const activeDoc = getActiveDoc(current);
       const tcs = activeDoc.testCases || [];
-      const nextNum = tcs.length + 1;
+      const tcMeta = getContextualTcDetails(nextNum);
       const newTc = {
         id: 'tc_' + Date.now(),
         tcNumber: nextNum,
-        title: 'Test Case ' + nextNum,
-        expectedResult: 'Sistem merespons proses dengan benar dan berhasil.',
+        title: tcMeta.title,
+        expectedResult: tcMeta.expectedResult,
         status: 'OK',
         steps: []
       };
@@ -278,12 +318,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'RESET_ACTIVE_DOC' || message.type === 'RESET_ALL') {
     chrome.storage.local.get(['sessionData'], (res) => {
       const current = res.sessionData || {};
-      const activeDoc = getActiveDoc(current);
+      const initTc = getContextualTcDetails(1);
       const defaultTc = {
         id: "tc_" + Date.now(),
         tcNumber: 1,
-        title: "Test Case 1",
-        expectedResult: "Sistem merespons proses dengan benar dan berhasil.",
+        title: initTc.title,
+        expectedResult: initTc.expectedResult,
         status: "OK",
         steps: []
       };
@@ -306,11 +346,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const activeDoc = getActiveDoc(current);
       let tcs = activeDoc.testCases || [];
       if (tcs.length === 0) {
+        const initTc = getContextualTcDetails(1);
         tcs = [{
           id: "tc_1",
           tcNumber: 1,
-          title: "Test Case 1",
-          expectedResult: "Sistem merespons proses dengan benar dan berhasil.",
+          title: initTc.title,
+          expectedResult: initTc.expectedResult,
           status: "OK",
           steps: []
         }];
@@ -345,11 +386,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       let activeTc = tcs.find(t => t.id === activeDoc.activeTcId) || tcs[tcs.length - 1];
 
       if (!activeTc) {
+        const initTc = getContextualTcDetails(1);
         activeTc = {
           id: "tc_1",
           tcNumber: 1,
-          title: "Test Case 1",
-          expectedResult: "Sistem merespons proses dengan benar dan berhasil.",
+          title: initTc.title,
+          expectedResult: initTc.expectedResult,
           status: "OK",
           steps: []
         };
@@ -364,10 +406,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         activeTc.steps = [{
           id: 'step_' + Date.now(),
           stepNumber: 1,
-          title: 'Tangkapan Layar Halaman',
-          actionDescription: 'Tampilan halaman saat ini (' + (message.pageTitle || 'Web Page') + ')',
+          title: 'Verifikasi Antarmuka Halaman',
+          actionDescription: 'Pengguna mengakses dan meninjau tampilan halaman (' + (message.pageTitle || 'Web Page') + ').',
           inputData: '-',
-          expectedResult: 'Tampilan halaman sesuai dengan rancangan.',
+          expectedResult: 'Tampilan antarmuka halaman termuat secara lengkap dan komponen aktif.',
           screenshot: message.screenshot
         }];
       }

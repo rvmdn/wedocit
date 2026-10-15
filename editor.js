@@ -64,6 +64,90 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
   const mainLayout = document.querySelector('.main-layout');
 
+  const DEFAULT_TC_PATTERNS = [
+    {
+      title: "Verifikasi Akses Menu & Tampilan Halaman Modul",
+      expectedResult: "Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif."
+    },
+    {
+      title: "Pengujian Pencarian & Penyaringan (Filter) Data",
+      expectedResult: "Sistem menyaring data secara akurat sesuai kriteria parameter pencarian yang dimasukkan pengguna."
+    },
+    {
+      title: "Pengujian Input Formulir & Validasi Simpan Data Baru",
+      expectedResult: "Sistem memvalidasi keabsahan data formulir dan menyimpan rekaman baru dengan menampilkan notifikasi sukses."
+    },
+    {
+      title: "Pengujian Pemutakhiran (Ubah/Edit) Informasi Data",
+      expectedResult: "Perubahan informasi data berhasil tersimpan ke sistem dan terefleksi langsung pada daftar data."
+    },
+    {
+      title: "Pengujian Alur Verifikasi / Persetujuan (Approval)",
+      expectedResult: "Alur persetujuan berjalan sesuai hierarki kewenangan dan status pengajuan terbarui menjadi Disetujui (Approved)."
+    },
+    {
+      title: "Pengujian Ekspor Data & Unduh Berkas Laporan",
+      expectedResult: "Sistem berhasil mengenerate berkas dokumen laporan dalam format yang valid tanpa kendala."
+    },
+    {
+      title: "Pengujian Validasi Form & Penanganan Error Input",
+      expectedResult: "Sistem memunculkan pesan validasi yang jelas pada field mandatory dan mencegah penyimpanan data yang keliru."
+    }
+  ];
+
+  function getContextualTcDetails(num) {
+    const idx = Math.max(0, (num || 1) - 1) % DEFAULT_TC_PATTERNS.length;
+    const p = DEFAULT_TC_PATTERNS[idx];
+    return {
+      title: `TC ${num || 1}: ${p.title}`,
+      expectedResult: p.expectedResult
+    };
+  }
+
+  const MANUAL_STEP_TEMPLATES = [
+    {
+      title: "Akses Halaman Modul",
+      actionDescription: "Pengguna mengakses halaman modul untuk memulai proses pengujian alur sistem.",
+      inputData: "-",
+      expectedResult: "Halaman antarmuka termuat dengan baik dan seluruh elemen siap digunakan."
+    },
+    {
+      title: "Terapkan Filter & Pencarian Data",
+      actionDescription: "Pengguna menentukan kriteria filter pada kolom pencarian yang tersedia.",
+      inputData: "Kata Kunci Pengujian",
+      expectedResult: "Tabel menyajikan data yang relevan sesuai parameter pencarian."
+    },
+    {
+      title: "Pengisian Formulir Transaksi",
+      actionDescription: "Pengguna melengkapi data yang bersifat mandatory pada formulir input.",
+      inputData: "Data Pengujian Valid",
+      expectedResult: "Semua field formulir terisi dengan format yang benar tanpa error validasi."
+    },
+    {
+      title: "Simpan & Konfirmasi Data",
+      actionDescription: "Pengguna menekan tombol Simpan untuk memproses rekaman data ke dalam sistem.",
+      inputData: "-",
+      expectedResult: "Sistem berhasil menyimpan perubahan dan menyajikan notifikasi sukses."
+    },
+    {
+      title: "Verifikasi Pemutakhiran Status Data",
+      actionDescription: "Pengguna memeriksa status dan hasil pembaruan data pada tabel daftar utama.",
+      inputData: "-",
+      expectedResult: "Status data terbarui secara akurat sesuai alur bisnis yang diharapkan."
+    }
+  ];
+
+  function getContextualManualStep(stepNum) {
+    const idx = Math.max(0, (stepNum || 1) - 1) % MANUAL_STEP_TEMPLATES.length;
+    const tpl = MANUAL_STEP_TEMPLATES[idx];
+    return {
+      title: `${stepNum}. ${tpl.title}`,
+      actionDescription: tpl.actionDescription,
+      inputData: tpl.inputData,
+      expectedResult: tpl.expectedResult
+    };
+  }
+
   btnToggleSidebar?.addEventListener('click', () => {
     if (mainLayout.classList.contains('sidebar-collapsed')) {
       mainLayout.classList.remove('sidebar-collapsed');
@@ -713,12 +797,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       addSubstepBtn?.addEventListener('click', () => {
         if (!tc.steps) tc.steps = [];
+        const nextStepNum = tc.steps.length + 1;
+        const manualStep = getContextualManualStep(nextStepNum);
         tc.steps.push({
           id: 'step_' + Date.now(),
-          stepNumber: tc.steps.length + 1,
-          title: 'Aktivitas ' + (tc.steps.length + 1),
-          actionDescription: 'Deskripsi langkah pengujian...',
-          inputData: '-',
+          stepNumber: nextStepNum,
+          title: manualStep.title,
+          actionDescription: manualStep.actionDescription,
+          inputData: manualStep.inputData,
+          expectedResult: manualStep.expectedResult,
           screenshot: ''
         });
         saveActiveDocState();
@@ -841,11 +928,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = getActiveDoc();
     const tcs = doc.testCases || [];
     const nextNum = tcs.length + 1;
+    const tcMeta = getContextualTcDetails(nextNum);
     tcs.push({
       id: 'tc_' + Date.now(),
       tcNumber: nextNum,
-      title: 'Test Case ' + nextNum,
-      expectedResult: 'Sistem merespons proses dengan benar dan berhasil.',
+      title: tcMeta.title,
+      expectedResult: tcMeta.expectedResult,
       status: 'OK',
       steps: []
     });
