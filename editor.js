@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let isSavingLocally = false;
   let saveDebounceTimer = null;
+  let editingStep = null; // { tcIndex, stepIndex }
 
   // Load State (Direct from Local Storage with Service Worker Fallback)
   function loadFreshState(callback) {
@@ -104,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Auto-refresh saat tab editor difokuskan / dibuka kembali
   window.addEventListener('focus', () => {
     const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-    if (!isTyping) {
+    if (!isTyping && !editingStep) {
       loadFreshState();
     }
   });
@@ -112,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-      if (!isTyping) {
+      if (!isTyping && !editingStep) {
         loadFreshState();
       }
     }
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (area === 'local' && changes.sessionData) {
       if (isSavingLocally) return;
       const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-      if (!isTyping) {
+      if (!isTyping && !editingStep) {
         loadFreshState();
       }
     }
@@ -542,27 +543,108 @@ document.addEventListener('DOMContentLoaded', () => {
       const steps = tc.steps || [];
       let stepsHtml = '';
       steps.forEach((s, sIdx) => {
-        stepsHtml += `
-          <div class="tc-substep-row">
-            <div class="step-index-badge">${sIdx + 1}</div>
-            <div class="step-info-col">
-              <div class="step-title-text">${escapeHtml(s.title || 'Aktivitas ' + (sIdx + 1))}</div>
-              <div class="step-action-desc">${escapeHtml(s.actionDescription || '')}</div>
-              ${s.inputData && s.inputData !== '-' ? '<div class="step-input-badge">Input: <b>' + escapeHtml(s.inputData) + '</b></div>' : ''}
-              <div>
-                <button class="btn btn-outline btn-xs btn-del-step" data-tc="${tcIndex}" data-step="${sIdx}" style="margin-top: 5px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">🗑 Hapus Langkah</button>
+        const isEditing = editingStep && editingStep.tcIndex === tcIndex && editingStep.stepIndex === sIdx;
+
+        if (isEditing) {
+          stepsHtml += `
+            <div class="tc-substep-row editing-row">
+              <div class="step-index-badge">${sIdx + 1}</div>
+              <div class="step-info-col">
+                <div class="edit-step-box">
+                  <div class="edit-step-header">
+                    <span>✏️ Edit Langkah ${sIdx + 1}</span>
+                  </div>
+                  <div>
+                    <label class="edit-step-label">Judul Aktivitas:</label>
+                    <input type="text" class="form-control inp-edit-title" data-tc="${tcIndex}" data-step="${sIdx}" value="${escapeHtml(s.title || '')}" placeholder="Contoh: Klik tombol Simpan">
+                  </div>
+                  <div>
+                    <label class="edit-step-label">Deskripsi Aksi:</label>
+                    <textarea class="form-control inp-edit-desc" data-tc="${tcIndex}" data-step="${sIdx}" rows="2" placeholder="Contoh: Pengguna mengklik tombol Simpan data...">${escapeHtml(s.actionDescription || '')}</textarea>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                      <label class="edit-step-label">Input Data (opsional):</label>
+                      <input type="text" class="form-control inp-edit-input" data-tc="${tcIndex}" data-step="${sIdx}" value="${escapeHtml(s.inputData && s.inputData !== '-' ? s.inputData : '')}" placeholder="Contoh: ID: 12345 / -">
+                    </div>
+                    <div>
+                      <label class="edit-step-label">Hasil yang Diharapkan:</label>
+                      <input type="text" class="form-control inp-edit-expected" data-tc="${tcIndex}" data-step="${sIdx}" value="${escapeHtml(s.expectedResult || '')}" placeholder="Contoh: Data berhasil tersimpan">
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button type="button" class="btn btn-primary btn-xs btn-save-step" data-tc="${tcIndex}" data-step="${sIdx}">
+                      💾 Simpan
+                    </button>
+                    <button type="button" class="btn btn-outline btn-xs btn-cancel-step" data-tc="${tcIndex}" data-step="${sIdx}">
+                      ✖ Batal
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="step-img-col">
+                ${s.screenshot ? `
+                  <div class="thumb-wrapper" title="Klik untuk memperbesar gambar">
+                    <img src="${s.screenshot}" class="zoomable-img" />
+                  </div>
+                  <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
+                    <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer;" title="Ganti Screenshot">
+                      📷 Ganti
+                      <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
+                    </label>
+                    <button type="button" class="btn btn-outline btn-xs btn-del-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #94a3b8;">Hapus</button>
+                  </div>
+                ` : `
+                  <div style="color: #64748b; font-size: 10.5px; padding-top: 15px; font-style: italic;">Tidak ada screenshot</div>
+                  <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer; margin-top: 6px;" title="Upload Screenshot">
+                    📷 Upload
+                    <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
+                  </label>
+                `}
               </div>
             </div>
-            <div class="step-img-col">
-              ${s.screenshot ? `
-                <div class="thumb-wrapper" title="Klik untuk memperbesar gambar">
-                  <img src="${s.screenshot}" class="zoomable-img" />
+          `;
+        } else {
+          stepsHtml += `
+            <div class="tc-substep-row">
+              <div class="step-index-badge">${sIdx + 1}</div>
+              <div class="step-info-col">
+                <div class="step-title-text">${escapeHtml(s.title || 'Aktivitas ' + (sIdx + 1))}</div>
+                <div class="step-action-desc">${escapeHtml(s.actionDescription || '')}</div>
+                ${s.inputData && s.inputData !== '-' ? '<div class="step-input-badge">Input: <b>' + escapeHtml(s.inputData) + '</b></div>' : ''}
+                ${s.expectedResult ? '<div style="font-size: 10.5px; color: #10b981; margin-top: 2px;">Ekspektasi: ' + escapeHtml(s.expectedResult) + '</div>' : ''}
+                <div style="display: flex; gap: 6px; margin-top: 6px;">
+                  <button type="button" class="btn btn-outline btn-xs btn-edit-step" data-tc="${tcIndex}" data-step="${sIdx}" title="Edit Langkah ini">
+                    ✏️ Edit
+                  </button>
+                  <button type="button" class="btn btn-outline btn-xs btn-del-step" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" title="Hapus Langkah ini">
+                    🗑 Hapus
+                  </button>
                 </div>
-                <button class="btn btn-outline btn-xs btn-del-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #94a3b8;">Hapus Gambar</button>
-              ` : '<div style="color: #64748b; font-size: 10.5px; padding-top: 25px; font-style: italic;">Tidak ada screenshot</div>'}
+              </div>
+              <div class="step-img-col">
+                ${s.screenshot ? `
+                  <div class="thumb-wrapper" title="Klik untuk memperbesar gambar">
+                    <img src="${s.screenshot}" class="zoomable-img" />
+                  </div>
+                  <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
+                    <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer;" title="Ganti Screenshot">
+                      📷 Ganti
+                      <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
+                    </label>
+                    <button type="button" class="btn btn-outline btn-xs btn-del-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #94a3b8;">Hapus</button>
+                  </div>
+                ` : `
+                  <div style="color: #64748b; font-size: 10.5px; padding-top: 15px; font-style: italic;">Tidak ada screenshot</div>
+                  <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer; margin-top: 6px;" title="Upload Screenshot">
+                    📷 Upload
+                    <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
+                  </label>
+                `}
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        }
       });
 
       tcCard.innerHTML = `
@@ -647,6 +729,87 @@ document.addEventListener('DOMContentLoaded', () => {
         img.addEventListener('click', () => {
           modalImg.src = img.src;
           modalZoom.classList.add('active');
+        });
+      });
+
+      // Tombol Edit Langkah
+      tcCard.querySelectorAll('.btn-edit-step').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tcIdx = parseInt(btn.dataset.tc, 10);
+          const sIdx = parseInt(btn.dataset.step, 10);
+          editingStep = { tcIndex: tcIdx, stepIndex: sIdx };
+          renderTestCases();
+          const targetInp = document.querySelector(`.inp-edit-title[data-tc="${tcIdx}"][data-step="${sIdx}"]`);
+          if (targetInp) targetInp.focus();
+        });
+      });
+
+      // Tombol Simpan Perubahan Langkah
+      tcCard.querySelectorAll('.btn-save-step').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tcIdx = parseInt(btn.dataset.tc, 10);
+          const sIdx = parseInt(btn.dataset.step, 10);
+          const row = btn.closest('.tc-substep-row');
+          if (!row) return;
+
+          const newTitle = row.querySelector('.inp-edit-title')?.value.trim();
+          const newDesc = row.querySelector('.inp-edit-desc')?.value.trim();
+          const newInput = row.querySelector('.inp-edit-input')?.value.trim();
+          const newExpected = row.querySelector('.inp-edit-expected')?.value.trim();
+
+          const targetTc = tcs[tcIdx];
+          if (targetTc && targetTc.steps && targetTc.steps[sIdx]) {
+            targetTc.steps[sIdx].title = newTitle || `Aktivitas ${sIdx + 1}`;
+            targetTc.steps[sIdx].actionDescription = newDesc || '';
+            targetTc.steps[sIdx].inputData = newInput || '-';
+            targetTc.steps[sIdx].expectedResult = newExpected || '';
+            saveActiveDocState();
+          }
+          editingStep = null;
+          renderTestCases();
+        });
+      });
+
+      // Tombol Batal Edit Langkah
+      tcCard.querySelectorAll('.btn-cancel-step').forEach(btn => {
+        btn.addEventListener('click', () => {
+          editingStep = null;
+          renderTestCases();
+        });
+      });
+
+      // Keyboard Shortcut saat Edit Langkah (Esc = Batal, Enter/Ctrl+Enter = Simpan)
+      tcCard.querySelectorAll('.inp-edit-title, .inp-edit-desc, .inp-edit-input, .inp-edit-expected').forEach(input => {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            editingStep = null;
+            renderTestCases();
+          } else if (e.key === 'Enter' && (e.ctrlKey || input.tagName === 'INPUT')) {
+            e.preventDefault();
+            const row = input.closest('.tc-substep-row');
+            row?.querySelector('.btn-save-step')?.click();
+          }
+        });
+      });
+
+      // Upload / Ganti Gambar Screenshot
+      tcCard.querySelectorAll('.input-replace-img').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const tcIdx = parseInt(input.dataset.tc, 10);
+          const sIdx = parseInt(input.dataset.step, 10);
+          const reader = new FileReader();
+          reader.onload = (loadEvt) => {
+            const base64Data = loadEvt.target.result;
+            const targetTc = tcs[tcIdx];
+            if (targetTc && targetTc.steps && targetTc.steps[sIdx]) {
+              targetTc.steps[sIdx].screenshot = base64Data;
+              saveActiveDocState();
+              renderTestCases();
+            }
+          };
+          reader.readAsDataURL(file);
         });
       });
 
