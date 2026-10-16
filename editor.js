@@ -749,6 +749,11 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
 
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label style="font-weight: 600; font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Skenario Pengujian (Untuk Bab 2 Tabel):</label>
+          <input type="text" class="form-control tc-scenario-input" value="${escapeHtml(tc.scenarioName || '')}" placeholder="Contoh: Rekap Audit Reguler - Anggaran Biaya" />
+        </div>
+
         <div class="form-group" style="margin-bottom: 14px;">
           <label style="font-weight: 600; font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Hasil yang Diharapkan (Expected Result untuk TC ini):</label>
           <input type="text" class="form-control tc-expected-input" value="${escapeHtml(tc.expectedResult || '')}" placeholder="Hasil yang diharapkan..." />
@@ -766,6 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       const titleInput = tcCard.querySelector('.tc-title-input');
+      const scenarioInput = tcCard.querySelector('.tc-scenario-input');
       const statusSelect = tcCard.querySelector('.tc-status-select');
       const expectedInput = tcCard.querySelector('.tc-expected-input');
       const delTcBtn = tcCard.querySelector('.btn-del-tc');
@@ -773,6 +779,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       titleInput?.addEventListener('input', () => {
         tc.title = titleInput.value;
+        saveActiveDocState();
+      });
+
+      scenarioInput?.addEventListener('input', () => {
+        tc.scenarioName = scenarioInput.value;
         saveActiveDocState();
       });
 
@@ -1064,7 +1075,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let newText = fullText;
             for (const [key, val] of Object.entries(replacements)) {
               if (newText.includes(key)) {
-                newText = newText.split(key).join(val);
+                // Selalu escape karakter XML (khususnya &) pada nilai pengganti
+                newText = newText.split(key).join(escapeXml(val));
                 modified = true;
               }
             }
@@ -1076,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return pXml.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (match, attrs) => {
               if (!firstReplaced) {
                 firstReplaced = true;
-                return `<w:t xml:space="preserve"${attrs ? ' ' + attrs.replace(/xml:space="[^"]*"/, '') : ''}>${formattedVal}</w:t>`;
+                return `<w:t xml:space="preserve">${formattedVal}</w:t>`;
               } else {
                 return `<w:t></w:t>`;
               }
@@ -1093,6 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const safeTcs = (testCases && testCases.length > 0) ? testCases : [{
               title: 'Pengujian Alur',
+              scenarioName: scName || 'Skenario Pengujian',
               expectedResult: 'Sistem merespons proses dengan benar.',
               status: 'OK'
             }];
@@ -1100,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return safeTcs.map((tc, idx) => {
               const rowMap = {
                 '{no}': String(idx + 1),
-                '{skenario}': scName || 'Skenario Pengujian',
+                '{skenario}': tc.scenarioName || scName || tc.title || 'Skenario Pengujian',
                 '{test_case}': tc.title || `Test Case ${idx + 1}`,
                 '{ekspektasi}': tc.expectedResult || 'Berhasil',
                 '{result}': tc.status || 'OK'
@@ -1161,17 +1174,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generatedXml += `
               <w:p>
-                <w:pPr><w:spacing w:before="240" w:after="80"/></w:pPr>
+                <w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr>
                 <w:r>
                   <w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="003366"/></w:rPr>
                   <w:t xml:space="preserve">3.1.${tcNum} ${escapeXml(tc.title || 'Test Case ' + tcNum)}</w:t>
-                </w:r>
-              </w:p>
-              <w:p>
-                <w:pPr><w:spacing w:before="0" w:after="140"/></w:pPr>
-                <w:r>
-                  <w:rPr><w:i/><w:sz w:val="20"/><w:color w:val="555555"/></w:rPr>
-                  <w:t xml:space="preserve">Hasil yang Diharapkan: ${escapeXml(tc.expectedResult || '-')}  |  Status: ${escapeXml(tc.status || 'OK')}</w:t>
                 </w:r>
               </w:p>
             `;
@@ -1181,13 +1187,14 @@ document.addEventListener('DOMContentLoaded', () => {
               const s = steps[sIdx];
               const sNum = sIdx + 1;
               const stepText = `${sNum}. ${s.actionDescription || s.title || 'Aktivitas ' + sNum}` + (s.inputData && s.inputData !== '-' ? ` (Input: ${s.inputData})` : '');
+              const formattedStepText = escapeXml(stepText).replace(/\n/g, '</w:t><w:br/><w:t>');
 
               generatedXml += `
                 <w:p>
                   <w:pPr><w:spacing w:before="100" w:after="60"/></w:pPr>
                   <w:r>
                     <w:rPr><w:sz w:val="21"/></w:rPr>
-                    <w:t xml:space="preserve">${escapeXml(stepText)}</w:t>
+                    <w:t xml:space="preserve">${formattedStepText}</w:t>
                   </w:r>
                 </w:p>
               `;
@@ -1315,24 +1322,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     let tableRowsHtml = '';
     const totalTcs = tcs.length || 1;
+    const hasDistinctScenarios = tcs.some(t => t.scenarioName && t.scenarioName !== scenarioName);
 
     tcs.forEach((tc, idx) => {
       const statusColor = (tc.status === 'OK' || tc.status === 'Pass') ? '#047857' : ((tc.status === 'NOK' || tc.status === 'Fail') ? '#b91c1c' : '#b45309');
+      const rowScenario = tc.scenarioName || scenarioName;
       
       tableRowsHtml += `
         <tr style="page-break-inside: avoid;">
           <td style="border: 1px solid #777; padding: 6px 8px; text-align: center; vertical-align: top; width: 5%;">
             ${idx + 1}
           </td>
-          ${idx === 0 ? `
-            <td rowspan="${totalTcs}" style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 35%; font-weight: bold;">
+          ${!hasDistinctScenarios ? (idx === 0 ? `
+            <td rowspan="${totalTcs}" style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%; font-weight: bold;">
               ${escapeHtml(scenarioName)}
             </td>
-          ` : ''}
+          ` : '') : `
+            <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%; font-weight: 500;">
+              ${escapeHtml(rowScenario)}
+            </td>
+          `}
           <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 25%;">
             ${escapeHtml(tc.title || 'TC ' + (idx + 1))}
           </td>
-          <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 25%;">
+          <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%;">
             ${escapeHtml(tc.expectedResult || '')}
           </td>
           <td style="border: 1px solid #777; padding: 6px 8px; text-align: center; vertical-align: top; width: 10%; font-weight: bold; color: ${statusColor};">
@@ -1369,12 +1382,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       evidenceSectionsHtml += `
         <div style="margin-top: 24px; margin-bottom: 24px; page-break-inside: avoid;">
-          <h3 style="font-size: 12pt; color: #003366; margin: 0 0 4px 0; font-weight: bold;">
+          <h3 style="font-size: 12pt; color: #003366; margin: 0 0 8px 0; font-weight: bold;">
             ${idx + 1}. ${escapeHtml(tc.title || 'Test Case ' + (idx + 1))}
           </h3>
-          <p style="font-size: 10pt; color: #444; margin: 0 0 10px 0;">
-            <b>Hasil yang Diharapkan:</b> ${escapeHtml(tc.expectedResult || '')} | <b>Status:</b> <span style="font-weight:bold; color:${(tc.status === 'OK' || tc.status === 'Pass') ? '#047857' : '#b91c1c'};">${escapeHtml(tc.status || 'OK')}</span>
-          </p>
           ${tcStepsHtml || '<p style="color:#666; font-style:italic; font-size:10pt;">(Belum ada langkah/evidens untuk Test Case ini)</p>'}
         </div>
       `;
@@ -1603,7 +1613,8 @@ document.addEventListener('DOMContentLoaded', () => {
     md += `| :---: | :--- | :--- | :--- | :---: |\n`;
 
     tcs.forEach((tc, idx) => {
-      md += `| ${idx + 1} | ${scenarioName.replace(/\|/g, '-')} | ${(tc.title || '').replace(/\|/g, '-')} | ${(tc.expectedResult || '').replace(/\|/g, '-')} | **${tc.status || 'OK'}** |\n`;
+      const rowScenario = tc.scenarioName || scenarioName;
+      md += `| ${idx + 1} | ${rowScenario.replace(/\|/g, '-')} | ${(tc.title || '').replace(/\|/g, '-')} | ${(tc.expectedResult || '').replace(/\|/g, '-')} | **${tc.status || 'OK'}** |\n`;
     });
 
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
@@ -1667,8 +1678,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function escapeXml(text) {
-    if (!text) return '';
+    if (text === undefined || text === null) return '';
     return text.toString()
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -1677,7 +1689,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function base64ToUint8Array(base64) {
-    const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, '');
+    if (!base64) return new Uint8Array(0);
+    const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, '').replace(/\s+/g, '');
     const binaryString = atob(cleanBase64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);

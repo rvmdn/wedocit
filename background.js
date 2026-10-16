@@ -104,6 +104,7 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
         id: tcId,
         tcNumber: 1,
         title: getContextualTcDetails(1).title,
+        scenarioName: scenarioName || "Pengujian Alur Modul",
         expectedResult: getContextualTcDetails(1).expectedResult,
         status: "OK",
         steps: []
@@ -278,12 +279,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const current = res.sessionData || {};
       const activeDoc = getActiveDoc(current);
       const tcs = activeDoc.testCases || [];
+      const nextNum = tcs.length + 1;
       const tcMeta = getContextualTcDetails(nextNum);
+      const customTitle = message.title || `TC ${nextNum}: ${tcMeta.title}`;
+      const customScenario = message.scenarioName || message.title || activeDoc.metadata?.scenarioName || tcMeta.title;
+      const customExpected = message.expectedResult || tcMeta.expectedResult;
+
       const newTc = {
         id: 'tc_' + Date.now(),
         tcNumber: nextNum,
-        title: tcMeta.title,
-        expectedResult: tcMeta.expectedResult,
+        title: customTitle,
+        scenarioName: customScenario,
+        expectedResult: customExpected,
         status: 'OK',
         steps: []
       };
@@ -308,7 +315,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       activeDoc.activeTcId = message.tcId;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, activeTcId: message.tcId });
+        sendResponse({ success: true, activeTcId: message.tcId, sessionData: current });
       });
     });
     return true;

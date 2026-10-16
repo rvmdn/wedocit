@@ -619,6 +619,140 @@
         pointer-events: none;
       }
       .toast-msg.show { opacity: 1; transform: translateY(0); }
+
+      /* MODAL DIALOG SKENARIO & TC BARU */
+      .wedocit-modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2147483647;
+      }
+      .wedocit-modal-card {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(56, 189, 248, 0.25);
+        width: 480px;
+        max-width: 92vw;
+        padding: 20px 22px;
+        color: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        box-sizing: border-box;
+      }
+      .wedocit-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .wedocit-modal-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #38bdf8;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .wedocit-modal-subtitle {
+        font-size: 11px;
+        color: #94a3b8;
+        margin-top: 3px;
+        line-height: 1.4;
+      }
+      .wedocit-modal-close {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .wedocit-modal-close:hover {
+        background: #1e293b;
+        color: #f8fafc;
+      }
+      .wedocit-form-group {
+        margin-bottom: 12px;
+      }
+      .wedocit-form-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: #cbd5e1;
+        margin-bottom: 5px;
+      }
+      .wedocit-form-hint {
+        font-size: 10px;
+        color: #64748b;
+        margin-top: 3px;
+      }
+      .wedocit-input, .wedocit-textarea {
+        width: 100%;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 12px;
+        color: #f8fafc;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+        font-family: inherit;
+      }
+      .wedocit-input:focus, .wedocit-textarea:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+      }
+      .wedocit-textarea {
+        resize: vertical;
+        min-height: 56px;
+      }
+      .wedocit-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .wedocit-btn-cancel {
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #cbd5e1;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .wedocit-btn-cancel:hover {
+        background: #334155;
+        color: #fff;
+      }
+      .wedocit-btn-submit {
+        background: linear-gradient(135deg, #0284c7, #6366f1);
+        border: none;
+        color: #fff;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+      }
+      .wedocit-btn-submit:hover {
+        filter: brightness(1.15);
+        transform: translateY(-1px);
+      }
     `;
 
     const widget = document.createElement('div');
@@ -842,17 +976,166 @@
     }
   }
 
+  function openNewTcModal() {
+    if (!shadowRoot) return;
+    
+    // Hapus modal lama jika ada
+    const existing = shadowRoot.getElementById('wedocit-new-tc-modal');
+    if (existing) existing.remove();
+
+    const activeDoc = getActiveDoc();
+    const tcs = activeDoc.testCases || [];
+    const nextNum = tcs.length + 1;
+    const context = scanPageContext();
+
+    const defaultScenario = context.predictedScenario || context.scenarioName || `Skenario ${nextNum}`;
+    const defaultTitle = `TC ${nextNum}: ${context.predictedTitle || 'Pengujian Alur Fitur'}`;
+    const defaultExpected = context.predictedExpected || 'Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif.';
+
+    const modalBackdrop = document.createElement('div');
+    modalBackdrop.className = 'wedocit-modal-backdrop';
+    modalBackdrop.id = 'wedocit-new-tc-modal';
+    modalBackdrop.innerHTML = `
+      <div class="wedocit-modal-card" id="wedocit-modal-card">
+        <div class="wedocit-modal-header">
+          <div>
+            <div class="wedocit-modal-title">
+              <span>✨</span>
+              <span>Skenario / Test Case Baru (TC ${nextNum})</span>
+            </div>
+            <div class="wedocit-modal-subtitle">
+              Sistem mendeteksi posisi layar &amp; tab saat ini. Silakan sesuaikan nama skenario &amp; ekspektasi:
+            </div>
+          </div>
+          <button class="wedocit-modal-close" id="btn-modal-close" title="Batal (Esc)">✕</button>
+        </div>
+
+        <div class="wedocit-form-group">
+          <label class="wedocit-form-label" for="inp-modal-scenario">
+            Nama Skenario Pengujian (Posisi Screen / Tab):
+          </label>
+          <input type="text" class="wedocit-input" id="inp-modal-scenario" value="${escapeHtml(defaultScenario)}" placeholder="Contoh: Rekap Audit Reguler - Anggaran Biaya" />
+          <div class="wedocit-form-hint">Otomatis terisi dari breadcrumb / tab aktif pada layar.</div>
+        </div>
+
+        <div class="wedocit-form-group">
+          <label class="wedocit-form-label" for="inp-modal-title">
+            Judul Test Case:
+          </label>
+          <input type="text" class="wedocit-input" id="inp-modal-title" value="${escapeHtml(defaultTitle)}" placeholder="Contoh: TC ${nextNum}: Verifikasi Akses Menu & Data" />
+        </div>
+
+        <div class="wedocit-form-group">
+          <label class="wedocit-form-label" for="inp-modal-expected">
+            Hasil yang Diharapkan (Expected Result):
+          </label>
+          <textarea class="wedocit-textarea" id="inp-modal-expected" rows="3" placeholder="Contoh: Sistem menyajikan data anggaran secara akurat...">${escapeHtml(defaultExpected)}</textarea>
+        </div>
+
+        <div class="wedocit-modal-actions">
+          <button class="wedocit-btn-cancel" id="btn-modal-cancel">Batal</button>
+          <button class="wedocit-btn-submit" id="btn-modal-submit">
+            <span>💾</span>
+            <span>Simpan &amp; Lanjut Rekam</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    shadowRoot.appendChild(modalBackdrop);
+
+    const inpScenario = shadowRoot.getElementById('inp-modal-scenario');
+    const inpTitle = shadowRoot.getElementById('inp-modal-title');
+    const inpExpected = shadowRoot.getElementById('inp-modal-expected');
+    const btnClose = shadowRoot.getElementById('btn-modal-close');
+    const btnCancel = shadowRoot.getElementById('btn-modal-cancel');
+    const btnSubmit = shadowRoot.getElementById('btn-modal-submit');
+
+    // Auto-focus & select text on scenario input
+    setTimeout(() => {
+      inpScenario?.focus();
+      inpScenario?.select();
+    }, 50);
+
+    const closeModal = () => {
+      modalBackdrop.remove();
+      // Revert dropdown TC jika user membatalkan pilihan __NEW_TC__
+      const selTc = shadowRoot?.getElementById('sel-active-tc');
+      if (selTc && selTc.value === '__NEW_TC__') {
+        selTc.value = sessionData.activeTcId || '';
+      }
+    };
+
+    const submitNewTc = () => {
+      const finalScenario = inpScenario?.value?.trim() || defaultScenario;
+      const finalTitle = inpTitle?.value?.trim() || defaultTitle;
+      const finalExpected = inpExpected?.value?.trim() || defaultExpected;
+
+      safeSendMessage({
+        type: 'CREATE_NEXT_TC',
+        title: finalTitle,
+        scenarioName: finalScenario,
+        expectedResult: finalExpected
+      }, (res) => {
+        if (res?.sessionData) {
+          sessionData = res.sessionData;
+          updateWidgetUI();
+        }
+        closeModal();
+        showToast(`✨ TC ${res?.newTc?.tcNumber || nextNum} aktif! Silakan rekam langkah.`);
+      });
+    };
+
+    btnSubmit.onclick = (e) => {
+      e.stopPropagation();
+      submitNewTc();
+    };
+
+    btnCancel.onclick = (e) => {
+      e.stopPropagation();
+      closeModal();
+    };
+
+    btnClose.onclick = (e) => {
+      e.stopPropagation();
+      closeModal();
+    };
+
+    modalBackdrop.onclick = (e) => {
+      if (e.target === modalBackdrop) {
+        closeModal();
+      }
+    };
+
+    // Keyboard support: Enter -> submit, Esc -> close
+    const onModalKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        modalBackdrop.removeEventListener('keydown', onModalKeyDown);
+        closeModal();
+      } else if (e.key === 'Enter' && (e.target === inpScenario || e.target === inpTitle || e.ctrlKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        modalBackdrop.removeEventListener('keydown', onModalKeyDown);
+        submitNewTc();
+      }
+    };
+    modalBackdrop.addEventListener('keydown', onModalKeyDown);
+  }
+
   function attachWidgetEvents() {
     const selTc = shadowRoot?.getElementById('sel-active-tc');
     if (selTc) {
       selTc.onchange = (e) => {
         const val = e.target.value;
         if (val === '__NEW_TC__') {
-          safeSendMessage({ type: 'CREATE_NEXT_TC' }, () => {
-            showToast('➕ Test Case baru dibuat!');
-          });
+          openNewTcModal();
         } else {
-          safeSendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: val }, () => {
+          safeSendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: val }, (res) => {
+            if (res?.sessionData) {
+              sessionData = res.sessionData;
+              updateWidgetUI();
+            }
             showToast('🔄 Berpindah ke ' + selTc.options[selTc.selectedIndex].text);
           });
         }
@@ -875,9 +1158,7 @@
     if (btnSaveNextTc) {
       btnSaveNextTc.onclick = (e) => {
         e.stopPropagation();
-        safeSendMessage({ type: 'CREATE_NEXT_TC' }, (res) => {
-          showToast('💾 TC tersimpan! Lanjut merekam TC ' + (res?.newTc?.tcNumber || ''));
-        });
+        openNewTcModal();
       };
     }
 
@@ -1076,11 +1357,13 @@
   function scanPageContext() {
     let menuName = '';
     let breadcrumbPath = '';
+    let breadcrumbLast = '';
     let pageHeading = '';
+    let activeTab = '';
 
     // 1. PrimeNG Breadcrumb (Used in AMS FAST layout)
     try {
-      const bcNodes = document.querySelectorAll('.p-breadcrumb ul li, p-breadcrumb ul li, .p-breadcrumb-item, ol.breadcrumb li');
+      const bcNodes = document.querySelectorAll('.p-breadcrumb ul li, p-breadcrumb ul li, .p-breadcrumb-item, ol.breadcrumb li, .breadcrumb li');
       if (bcNodes && bcNodes.length > 0) {
         const texts = [];
         bcNodes.forEach(node => {
@@ -1093,12 +1376,37 @@
         });
         if (texts.length > 0) {
           breadcrumbPath = texts.join(' > ');
-          menuName = texts[texts.length - 1];
+          breadcrumbLast = texts[texts.length - 1];
+          menuName = breadcrumbLast;
         }
       }
     } catch (e) {}
 
-    // 2. Active Sidebar Menu item (AMS FAST Sakai / Apollo template)
+    // 2. Active Tabs / Sub-tabs / Steps (AMS FAST PrimeNG TabView, TabMenu, Steps, etc.)
+    try {
+      const activeTabEls = document.querySelectorAll(
+        '.p-tabview-nav li.p-highlight, ' +
+        '.p-tabmenu-nav li.p-highlight, ' +
+        '.p-steps li.p-steps-current, ' +
+        '.p-steps li.p-highlight, ' +
+        '[role="tab"][aria-selected="true"], ' +
+        '.nav-tabs .active, .tab-item.active'
+      );
+      const tabsFound = [];
+      activeTabEls.forEach(el => {
+        const txtEl = el.querySelector('.p-tabview-title, .p-menuitem-text, .p-steps-title') || el;
+        const t = (txtEl.innerText || txtEl.textContent || '').trim();
+        if (t && t.length > 1 && t.length < 60 && !tabsFound.includes(t)) {
+          tabsFound.push(t);
+        }
+      });
+      if (tabsFound.length > 0) {
+        // Ambil tab paling spesifik (paling dalam / sub-tab aktif)
+        activeTab = tabsFound[tabsFound.length - 1];
+      }
+    } catch (e) {}
+
+    // 3. Active Sidebar Menu item (AMS FAST Sakai / Apollo template)
     try {
       if (!menuName) {
         const activeRoute = document.querySelector('.active-menuitem > a .layout-menuitem-text, a.active-route .layout-menuitem-text, .router-link-active, .layout-menuitem.active');
@@ -1108,7 +1416,7 @@
       }
     } catch (e) {}
 
-    // 3. Page Header / Heading / Card Title in main area
+    // 4. Page Header / Heading / Card Title in main area
     try {
       const headingEl = document.querySelector('.layout-main h1, .layout-main h2, .layout-main h3, .layout-main .font-semibold.text-xl, .layout-main .text-2xl, .p-card-title, .p-panel-header, h1, h2');
       if (headingEl && headingEl.innerText) {
@@ -1116,7 +1424,7 @@
       }
     } catch (e) {}
 
-    // 4. Document title or clean URL path
+    // 5. Document title or clean URL path
     const docTitle = document.title ? document.title.split(/[-–|]/)[0].trim() : '';
     const pathname = window.location.pathname || '';
     const pathSegments = pathname.split('/').filter(Boolean);
@@ -1124,12 +1432,51 @@
     const cleanUrl = lastSegment ? lastSegment.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
     const finalMenu = menuName || pageHeading || docTitle || cleanUrl || 'Halaman AMS FAST';
-    const finalScenario = breadcrumbPath ? `${breadcrumbPath}` : (pageHeading || finalMenu);
+    const finalBase = breadcrumbLast || pageHeading || finalMenu;
+
+    // Prediksi Nama Skenario & Hasil Diharapkan Berdasarkan Posisi Screen & Tab
+    let predictedScenario = '';
+    let predictedTitle = '';
+    let predictedExpected = '';
+
+    if (activeTab) {
+      predictedScenario = `${finalBase} - ${activeTab}`;
+      predictedTitle = `Verifikasi Tampilan & Data ${activeTab}`;
+      const tabLow = activeTab.toLowerCase();
+      if (tabLow.includes('biaya') || tabLow.includes('anggaran')) {
+        predictedExpected = `Sistem menyajikan data ${activeTab} secara akurat dan seluruh fungsi tabel serta tombol aksi berfungsi normal.`;
+      } else if (tabLow.includes('waktu') || tabLow.includes('jadwal')) {
+        predictedExpected = `Sistem menyajikan jadwal dan rincian alokasi waktu ${activeTab} dengan tepat dan tanpa kendala.`;
+      } else if (tabLow.includes('surat') || tabLow.includes('tugas') || tabLow.includes('dokumen')) {
+        predictedExpected = `Sistem berhasil memuat tab [${activeTab}] lengkap dengan rincian penerbitan berkas dan tombol aksi aktif.`;
+      } else if (tabLow.includes('penilaian') || tabLow.includes('evaluasi')) {
+        predictedExpected = `Sistem menampilkan formulir kriteria ${activeTab} secara lengkap dan siap digunakan.`;
+      } else {
+        predictedExpected = `Sistem berhasil beralih ke tab navigasi [${activeTab}] dan menyajikan seluruh rincian informasi terkait secara lengkap.`;
+      }
+    } else {
+      predictedScenario = breadcrumbPath ? `${breadcrumbPath}` : finalBase;
+      predictedTitle = `Verifikasi Akses Menu & Tampilan Halaman ${finalBase}`;
+      const hasTable = !!document.querySelector('p-table, .p-datatable, table, .table');
+      const hasForm = !!document.querySelector('form, p-dropdown, .p-inputtext');
+      if (hasTable) {
+        predictedExpected = `Halaman antarmuka ${finalBase} berhasil dimuat lengkap dengan seluruh komponen filter, tabel data, dan tombol aksi aktif.`;
+      } else if (hasForm) {
+        predictedExpected = `Formulir pengisian ${finalBase} siap menerima input pengujian dan proses validasi berjalan sesuai aturan bisnis.`;
+      } else {
+        predictedExpected = `Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif.`;
+      }
+    }
 
     return {
       menuName: finalMenu,
       breadcrumbPath: breadcrumbPath,
-      scenarioName: finalScenario.startsWith('Pengujian') ? finalScenario : `Pengujian ${finalScenario}`,
+      breadcrumbLast: breadcrumbLast,
+      activeTab: activeTab,
+      scenarioName: predictedScenario,
+      predictedScenario: predictedScenario,
+      predictedTitle: predictedTitle,
+      predictedExpected: predictedExpected,
       pageTitle: document.title || finalMenu,
       url: window.location.href
     };
@@ -1231,7 +1578,41 @@
         if (tooltipVal && tooltipVal.trim()) label = tooltipVal.trim();
       }
 
-      // 2. Deteksi Icon Classes untuk Tombol Ikon (PrimeNG, FontAwesome, Bootstrap)
+      // 2. Deteksi Chip / Filter Tag Remove
+      if (!label && (el.closest('.p-chip-remove-icon') || el.classList.contains('p-chip-remove-icon'))) {
+        const chip = el.closest('.p-chip');
+        const chipTxt = chip?.querySelector('.p-chip-text')?.innerText || chip?.innerText;
+        if (chipTxt && chipTxt.trim()) label = chipTxt.trim();
+      }
+
+      // 3. Deteksi Accordion Header Text
+      if (!label && (el.closest('.p-accordion-header') || el.classList.contains('p-accordion-header'))) {
+        const accHeader = el.closest('.p-accordion-header');
+        const headerTxt = accHeader?.querySelector('.p-accordion-header-text')?.innerText || accHeader?.innerText;
+        if (headerTxt && headerTxt.trim()) label = headerTxt.trim();
+      }
+
+      // 4. Deteksi Stepper / Steps Title
+      if (!label && (el.closest('.p-steps-item') || el.classList.contains('p-steps-item'))) {
+        const stepItem = el.closest('.p-steps-item');
+        const titleTxt = stepItem?.querySelector('.p-steps-title')?.innerText || stepItem?.innerText;
+        if (titleTxt && titleTxt.trim()) label = titleTxt.trim();
+      }
+
+      // 5. Deteksi Saklar Switch / Toggle
+      if (!label && (el.closest('.p-inputswitch, .p-togglebutton') || el.classList.contains('p-inputswitch') || el.classList.contains('p-togglebutton'))) {
+        const sw = el.closest('.p-inputswitch, .p-togglebutton');
+        const nearbyLbl = sw?.closest('.p-field, .field')?.querySelector('label') || (sw?.id ? document.querySelector(`label[for="${sw.id}"]`) : null);
+        if (nearbyLbl && nearbyLbl.innerText) label = nearbyLbl.innerText.trim();
+      }
+
+      // 6. Deteksi Header Kolom Tabel (Sortable)
+      if (!label && (el.closest('.p-sortable-column') || el.classList.contains('p-sortable-column'))) {
+        const th = el.closest('.p-sortable-column');
+        if (th && th.innerText) label = th.innerText.trim();
+      }
+
+      // 7. Deteksi Icon Classes untuk Tombol Ikon (PrimeNG, FontAwesome, Bootstrap)
       if (!label) {
         const iconEl = el.querySelector('[class*="pi-"], [class*="fa-"], [class*="bi-"], [class*="icon-"]') || el;
         const classNames = (iconEl.className || '').toString();
@@ -1261,7 +1642,7 @@
         label = 'Tombol';
       } else if (el.tagName === 'A' || el.classList.contains('p-tabview-nav-link')) {
         label = 'Menu / Tautan';
-      } else if (el.classList.contains('p-dropdown') || el.closest('.p-dropdown')) {
+      } else if (el.classList.contains('p-dropdown') || el.closest('.p-dropdown') || el.classList.contains('p-multiselect') || el.closest('.p-multiselect')) {
         label = 'Pilihan Dropdown';
       } else {
         label = 'Elemen UI';
@@ -1311,11 +1692,18 @@
     input[type="submit"], input[type="button"],
     .p-dialog-header-close,
     [role="tab"], .p-tabview-nav-link,
+    .p-accordion-header, .p-accordion-header-link,
+    .p-steps-item, .p-steps-number, .p-steps-title,
+    .p-breadcrumb a, .p-breadcrumb-item,
     .p-splitbutton-defaultbutton, .p-splitbutton-menubutton,
-    .p-dropdown,
+    .p-dropdown, .p-multiselect, .p-multiselect-label-container,
+    .p-inputswitch, .p-inputswitch-slider, .p-togglebutton,
     input[type="checkbox"], input[type="radio"],
     .p-checkbox, .p-radiobutton,
-    tr[pSelectableRow]
+    .p-paginator button, .p-paginator-page, .p-paginator-next, .p-paginator-prev, .p-paginator-first, .p-paginator-last,
+    .p-sortable-column, th[pSortableColumn],
+    .p-chip-remove-icon, .p-chip,
+    .p-selectable-row, tbody tr
   `;
 
   let isWidgetPreHidden = false;
@@ -1583,7 +1971,56 @@
       expected = expected || `Sistem melakukan pembaruan data dan menyajikan versi data yang paling mutakhir.`;
       actual = `Data tabel/halaman berhasil diperbarui.`;
     }
-    // 15. NAVIGASI / MENU SIDEBAR / TAB HEADER
+    // 15. JALUR BREADCRUMB
+    else if (el.closest('.p-breadcrumb') || el.classList.contains('p-breadcrumb')) {
+      title = title || `Navigasi Breadcrumb ke "${cleanLabel}"`;
+      action = `Pengguna mengklik jalur navigasi breadcrumb [${cleanLabel}] untuk kembali ke hierarki modul terkait.`;
+      expected = expected || `Sistem memuat halaman modul [${cleanLabel}] sesuai hierarki navigasi breadcrumb.`;
+      actual = `Halaman hierarki [${cleanLabel}] berhasil dimuat.`;
+    }
+    // 16. ACCORDION (Buka / Tutup Panel)
+    else if (el.closest('.p-accordion-header') || el.classList.contains('p-accordion-header')) {
+      title = title || `Buka / Tutup Panel "${cleanLabel}"`;
+      action = `Pengguna mengklik panel accordion [${cleanLabel}] untuk menampilkan atau menyembunyikan rincian bagian tersebut.`;
+      expected = expected || `Panel accordion [${cleanLabel}] merespons dengan menampilkan atau menyembunyikan rincian konten secara dinamis.`;
+      actual = `Panel accordion [${cleanLabel}] berhasil dibuka/ditutup.`;
+    }
+    // 17. STEPPER / LANGKAH PROSES
+    else if (el.closest('.p-steps-item') || el.classList.contains('p-steps-item')) {
+      title = title || `Pindah ke Tahap "${cleanLabel}"`;
+      action = `Pengguna memilih tahapan alur [${cleanLabel}] pada stepper proses transaksi.`;
+      expected = expected || `Sistem beralih ke tahapan alur [${cleanLabel}] dan memuat formulir yang sesuai.`;
+      actual = `Tahapan alur [${cleanLabel}] aktif dan konten berhasil dimuat.`;
+    }
+    // 18. STRUKTUR POHON DATA (Tree Node)
+    else if (el.closest('.p-treenode-content') || el.classList.contains('p-treenode-content')) {
+      title = title || `Pilih Item Hirarki "${cleanLabel}"`;
+      action = `Pengguna memilih simpul (node) [${cleanLabel}] pada struktur pohon hierarki data.`;
+      expected = expected || `Simpul hierarki [${cleanLabel}] terpilih dan sistem menyajikan detail atau sub-item terkait.`;
+      actual = `Node hierarki [${cleanLabel}] berhasil dipilih.`;
+    }
+    // 19. SAKLAR SWITCH / TOGGLE BUTTON
+    else if (el.closest('.p-inputswitch, .p-togglebutton') || el.classList.contains('p-inputswitch') || el.classList.contains('p-togglebutton')) {
+      title = title || `Alihkan (Toggle) Saklar "${cleanLabel}"`;
+      action = `Pengguna menekan saklar switch [${cleanLabel}] untuk mengubah status pengaturan.`;
+      expected = expected || `Status switch [${cleanLabel}] berhasil dialihkan dan status baru aktif di sistem.`;
+      actual = `Status switch [${cleanLabel}] berhasil diperbarui.`;
+    }
+    // 20. MULTISELECT DROPDOWN
+    else if (el.closest('.p-multiselect') || el.classList.contains('p-multiselect')) {
+      title = title || `Buka Pilihan Multi-Select "${cleanLabel}"`;
+      action = `Pengguna membuka panel multi-select [${cleanLabel}] untuk menentukan opsi-opsi yang diinginkan.`;
+      expected = expected || `Sistem membuka overlay daftar opsi multi-select [${cleanLabel}] yang dapat dipilih.`;
+      actual = `Daftar opsi multi-select [${cleanLabel}] berhasil dimuat.`;
+    }
+    // 21. CHIP / TAG FILTER REMOVE
+    else if (el.closest('.p-chip-remove-icon') || el.classList.contains('p-chip-remove-icon')) {
+      title = title || `Hapus Filter Tag "${cleanLabel}"`;
+      action = `Pengguna menghapus tag filter [${cleanLabel}] dari parameter pencarian aktif.`;
+      expected = expected || `Tag filter [${cleanLabel}] terhapus dan sistem memperbarui data tabel sesuai filter yang tersisa.`;
+      actual = `Tag filter [${cleanLabel}] berhasil dihapus.`;
+    }
+    // 22. NAVIGASI / MENU SIDEBAR / TAB HEADER
     else if (tagName === 'A' || el.classList.contains('p-tabview-nav-link') || el.getAttribute('role') === 'tab' || el.closest('nav, aside, .sidebar, .layout-menuitem')) {
       const isTab = el.getAttribute('role') === 'tab' || el.classList.contains('p-tabview-nav-link');
       if (isTab) {
