@@ -56,6 +56,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnImportJson = document.getElementById('btn-import-json');
   const btnPrintPdf = document.getElementById('btn-print-pdf');
   const fileInputJson = document.getElementById('file-input-json');
+  const globalReplaceImg = document.getElementById('global-replace-img');
+  let activeImgReplaceTarget = null; // { tcIdx, sIdx }
+
+  globalReplaceImg?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !activeImgReplaceTarget) return;
+    const { tcIdx, sIdx } = activeImgReplaceTarget;
+    const doc = getActiveDoc();
+    const tcs = doc.testCases || [];
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      const base64Data = loadEvt.target.result;
+      const targetTc = tcs[tcIdx];
+      if (targetTc && targetTc.steps && targetTc.steps[sIdx]) {
+        targetTc.steps[sIdx].screenshot = base64Data;
+        saveActiveDocState();
+        renderTestCases();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 
   const modalZoom = document.getElementById('modal-zoom');
   const modalImg = document.getElementById('modal-img');
@@ -221,14 +242,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  function createDefaultDocument(scenarioName = 'Pengujian Alur Modul', crNumber = 'CR: Unit Test') {
+    const today = new Date().toLocaleDateString('id-ID');
+    const docId = 'doc_' + Date.now();
+    const tcId = 'tc_' + Date.now();
+    return {
+      id: docId,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        templateType: 'BNI_EDV',
+        scenarioName: scenarioName,
+        title: 'Unit Test Documentation - ' + scenarioName,
+        systemName: 'Sistem Informasi / Web Application',
+        testCaseId: crNumber,
+        projectNo: crNumber.replace(/[^0-9]/g, '') || '10001',
+        projectType: 'CR',
+        shortDescription: 'Pengujian dan verifikasi fitur ' + scenarioName,
+        developers: [],
+        author: 'Prepared by EDV Team',
+        startDate: today,
+        endDate: today,
+        docDate: today,
+        copyrightYear: String(new Date().getFullYear()),
+        environment: 'Development / SIT',
+        screenResolution: '1366x768',
+        objective: 'Requirement pengembangan pada modul ini adalah verifikasi alur proses pengujian fitur terkait.',
+        precondition: '1. User telah login ke aplikasi web menggunakan role yang memiliki akses ke modul terkait.\n2. Browser: Google Chrome / Microsoft Edge.',
+        customFields: []
+      },
+      activeTcId: tcId,
+      testCases: [
+        {
+          id: tcId,
+          tcNumber: 1,
+          title: getContextualTcDetails(1).title,
+          scenarioName: scenarioName,
+          expectedResult: getContextualTcDetails(1).expectedResult,
+          status: 'OK',
+          steps: []
+        }
+      ]
+    };
+  }
+
   function getActiveDoc() {
-    const docs = sessionData.documents || [];
-    let doc = docs.find(d => d.id === sessionData.activeDocId);
-    if (!doc && docs.length > 0) {
-      doc = docs[0];
+    if (!sessionData || typeof sessionData !== 'object') {
+      sessionData = { documents: [] };
+    }
+    if (!sessionData.documents || !Array.isArray(sessionData.documents) || sessionData.documents.length === 0) {
+      const def = createDefaultDocument();
+      sessionData.documents = [def];
+      sessionData.activeDocId = def.id;
+      chrome.storage.local.set({ sessionData: sessionData });
+    }
+    let doc = sessionData.documents.find(d => d.id === sessionData.activeDocId);
+    if (!doc) {
+      doc = sessionData.documents[0];
       sessionData.activeDocId = doc.id;
     }
-    return doc || { metadata: {}, testCases: [] };
+    return doc;
   }
 
   function renderDocSelector() {
@@ -304,17 +376,37 @@ document.addEventListener('DOMContentLoaded', () => {
   // DELETE DOCUMENT EVENT
   btnDeleteCurrentDoc?.addEventListener('click', () => {
     const activeDoc = getActiveDoc();
-    if (confirm(`Yakin ingin menghapus dokumen "${activeDoc.metadata?.scenarioName || 'ini'}"?`)) {
-      chrome.runtime.sendMessage({
-        type: 'DELETE_DOC',
-        docId: activeDoc.id
-      }, (res) => {
-        if (res && res.sessionData) {
-          sessionData = res.sessionData;
+    const docName = activeDoc.metadata?.scenarioName || activeDoc.metadata?.testCaseId || 'Dokumen Ini';
+    const docs = sessionData.documents || [];
+
+    if (confirm(`Yakin ingin menghapus dokumen "${docName}"?\n\n(Jika hanya tersisa 1 dokumen, data dokumen akan direset bersih ke awal).`)) {
+      if (docs.length <= 1) {
+        chrome.runtime.sendMessage({ type: 'RESET_ALL_DOCUMENTS' }, (res) => {
+          if (res && res.sessionData) {
+            sessionData = res.sessionData;
+          } else {
+            sessionData = { documents: [] };
+            getActiveDoc();
+          }
           renderDocSelector();
           populateActiveDoc();
-        }
-      });
+          alert('Dokumen telah dibersihkan dan direset ke dokumen baru.');
+        });
+      } else {
+        chrome.runtime.sendMessage({
+          type: 'DELETE_DOC',
+          docId: activeDoc.id
+        }, (res) => {
+          if (res && res.sessionData) {
+            sessionData = res.sessionData;
+          } else {
+            sessionData.documents = docs.filter(d => d.id !== activeDoc.id);
+            sessionData.activeDocId = sessionData.documents[0]?.id;
+          }
+          renderDocSelector();
+          populateActiveDoc();
+        });
+      }
     }
   });
 
@@ -406,35 +498,32 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDevelopersList();
   });
 
-  // Auto-detect template in wedocit/templates/template-bni-edv.docx
+  // Template DOCX helper: lazy-load template hanya saat ekspor Word dipicu (tanpa fetch otomatis saat buka halaman)
   async function loadBundledTemplate() {
+    if (bundledDocxTemplateBuffer) return bundledDocxTemplateBuffer;
     try {
       const url = chrome.runtime.getURL('templates/template-bni-edv.docx');
       const res = await fetch(url);
       if (res.ok) {
         bundledDocxTemplateBuffer = await res.arrayBuffer();
-        if (badgeTemplateStatus) {
-          badgeTemplateStatus.textContent = '🟢 Template Siap';
-          badgeTemplateStatus.style.color = '#34d399';
-          badgeTemplateStatus.style.borderColor = 'rgba(52, 211, 153, 0.4)';
-        }
-        if (lblTemplateName && !customDocxTemplateBuffer) {
-          lblTemplateName.textContent = 'templates/template-bni-edv.docx';
-          lblTemplateName.style.color = '#34d399';
-        }
-        return true;
+        return bundledDocxTemplateBuffer;
       }
     } catch (err) {
       console.log('Template bundled not found:', err);
     }
-    if (badgeTemplateStatus && !customDocxTemplateBuffer) {
-      badgeTemplateStatus.textContent = '🟡 Belum ada di folder';
-      badgeTemplateStatus.style.color = '#f59e0b';
-      badgeTemplateStatus.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-    }
-    return false;
+    return null;
   }
-  loadBundledTemplate();
+
+  // Tampilkan status template siap secara pasif tanpa melakukan network fetch saat halaman dibuka
+  if (badgeTemplateStatus && !customDocxTemplateBuffer) {
+    badgeTemplateStatus.textContent = '🟢 Template Siap';
+    badgeTemplateStatus.style.color = '#34d399';
+    badgeTemplateStatus.style.borderColor = 'rgba(52, 211, 153, 0.4)';
+  }
+  if (lblTemplateName && !customDocxTemplateBuffer) {
+    lblTemplateName.textContent = 'templates/template-bni-edv.docx';
+    lblTemplateName.style.color = '#34d399';
+  }
 
   // Template DOCX upload handling
   btnChooseTemplate?.addEventListener('click', () => {
@@ -672,18 +761,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${s.screenshot}" class="zoomable-img" />
                   </div>
                   <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
-                    <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer;" title="Ganti Screenshot">
+                    <button type="button" class="btn btn-outline btn-xs btn-trigger-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #38bdf8;" title="Ganti Screenshot">
                       📷 Ganti
-                      <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
-                    </label>
+                    </button>
                     <button type="button" class="btn btn-outline btn-xs btn-del-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #94a3b8;">Hapus</button>
                   </div>
                 ` : `
                   <div style="color: #64748b; font-size: 10.5px; padding-top: 15px; font-style: italic;">Tidak ada screenshot</div>
-                  <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer; margin-top: 6px;" title="Upload Screenshot">
+                  <button type="button" class="btn btn-outline btn-xs btn-trigger-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #38bdf8; margin-top: 6px;" title="Upload Screenshot">
                     📷 Upload
-                    <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
-                  </label>
+                  </button>
                 `}
               </div>
             </div>
@@ -712,18 +799,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${s.screenshot}" class="zoomable-img" />
                   </div>
                   <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
-                    <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer;" title="Ganti Screenshot">
+                    <button type="button" class="btn btn-outline btn-xs btn-trigger-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #38bdf8;" title="Ganti Screenshot">
                       📷 Ganti
-                      <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
-                    </label>
+                    </button>
                     <button type="button" class="btn btn-outline btn-xs btn-del-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #94a3b8;">Hapus</button>
                   </div>
                 ` : `
                   <div style="color: #64748b; font-size: 10.5px; padding-top: 15px; font-style: italic;">Tidak ada screenshot</div>
-                  <label class="btn btn-outline btn-xs" style="color: #38bdf8; cursor: pointer; margin-top: 6px;" title="Upload Screenshot">
+                  <button type="button" class="btn btn-outline btn-xs btn-trigger-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #38bdf8; margin-top: 6px;" title="Upload Screenshot">
                     📷 Upload
-                    <input type="file" accept="image/*" class="input-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="display: none;">
-                  </label>
+                  </button>
                 `}
               </div>
             </div>
@@ -890,24 +975,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
-      // Upload / Ganti Gambar Screenshot
-      tcCard.querySelectorAll('.input-replace-img').forEach(input => {
-        input.addEventListener('change', (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-          const tcIdx = parseInt(input.dataset.tc, 10);
-          const sIdx = parseInt(input.dataset.step, 10);
-          const reader = new FileReader();
-          reader.onload = (loadEvt) => {
-            const base64Data = loadEvt.target.result;
-            const targetTc = tcs[tcIdx];
-            if (targetTc && targetTc.steps && targetTc.steps[sIdx]) {
-              targetTc.steps[sIdx].screenshot = base64Data;
-              saveActiveDocState();
-              renderTestCases();
-            }
-          };
-          reader.readAsDataURL(file);
+      // Upload / Ganti Gambar Screenshot (via global file picker)
+      tcCard.querySelectorAll('.btn-trigger-replace-img').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tcIdx = parseInt(btn.dataset.tc, 10);
+          const sIdx = parseInt(btn.dataset.step, 10);
+          activeImgReplaceTarget = { tcIdx, sIdx };
+          if (globalReplaceImg) {
+            globalReplaceImg.value = '';
+            globalReplaceImg.click();
+          }
         });
       });
 
@@ -959,8 +1036,28 @@ document.addEventListener('DOMContentLoaded', () => {
   btnResetSteps?.addEventListener('click', () => {
     if (confirm('Yakin ingin mereset seluruh langkah pada dokumen ini ke 0?')) {
       chrome.runtime.sendMessage({ type: 'RESET_ACTIVE_DOC' }, (res) => {
-        sessionData = res.sessionData;
+        if (res && res.sessionData) {
+          sessionData = res.sessionData;
+        }
+        renderDocSelector();
         populateActiveDoc();
+      });
+    }
+  });
+
+  const btnResetAllDocs = document.getElementById('btn-reset-all-docs');
+  btnResetAllDocs?.addEventListener('click', () => {
+    if (confirm('⚠️ PERINGATAN: Yakin ingin MENGHAPUS SEMUA DOKUMEN dan mereset penyimpanan ke kondisi awal yang bersih?')) {
+      chrome.runtime.sendMessage({ type: 'RESET_ALL_DOCUMENTS' }, (res) => {
+        if (res && res.sessionData) {
+          sessionData = res.sessionData;
+        } else {
+          sessionData = { documents: [] };
+          getActiveDoc();
+        }
+        renderDocSelector();
+        populateActiveDoc();
+        alert('Semua dokumen berhasil dihapus dan direset ke dokumen baru yang bersih!');
       });
     }
   });
@@ -978,7 +1075,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = getActiveDoc();
     const meta = doc.metadata || {};
     const tcs = doc.testCases || [];
-    const scenarioName = meta.scenarioName || 'Perbaikan RAP';
+    const scenarioName = meta.scenarioName || 'Pengujian Alur Modul';
     const devs = meta.developers || [];
 
     const selectedFormat = exportFormatSelect ? exportFormatSelect.value : 'bni_edv';
@@ -1600,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = getActiveDoc();
     const meta = doc.metadata || {};
     const tcs = doc.testCases || [];
-    const scenarioName = meta.scenarioName || 'Perbaikan RAP';
+    const scenarioName = meta.scenarioName || 'Pengujian Alur Modul';
 
     let md = `# ${meta.title}\n\n`;
     md += `**Aplikasi / Sistem:** ${meta.systemName}  \n`;

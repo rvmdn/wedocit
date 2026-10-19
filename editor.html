@@ -61,6 +61,7 @@
           <button class="dropdown-item" id="btn-import-json">📂 Impor JSON</button>
           <button class="dropdown-item" id="btn-export-json">💾 Simpan JSON</button>
           <button class="dropdown-item" id="btn-export-md">📑 Ekspor Markdown</button>
+          <button class="dropdown-item" id="btn-reset-all-docs" style="color: #ef4444; border-top: 1px solid rgba(255,255,255,0.12);">🗑 Hapus Semua Dokumen (Reset Total)</button>
         </div>
       </div>
 
@@ -268,7 +269,7 @@
           Daftar Test Case (<span id="total-step-count">0</span> Test Case)
         </h2>
         <div class="steps-filter">
-          <span class="filter-tip">💡 Skenario: <b id="lbl-scenario-preview" style="color:#38bdf8;">Perbaikan RAP</b></span>
+          <span class="filter-tip">💡 Skenario: <b id="lbl-scenario-preview" style="color:#38bdf8;">Pengujian Alur Modul</b></span>
         </div>
       </div>
 
@@ -287,6 +288,7 @@
   </div>
 
   <input type="file" id="file-input-json" accept=".json" style="display:none;">
+  <input type="file" id="global-replace-img" accept="image/*" style="display:none;">
 
   <script src="libs/jszip.min.js"></script>
   <script src="editor.js"></script>

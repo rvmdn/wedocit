@@ -37,12 +37,6 @@
   let isCapturing = false;
   let cachedUserProfile = null;
 
-  // Safe pre-fetch user profile in background
-  setTimeout(() => {
-    try {
-      fetchUserProfile().catch(() => {});
-    } catch (e) {}
-  }, 100);
   // Dynamic observer activation
   let isMinimized = localStorage.getItem('__wedocit_minimized') === 'true';
 
@@ -1291,39 +1285,7 @@
   async function fetchUserProfile() {
     if (cachedUserProfile) return cachedUserProfile;
 
-    // 1. Direct fetch ke endpoint Profile dengan session cookies browser
-    const endpoints = [
-      '/api/Auth/Profile',
-      '/Auth/Profile'
-    ];
-
-    for (const ep of endpoints) {
-      try {
-        const resp = await fetch(ep, { credentials: 'include' });
-        if (resp.ok) {
-          const json = await resp.json();
-          if (json && json.data && (json.data.nama || json.data.nppOrUsername)) {
-            const d = json.data;
-            const primaryRole = (d.roleName && d.roleName[0]) || (d.roles && d.roles[0]) || '';
-            const allRoles = (d.roleName && d.roleName.length > 0) ? d.roleName.join(', ') : (d.roles ? d.roles.join(', ') : '');
-            cachedUserProfile = {
-              nama: d.nama || '',
-              npp: d.nppOrUsername || '',
-              roles: d.roles || [],
-              roleName: d.roleName || [],
-              codeUnit: d.codeUnit || '',
-              divisionName: d.divisionName || '',
-              primaryRole: primaryRole,
-              allRoles: allRoles,
-              formattedAuthor: `${d.nama || ''} (${d.nppOrUsername || ''}) - ${primaryRole}`.trim()
-            };
-            return cachedUserProfile;
-          }
-        }
-      } catch (err) {}
-    }
-
-    // 2. Fallback: Parse dari Topbar UI DOM AMS FAST
+    // Deteksi profil pasif dari DOM UI (tanpa network call/fetch)
     try {
       const nppEl = document.querySelector('.layout-topbar-button .font-semibold');
       const npp = nppEl ? nppEl.innerText.trim() : '';

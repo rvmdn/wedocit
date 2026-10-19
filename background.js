@@ -248,7 +248,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       let docs = current.documents || [];
       docs = docs.filter(d => d.id !== message.docId);
       if (docs.length === 0) {
-        docs = [createDefaultDoc()];
+        docs = [createDefaultDoc("Pengujian Modul", "CR: Unit Test")];
       }
       current.documents = docs;
       current.activeDocId = docs[0].id;
@@ -321,10 +321,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // RESET ACTIVE DOC / RESET ALL
-  if (message.type === 'RESET_ACTIVE_DOC' || message.type === 'RESET_ALL') {
+  // RESET ACTIVE DOC
+  if (message.type === 'RESET_ACTIVE_DOC') {
     chrome.storage.local.get(['sessionData'], (res) => {
       const current = res.sessionData || {};
+      const activeDoc = getActiveDoc(current);
       const initTc = getContextualTcDetails(1);
       const defaultTc = {
         id: "tc_" + Date.now(),
@@ -342,6 +343,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         broadcastState(current);
         sendResponse({ success: true, sessionData: current });
       });
+    });
+    return true;
+  }
+
+  // RESET ALL DOCUMENTS / CLEAR STORAGE
+  if (message.type === 'RESET_ALL_DOCUMENTS' || message.type === 'RESET_ALL' || message.type === 'CLEAR_STORAGE') {
+    const freshDoc = createDefaultDoc("Pengujian Modul", "CR: Unit Test");
+    const freshData = {
+      isRecording: false,
+      isPaused: false,
+      autoScreenshot: true,
+      autoHighlight: true,
+      activeDocId: freshDoc.id,
+      documents: [freshDoc]
+    };
+    chrome.storage.local.set({ sessionData: freshData }, () => {
+      broadcastState(freshData);
+      sendResponse({ success: true, sessionData: freshData });
     });
     return true;
   }

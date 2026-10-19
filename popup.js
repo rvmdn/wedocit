@@ -293,5 +293,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const btnResetStorage = document.getElementById('btn-reset-storage');
+  btnResetStorage?.addEventListener('click', () => {
+    if (confirm('Yakin ingin MENGHAPUS SEMUA data storage lokal? (Ini akan membersihkan data lama/rekaman yang tertahan di memori browser).')) {
+      chrome.storage.local.clear(() => {
+        chrome.runtime.sendMessage({ type: 'RESET_ALL_DOCUMENTS' }, () => {
+          refresh();
+          alert('Storage lokal berhasil dibersihkan total! Kondisi kembali bersih.');
+        });
+      });
+    }
+  });
+
   refresh();
 });
