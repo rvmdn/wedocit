@@ -58,6 +58,7 @@
       document.removeEventListener('mousedown', onMouseDownHandler, true);
       document.removeEventListener('click', onClickHandler, true);
       document.removeEventListener('change', onChangeHandler, true);
+      document.removeEventListener('focusout', onFocusOutHandler, true);
       window.removeEventListener('keydown', onKeydownHandler);
       if (toastObserver) { toastObserver.disconnect(); toastObserver = null; }
       isListenersAttached = false;
@@ -239,6 +240,7 @@
         document.addEventListener('mousedown', onMouseDownHandler, true);
         document.addEventListener('click', onClickHandler, true);
         document.addEventListener('change', onChangeHandler, true);
+        document.addEventListener('focusout', onFocusOutHandler, true);
         isListenersAttached = true;
       }
       if (!toastObserver) {
@@ -249,6 +251,7 @@
         document.removeEventListener('mousedown', onMouseDownHandler, true);
         document.removeEventListener('click', onClickHandler, true);
         document.removeEventListener('change', onChangeHandler, true);
+        document.removeEventListener('focusout', onFocusOutHandler, true);
         isListenersAttached = false;
       }
       if (toastObserver) {
@@ -970,6 +973,90 @@
     }
   }
 
+  // 1. Derivasi Expected Result berdasarkan aksi pada Test Case
+  function predictExpectedFromTestCase(tcTitle) {
+    const title = (tcTitle || '').trim();
+    const low = title.toLowerCase();
+
+    if (/propose/i.test(low)) {
+      return 'Data berhasil di-propose dan status proses terkait terbarui di sistem.';
+    }
+    if (/submit/i.test(low)) {
+      return 'Data berhasil di-submit dan status proses terkait terbarui di sistem.';
+    }
+    if (/kirim|ajukan|pengajuan|request|forward/i.test(low)) {
+      return 'Data berhasil diajukan dan alur berlanjut ke tahap verifikasi di sistem.';
+    }
+    if (/approval|persetujuan|setuju/i.test(low)) {
+      return 'Data berhasil disetujui (approved) dan status dokumen terbarui di sistem.';
+    }
+    if (/tolak|penolakan|reject|kembalikan|return/i.test(low)) {
+      return 'Pengajuan berhasil ditolak dan catatan alasan penolakan tercatat di sistem.';
+    }
+    if (/input|tambah|penambahan|buat|pembuatan|create|rekam|perekaman/i.test(low)) {
+      return 'Data baru berhasil disimpan lengkap dengan seluruh field mandatory.';
+    }
+    if (/ubah|pengubahan|edit|update|perbarui|pembaruan|koreksi/i.test(low)) {
+      return 'Perubahan informasi data berhasil tersimpan ke sistem secara akurat.';
+    }
+    if (/hapus|penghapusan|delete|remove/i.test(low)) {
+      return 'Data berhasil dihapus dari sistem dengan notifikasi konfirmasi sukses.';
+    }
+    if (/unduh|pengunduhan|ekspor|export|download|cetak/i.test(low)) {
+      return 'Sistem berhasil mengenerate berkas dokumen dalam format yang valid tanpa kendala.';
+    }
+    if (/filter|penyaringan|cari|pencarian|search/i.test(low)) {
+      return 'Sistem menyaring data secara akurat sesuai kriteria parameter pencarian.';
+    }
+    if (/verifikasi|akses|tampilan|menu|halaman/i.test(low)) {
+      return 'Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif.';
+    }
+    return `Tindakan pengujian berhasil dieksekusi sesuai spesifikasi sistem.`;
+  }
+
+  // 2. Derivasi Test Case (Aksi Spesifik) berdasarkan Skenario
+  function predictTestCaseFromScenario(scenarioName, nextNum = 1) {
+    const sc = (scenarioName || '').trim();
+    const scClean = sc.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
+    const low = scClean.toLowerCase();
+
+    if (/propose|pengajuan|ajukan|kirim|submit/i.test(low)) {
+      return /^(melakukan|menguji)/i.test(scClean) ? scClean : `Melakukan ${scClean}`;
+    }
+    if (/approval|persetujuan|setuju/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Persetujuan (Approval) ${scClean}`;
+    }
+    if (/tolak|penolakan|reject|kembalikan/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Penolakan (Reject) ${scClean}`;
+    }
+    if (/input|tambah|penambahan|buat|pembuatan|rekam/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan ${scClean}`;
+    }
+    if (/ubah|pengubahan|edit|update|perbarui|pembaruan/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Pembaruan ${scClean}`;
+    }
+    if (/hapus|penghapusan|delete|remove/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Penghapusan ${scClean}`;
+    }
+    if (/unduh|pengunduhan|ekspor|export|download/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Unduh / Ekspor ${scClean}`;
+    }
+    if (/filter|penyaringan|cari|pencarian|search/i.test(low)) {
+      return /^(pengujian|melakukan)/i.test(scClean) ? scClean : `Pengujian Pencarian & Filter ${scClean}`;
+    }
+    if (/verifikasi|akses|tampilan|menu|halaman/i.test(low)) {
+      return /^(verifikasi|melakukan)/i.test(scClean) ? scClean : `Verifikasi Akses & Tampilan ${scClean}`;
+    }
+    return /^(melakukan|menguji)/i.test(scClean) ? scClean : `Melakukan ${scClean || 'Pengujian Alur'}`;
+  }
+
+  // 3. Prediksi lengkap Skenario -> Test Case -> Expected Result
+  function predictFromScenario(scenarioName, nextNum = 1) {
+    const title = predictTestCaseFromScenario(scenarioName, nextNum);
+    const expected = predictExpectedFromTestCase(title);
+    return { title, expected };
+  }
+
   function openNewTcModal() {
     if (!shadowRoot) return;
     
@@ -982,9 +1069,18 @@
     const nextNum = tcs.length + 1;
     const context = scanPageContext();
 
-    const defaultScenario = context.predictedScenario || context.scenarioName || `Skenario ${nextNum}`;
-    const defaultTitle = `TC ${nextNum}: ${context.predictedTitle || 'Pengujian Alur Fitur'}`;
-    const defaultExpected = context.predictedExpected || 'Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif.';
+    // 1. Judul Dokumen Unit Test (Terpisah dari nomor skenario)
+    const currentDocTitle = activeDoc.metadata?.title || `Unit Test Documentation - ${context.menuName || 'Pelaksanaan Audit'}`;
+
+    // 2. Skenario per nomor (Skenario ${nextNum})
+    const rawSuggestedScenario = context.predictedScenario || context.scenarioName || context.menuName || `Pengujian Alur ${nextNum}`;
+    const cleanSuggestedScenario = rawSuggestedScenario.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
+
+    // 3. Test Case (Based on Skenario)
+    const defaultTitle = predictTestCaseFromScenario(cleanSuggestedScenario, nextNum);
+
+    // 4. Expected Result (Based on Test Case)
+    const defaultExpected = predictExpectedFromTestCase(defaultTitle);
 
     const modalBackdrop = document.createElement('div');
     modalBackdrop.className = 'wedocit-modal-backdrop';
@@ -995,35 +1091,51 @@
           <div>
             <div class="wedocit-modal-title">
               <span>✨</span>
-              <span>Skenario / Test Case Baru (TC ${nextNum})</span>
+              <span>Skenario &amp; Test Case Baru (TC ${nextNum})</span>
             </div>
             <div class="wedocit-modal-subtitle">
-              Sistem mendeteksi posisi layar &amp; tab saat ini. Silakan sesuaikan nama skenario &amp; ekspektasi:
+              Skenario bernomor urut, Test Case diturunkan dari skenario, dan Expected Result disesuaikan dari test case:
             </div>
           </div>
           <button class="wedocit-modal-close" id="btn-modal-close" title="Batal (Esc)">✕</button>
         </div>
 
+        <!-- 1. JUDUL UNIT TEST (DOKUMEN PENGUJIAN) -->
+        <div class="wedocit-form-group">
+          <label class="wedocit-form-label" for="inp-modal-doc-title">
+            📄 Judul Dokumen Unit Test:
+          </label>
+          <input type="text" class="wedocit-input" id="inp-modal-doc-title" value="${escapeHtml(currentDocTitle)}" placeholder="Contoh: Unit Test Documentation - Pelaksanaan Audit" />
+          <div class="wedocit-form-hint">Judul umum dokumen pengujian (terpisah dari nomor skenario alur).</div>
+        </div>
+
+        <!-- 2. SKENARIO (PER NOMOR) -->
         <div class="wedocit-form-group">
           <label class="wedocit-form-label" for="inp-modal-scenario">
-            Nama Skenario Pengujian (Posisi Screen / Tab):
+            🎯 Skenario Pengujian (Skenario ${nextNum}):
           </label>
-          <input type="text" class="wedocit-input" id="inp-modal-scenario" value="${escapeHtml(defaultScenario)}" placeholder="Contoh: Rekap Audit Reguler - Anggaran Biaya" />
-          <div class="wedocit-form-hint">Otomatis terisi dari breadcrumb / tab aktif pada layar.</div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span style="font-weight: 700; color: #38bdf8; font-size: 12.5px; white-space: nowrap; padding: 6px 10px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px;">Skenario ${nextNum}:</span>
+            <input type="text" class="wedocit-input" id="inp-modal-scenario" value="${escapeHtml(cleanSuggestedScenario)}" placeholder="Contoh: Propose Pendalaman / Persetujuan Alur" style="flex: 1;" />
+          </div>
+          <div class="wedocit-form-hint">Alur fitur spesifik Skenario ${nextNum}. Mengubah ini otomatis memperbarui Test Case &amp; Expected Result.</div>
         </div>
 
+        <!-- 3. TEST CASE (BASED ON SKENARIO) -->
         <div class="wedocit-form-group">
           <label class="wedocit-form-label" for="inp-modal-title">
-            Judul Test Case:
+            📝 Test Case (Based on Skenario ${nextNum}):
           </label>
-          <input type="text" class="wedocit-input" id="inp-modal-title" value="${escapeHtml(defaultTitle)}" placeholder="Contoh: TC ${nextNum}: Verifikasi Akses Menu & Data" />
+          <input type="text" class="wedocit-input" id="inp-modal-title" value="${escapeHtml(defaultTitle)}" placeholder="Contoh: Melakukan Propose Pendalaman" />
+          <div class="wedocit-form-hint">Tindakan spesifik yang dilakukan pada skenario. Mengubah ini otomatis memperbarui Expected Result.</div>
         </div>
 
+        <!-- 4. EXPECTED RESULT (BASED ON TEST CASE) -->
         <div class="wedocit-form-group">
           <label class="wedocit-form-label" for="inp-modal-expected">
-            Hasil yang Diharapkan (Expected Result):
+            🎯 Hasil yang Diharapkan (Expected Result based on Test Case):
           </label>
-          <textarea class="wedocit-textarea" id="inp-modal-expected" rows="3" placeholder="Contoh: Sistem menyajikan data anggaran secara akurat...">${escapeHtml(defaultExpected)}</textarea>
+          <textarea class="wedocit-textarea" id="inp-modal-expected" rows="3" placeholder="Contoh: Data berhasil diajukan dan status proses terkait terbarui di sistem...">${escapeHtml(defaultExpected)}</textarea>
         </div>
 
         <div class="wedocit-modal-actions">
@@ -1038,12 +1150,46 @@
 
     shadowRoot.appendChild(modalBackdrop);
 
+    const inpDocTitle = shadowRoot.getElementById('inp-modal-doc-title');
     const inpScenario = shadowRoot.getElementById('inp-modal-scenario');
     const inpTitle = shadowRoot.getElementById('inp-modal-title');
     const inpExpected = shadowRoot.getElementById('inp-modal-expected');
     const btnClose = shadowRoot.getElementById('btn-modal-close');
     const btnCancel = shadowRoot.getElementById('btn-modal-cancel');
     const btnSubmit = shadowRoot.getElementById('btn-modal-submit');
+
+    let userEditedTitle = false;
+    let userEditedExpected = false;
+
+    // Saat user mengetik / mengubah Test Case secara manual
+    inpTitle?.addEventListener('input', () => {
+      userEditedTitle = true;
+      const currentTitle = inpTitle.value.trim();
+      // Perbarui Expected Result berdasarkan Test Case jika user belum mengedit expected result secara spesifik
+      if (!userEditedExpected && currentTitle) {
+        inpExpected.value = predictExpectedFromTestCase(currentTitle);
+      }
+    });
+
+    // Saat user mengetik / mengubah Expected Result secara manual
+    inpExpected?.addEventListener('input', () => {
+      userEditedExpected = true;
+    });
+
+    // Saat user mengetik / mengubah Skenario:
+    // 1. Test case otomatis terisi based on skenario
+    // 2. Expected result otomatis terisi based on test case yang dihasilkan
+    inpScenario?.addEventListener('input', () => {
+      const currentSc = inpScenario.value.trim();
+      if (!currentSc) return;
+      const derivedTitle = predictTestCaseFromScenario(currentSc, nextNum);
+      if (!userEditedTitle) {
+        inpTitle.value = derivedTitle;
+      }
+      if (!userEditedExpected) {
+        inpExpected.value = predictExpectedFromTestCase(userEditedTitle ? inpTitle.value : derivedTitle);
+      }
+    });
 
     // Auto-focus & select text on scenario input
     setTimeout(() => {
@@ -1061,14 +1207,18 @@
     };
 
     const submitNewTc = () => {
-      const finalScenario = inpScenario?.value?.trim() || defaultScenario;
+      const finalDocTitle = inpDocTitle?.value?.trim() || currentDocTitle;
+      const rawSc = inpScenario?.value?.trim() || cleanSuggestedScenario;
+      const cleanSc = rawSc.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
+      const finalScenario = `Skenario ${nextNum}: ${cleanSc}`;
       const finalTitle = inpTitle?.value?.trim() || defaultTitle;
       const finalExpected = inpExpected?.value?.trim() || defaultExpected;
 
       safeSendMessage({
         type: 'CREATE_NEXT_TC',
-        title: finalTitle,
+        docTitle: finalDocTitle,
         scenarioName: finalScenario,
+        title: finalTitle,
         expectedResult: finalExpected
       }, (res) => {
         if (res?.sessionData) {
@@ -1076,7 +1226,7 @@
           updateWidgetUI();
         }
         closeModal();
-        showToast(`✨ TC ${res?.newTc?.tcNumber || nextNum} aktif! Silakan rekam langkah.`);
+        showToast(`✨ TC ${res?.newTc?.tcNumber || nextNum} ("${finalScenario}") aktif!`);
       });
     };
 
@@ -1396,29 +1546,37 @@
     const finalMenu = menuName || pageHeading || docTitle || cleanUrl || 'Halaman AMS FAST';
     const finalBase = breadcrumbLast || pageHeading || finalMenu;
 
-    // Prediksi Nama Skenario & Hasil Diharapkan Berdasarkan Posisi Screen & Tab
+    // 0. Deteksi Dialog / Modal Aktif (PrimeNG p-dialog, swal, modal)
+    let modalTitle = '';
+    try {
+      const activeDialog = document.querySelector('.p-dialog:not([style*="display: none"]), .p-confirm-dialog:not([style*="display: none"]), .p-sidebar.p-sidebar-active, .modal.show, .swal2-popup');
+      if (activeDialog) {
+        const titleEl = activeDialog.querySelector('.p-dialog-title, .p-dialog-header-title, .modal-title, .swal2-title, h1, h2, h3');
+        if (titleEl && titleEl.innerText) {
+          modalTitle = titleEl.innerText.trim();
+        }
+      }
+    } catch (e) {}
+
+    // Prediksi Nama Skenario & Hasil Diharapkan Berdasarkan Posisi Screen, Dialog & Tab
     let predictedScenario = '';
     let predictedTitle = '';
     let predictedExpected = '';
 
-    if (activeTab) {
+    if (modalTitle) {
+      predictedScenario = modalTitle.replace(/^(Dialog|Modal|Formulir)\s*/i, '').trim();
+      const pred = predictFromScenario(predictedScenario);
+      predictedTitle = pred.title;
+      predictedExpected = pred.expected;
+    } else if (activeTab) {
       predictedScenario = `${finalBase} - ${activeTab}`;
-      predictedTitle = `Verifikasi Tampilan & Data ${activeTab}`;
-      const tabLow = activeTab.toLowerCase();
-      if (tabLow.includes('biaya') || tabLow.includes('anggaran')) {
-        predictedExpected = `Sistem menyajikan data ${activeTab} secara akurat dan seluruh fungsi tabel serta tombol aksi berfungsi normal.`;
-      } else if (tabLow.includes('waktu') || tabLow.includes('jadwal')) {
-        predictedExpected = `Sistem menyajikan jadwal dan rincian alokasi waktu ${activeTab} dengan tepat dan tanpa kendala.`;
-      } else if (tabLow.includes('surat') || tabLow.includes('tugas') || tabLow.includes('dokumen')) {
-        predictedExpected = `Sistem berhasil memuat tab [${activeTab}] lengkap dengan rincian penerbitan berkas dan tombol aksi aktif.`;
-      } else if (tabLow.includes('penilaian') || tabLow.includes('evaluasi')) {
-        predictedExpected = `Sistem menampilkan formulir kriteria ${activeTab} secara lengkap dan siap digunakan.`;
-      } else {
-        predictedExpected = `Sistem berhasil beralih ke tab navigasi [${activeTab}] dan menyajikan seluruh rincian informasi terkait secara lengkap.`;
-      }
+      const pred = predictFromScenario(activeTab);
+      predictedTitle = pred.title;
+      predictedExpected = pred.expected;
     } else {
       predictedScenario = breadcrumbPath ? `${breadcrumbPath}` : finalBase;
-      predictedTitle = `Verifikasi Akses Menu & Tampilan Halaman ${finalBase}`;
+      const pred = predictFromScenario(finalBase);
+      predictedTitle = pred.title;
       const hasTable = !!document.querySelector('p-table, .p-datatable, table, .table');
       const hasForm = !!document.querySelector('form, p-dropdown, .p-inputtext');
       if (hasTable) {
@@ -1426,7 +1584,7 @@
       } else if (hasForm) {
         predictedExpected = `Formulir pengisian ${finalBase} siap menerima input pengujian dan proses validasi berjalan sesuai aturan bisnis.`;
       } else {
-        predictedExpected = `Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif.`;
+        predictedExpected = pred.expected;
       }
     }
 
@@ -1823,6 +1981,72 @@
     });
   }
 
+  // Helper: Mengekstrak ringkasan field dalam modal / formulir aktif (khususnya field mandatory / berbintang)
+  function getSurroundingFormSummary(btn) {
+    let container = btn?.closest?.('.p-dialog, .swal2-popup, [role="dialog"], .p-tabview-panel[aria-hidden="false"], form, .p-card, .card');
+    if (!container) {
+      container = btn?.closest?.('section, main, .container, .p-component') || document.body;
+    }
+
+    const inputs = container.querySelectorAll('input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, select, .ql-editor, p-dropdown');
+    const mandatoryFields = [];
+    const optionalFields = [];
+
+    inputs.forEach(el => {
+      if (rootContainer && rootContainer.contains(el)) return;
+      if (el.offsetWidth === 0 && el.offsetHeight === 0 && !el.classList.contains('ql-editor')) return; // lewati elemen tersembunyi
+
+      let label = '';
+      let isMandatory = false;
+
+      if (el.required || el.getAttribute('aria-required') === 'true' || el.classList.contains('p-invalid') || el.classList.contains('ng-invalid')) {
+        isMandatory = true;
+      }
+
+      const parentField = el.closest('.p-field, .form-group, .field, tr, .col-12, .col-6, div');
+      if (parentField) {
+        const lblEl = parentField.querySelector('label, .p-label, th');
+        if (lblEl) {
+          label = lblEl.innerText.replace(/[*:]/g, '').trim();
+          if (lblEl.innerText.includes('*') || lblEl.querySelector('.p-error, .text-danger, .required, .mandatory')) {
+            isMandatory = true;
+          }
+        }
+      }
+
+      if (!label) {
+        label = el.getAttribute('placeholder') || el.getAttribute('aria-label') || el.name || el.id || '';
+      }
+
+      let val = '';
+      if (el.classList.contains('ql-editor')) {
+        val = el.innerText.trim();
+      } else if (el.tagName.toUpperCase() === 'P-DROPDOWN' || el.classList.contains('p-dropdown')) {
+        val = el.querySelector('.p-dropdown-label')?.innerText?.trim() || '';
+      } else if (el.tagName.toUpperCase() === 'SELECT') {
+        val = el.options[el.selectedIndex]?.text?.trim() || el.value?.trim() || '';
+      } else {
+        val = (el.value || '').trim();
+      }
+
+      if (val && val !== '-' && val !== 'Pilih' && val !== 'Select' && !val.startsWith('--')) {
+        const cleanL = (label || 'Field').replace(/[*:]/g, '').trim();
+        const fieldInfo = { label: cleanL, value: val, isMandatory };
+        if (isMandatory) {
+          mandatoryFields.push(fieldInfo);
+        } else {
+          optionalFields.push(fieldInfo);
+        }
+      }
+    });
+
+    return {
+      mandatoryFields,
+      optionalFields,
+      totalFilled: mandatoryFields.length + optionalFields.length
+    };
+  }
+
   // Intelligent Semantic Wording Generator (Menghasilkan kalimat formal standar QA / Audit BNI)
   function generateSmartWording(el, meta, tagName) {
     let label = (meta.computedLabel || '').trim();
@@ -1835,10 +2059,17 @@
     let actual = 'Berhasil dieksekusi sesuai spesifikasi.';
     let inputData = '-';
 
+    const formSummary = getSurroundingFormSummary(el);
+
     // 1. SIMPAN / SAVE / PERBARUI / REKAM
     if (/^(simpan|save|perbarui|update|rekam|simpan data|save changes)$/i.test(cleanLabel) || /simpan|save/i.test(lLower)) {
       title = title || (/^(simpan|save|rekam|perbarui)/i.test(cleanLabel) ? cleanLabel : `Simpan ${cleanLabel}`);
-      action = `Pengguna menekan tombol "${cleanLabel}" untuk menyimpan perubahan data ke dalam sistem.`;
+      if (formSummary.mandatoryFields.length > 0) {
+        const mandList = formSummary.mandatoryFields.map(f => f.label).join(', ');
+        action = `Pengguna melengkapi data wajib (${mandList}) dan menekan tombol "${cleanLabel}" untuk menyimpan perubahan data ke dalam sistem.`;
+      } else {
+        action = `Pengguna menekan tombol "${cleanLabel}" untuk menyimpan perubahan data ke dalam sistem.`;
+      }
       expected = expected || `Sistem memvalidasi formulir dan berhasil menyimpan data dengan menampilkan pesan konfirmasi sukses.`;
       actual = `Data berhasil disimpan ke basis data sistem.`;
     }
@@ -1863,12 +2094,22 @@
       expected = expected || `Sistem memunculkan dialog konfirmasi penghapusan data sebelum mengeksekusi penghapusan.`;
       actual = `Dialog konfirmasi hapus muncul dengan tepat.`;
     }
-    // 5. KIRIM / SUBMIT / AJUKAN / PROPOSE / FORWARD
-    else if (/^(kirim|submit|ajukan|propose|request|forward)$/i.test(cleanLabel) || /submit|kirim|ajukan/i.test(lLower)) {
-      title = title || (/^(kirim|submit|ajukan|propose)/i.test(cleanLabel) ? cleanLabel : `Kirim ${cleanLabel}`);
-      action = `Pengguna menekan tombol "${cleanLabel}" untuk meneruskan data ke tahap verifikasi/persetujuan.`;
-      expected = expected || `Sistem memproses pengiriman data dan memperbarui status menjadi menunggu persetujuan (Pending Approval).`;
-      actual = `Pengajuan berhasil dikirimkan ke alur verifikasi selanjutnya.`;
+    // 5. PROPOSE / KIRIM / SUBMIT / AJUKAN / REQUEST / FORWARD
+    else if (/^(kirim|submit|ajukan|propose|request|forward)$/i.test(cleanLabel) || /submit|kirim|ajukan|propose|request|forward/i.test(lLower)) {
+      const verb = /propose/i.test(lLower) ? 'propose' : (/submit/i.test(lLower) ? 'submit' : 'ajukan');
+      title = title || (/^(melakukan)/i.test(cleanLabel) ? cleanLabel : `Melakukan ${cleanLabel}`);
+      if (formSummary.mandatoryFields.length > 0) {
+        const mandList = formSummary.mandatoryFields.map(f => f.label).join(', ');
+        action = `Pengguna melengkapi data wajib (${mandList}) dan menekan tombol "${cleanLabel}" untuk memproses pengajuan.`;
+        inputData = formSummary.mandatoryFields.map(f => `[Wajib] ${f.label}: "${f.value}"`).join('; ');
+      } else {
+        action = `Pengguna menekan tombol "${cleanLabel}" untuk memproses pengajuan ke tahap berikutnya.`;
+        if (formSummary.optionalFields.length > 0) {
+          inputData = formSummary.optionalFields.map(f => `${f.label}: "${f.value}"`).join('; ');
+        }
+      }
+      expected = expected || `Data berhasil di-${verb} dan status proses terkait terbarui di sistem.`;
+      actual = `Pengajuan "${cleanLabel}" berhasil diproses oleh sistem.`;
     }
     // 6. APPROVE / SETUJUI / VERIFIKASI / VALIDASI / REKOMENDASI
     else if (/^(setujui|approve|verifikasi|validasi|rekomendasi)$/i.test(cleanLabel) || /approve|setuju|verifikasi/i.test(lLower)) {
@@ -2094,6 +2335,14 @@
       }
     }
 
+    if (inputData === '-') {
+      if (formSummary.mandatoryFields.length > 0) {
+        inputData = formSummary.mandatoryFields.map(f => `[Wajib] ${f.label}: "${f.value}"`).join('; ');
+      } else if (formSummary.optionalFields.length > 0) {
+        inputData = formSummary.optionalFields.map(f => `${f.label}: "${f.value}"`).join('; ');
+      }
+    }
+
     return { title, action, expected, actual, inputData };
   }
 
@@ -2169,6 +2418,114 @@
     })();
   }
 
+  // Helper: Merekam langkah input teks, komentar / catatan pengujian, dan field mandatory
+  function recordFieldInputStep(target, sourceEvent) {
+    if (!isExtensionValid()) {
+      cleanupDeadExtension();
+      return;
+    }
+    if (!sessionData.isRecording || sessionData.isPaused) return;
+    if (rootContainer && rootContainer.contains(target)) return;
+    if (!target) return;
+
+    const isQuill = target.classList?.contains('ql-editor') || !!target.closest?.('.ql-editor');
+    const actualTarget = isQuill ? (target.classList?.contains('ql-editor') ? target : target.closest('.ql-editor')) : target;
+    const tagName = actualTarget.tagName ? actualTarget.tagName.toUpperCase() : '';
+
+    let val = '';
+    if (isQuill) {
+      val = (actualTarget.innerText || '').trim();
+    } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
+      val = (actualTarget.value || '').trim();
+    } else {
+      val = (actualTarget.innerText || actualTarget.value || '').trim();
+    }
+
+    // Hindari duplikasi jika isi belum berubah atau masih kosong
+    const lastVal = actualTarget.dataset.__wedocit_last_val || '';
+    if (!val && !lastVal) return;
+    if (val === lastVal) return;
+
+    actualTarget.dataset.__wedocit_last_val = val;
+
+    const meta = extractElementMetadata(actualTarget);
+    let label = (meta.computedLabel || '').trim();
+
+    // Deteksi label dari form-group / p-field sekitar jika label masih generic
+    if (!label || /^(field|input|text|elemen)$/i.test(label)) {
+      const parentGroup = actualTarget.closest('.p-field, .form-group, .field, tr, .col-12, .col-6, div');
+      if (parentGroup) {
+        const lbl = parentGroup.querySelector('label, .p-label, th');
+        if (lbl) label = lbl.innerText.trim();
+      }
+    }
+    if (!label) {
+      label = actualTarget.getAttribute('placeholder') || actualTarget.getAttribute('aria-label') || actualTarget.name || actualTarget.id || '';
+    }
+
+    const isMandatory = actualTarget.required ||
+      actualTarget.getAttribute('aria-required') === 'true' ||
+      actualTarget.classList.contains('p-invalid') ||
+      actualTarget.classList.contains('ng-invalid') ||
+      label.includes('*') ||
+      !!actualTarget.closest('.p-field, .form-group, .field')?.querySelector('label .required, label .p-error, .text-danger, .mandatory');
+
+    const cleanLabel = label.replace(/[*:]/g, '').trim() || (tagName === 'TEXTAREA' || isQuill ? 'Komentar Pengujian' : 'Input Data');
+    const isComment = /komentar|catatan|keterangan|alasan|tanggapan|note|remark|reason|comment|description/i.test(
+      cleanLabel + ' ' + (actualTarget.placeholder || '') + ' ' + (actualTarget.name || '') + ' ' + (actualTarget.id || '') + ' ' + actualTarget.className
+    ) || tagName === 'TEXTAREA' || isQuill;
+
+    const shortVal = val.length > 60 ? val.substring(0, 57) + '...' : val;
+
+    let stepTitle = '';
+    let actionDesc = '';
+    let expected = '';
+
+    if (isComment) {
+      stepTitle = `Input Komentar: [${cleanLabel}]`;
+      actionDesc = `Pengguna memasukkan catatan/komentar pada field [${cleanLabel}]: "${val}".`;
+      expected = `Field catatan/komentar [${cleanLabel}] berhasil terisi sesuai masukan pengguna.`;
+    } else if (isMandatory) {
+      stepTitle = `Input Field Wajib [${cleanLabel}]`;
+      actionDesc = `Pengguna mengisi field wajib [${cleanLabel}] dengan nilai: "${val}".`;
+      expected = `Field mandatory [${cleanLabel}] terisi lengkap dan tervalidasi dengan benar oleh sistem.`;
+    } else {
+      stepTitle = `Input [${cleanLabel}]: "${shortVal}"`;
+      actionDesc = `Pengguna memasukkan nilai "${val}" pada field [${cleanLabel}].`;
+      expected = `Nilai pada field [${cleanLabel}] berhasil diterima dan ditampilkan pada formulir.`;
+    }
+
+    const inputDataStr = isMandatory ? `[Wajib] ${val}` : val;
+
+    (async () => {
+      let screenshot = '';
+      if (sessionData.autoScreenshot === true) {
+        let cleanupHighlight = () => {};
+        if (sessionData.autoHighlight !== false) {
+          cleanupHighlight = highlightElement(actualTarget);
+        }
+        screenshot = await captureScreenshot();
+        cleanupHighlight();
+      }
+
+      safeSendMessage({
+        type: 'ADD_STEP',
+        step: {
+          title: stepTitle,
+          actionDescription: actionDesc,
+          inputData: inputDataStr,
+          expectedResult: expected,
+          actual: `Data ${isComment ? 'catatan/komentar' : 'input'} [${cleanLabel}] tersimpan pada formulir.`,
+          status: 'Pass',
+          metadata: meta,
+          screenshot: screenshot
+        }
+      }, () => {
+        showToast(`✔ ${isComment ? 'Komentar' : 'Input'}: ${cleanLabel}`);
+      });
+    })();
+  }
+
   function onChangeHandler(e) {
     if (!isExtensionValid()) {
       cleanupDeadExtension();
@@ -2180,7 +2537,7 @@
     const target = e.target;
     if (!target) return;
 
-    const tagName = target.tagName.toUpperCase();
+    const tagName = target.tagName ? target.tagName.toUpperCase() : '';
     if (tagName === 'SELECT') {
       const meta = extractElementMetadata(target);
       const label = meta.computedLabel;
@@ -2213,6 +2570,25 @@
 
         showToast('✔ Pilihan: ' + selectedOption);
       })();
+    } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
+      recordFieldInputStep(target, 'change');
+    }
+  }
+
+  function onFocusOutHandler(e) {
+    if (!isExtensionValid()) {
+      cleanupDeadExtension();
+      return;
+    }
+    if (!sessionData.isRecording || sessionData.isPaused) return;
+    if (rootContainer && rootContainer.contains(e.target)) return;
+
+    const target = e.target;
+    if (!target) return;
+
+    const tagName = target.tagName ? target.tagName.toUpperCase() : '';
+    if (target.classList?.contains('ql-editor') || target.closest?.('.ql-editor') || tagName === 'TEXTAREA' || tagName === 'INPUT') {
+      recordFieldInputStep(target, 'focusout');
     }
   }
   // Dynamic event listeners

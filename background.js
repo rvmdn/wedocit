@@ -43,7 +43,7 @@ function getContextualTcDetails(num) {
   };
 }
 
-function createDefaultDoc(scenarioName, crNumber, userProfile) {
+function createDefaultDoc(scenarioName, crNumber, userProfile, docTitle) {
   const docId = 'doc_' + Date.now();
   const tcId = 'tc_' + Date.now();
   
@@ -69,6 +69,7 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
   const today = new Date();
   const formattedToday = today.toLocaleDateString('id-ID');
   const currentYear = String(today.getFullYear());
+  const finalDocTitle = docTitle || ("Unit Test Documentation - " + (scenarioName || "Unit Test"));
 
   return {
     id: docId,
@@ -76,7 +77,7 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
     metadata: {
       templateType: "BNI_EDV",
       scenarioName: scenarioName || "Pengujian Alur Modul",
-      title: "Unit Test Documentation - " + (scenarioName || "Unit Test"),
+      title: finalDocTitle,
       systemName: "Sistem Informasi / Web Application",
       testCaseId: crNumber || ("CR: " + Math.floor(10000 + Math.random() * 90000)),
       projectNo: crNumber ? crNumber.replace(/[^0-9]/g, '') : "",
@@ -104,7 +105,7 @@ function createDefaultDoc(scenarioName, crNumber, userProfile) {
         id: tcId,
         tcNumber: 1,
         title: getContextualTcDetails(1).title,
-        scenarioName: scenarioName || "Pengujian Alur Modul",
+        scenarioName: "Skenario 1: " + (scenarioName || "Pengujian Alur Modul"),
         expectedResult: getContextualTcDetails(1).expectedResult,
         status: "OK",
         steps: []
@@ -187,6 +188,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const activeDoc = getActiveDoc(current);
       if (activeDoc) {
         if (!activeDoc.metadata) activeDoc.metadata = {};
+        if (message.docTitle) activeDoc.metadata.title = message.docTitle;
         if (message.scenarioName) activeDoc.metadata.scenarioName = message.scenarioName;
         if (message.crNumber) activeDoc.metadata.testCaseId = message.crNumber;
         if (message.userProfile && (message.userProfile.nama || message.userProfile.npp)) {
@@ -214,7 +216,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CREATE_NEW_DOC') {
     chrome.storage.local.get(['sessionData'], (res) => {
       const current = res.sessionData || { documents: [] };
-      const newDoc = createDefaultDoc(message.scenarioName, message.crNumber, message.userProfile);
+      const newDoc = createDefaultDoc(message.scenarioName, message.crNumber, message.userProfile, message.docTitle);
       if (!current.documents) current.documents = [];
       current.documents.push(newDoc);
       current.activeDocId = newDoc.id;
@@ -281,8 +283,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const tcs = activeDoc.testCases || [];
       const nextNum = tcs.length + 1;
       const tcMeta = getContextualTcDetails(nextNum);
-      const customTitle = message.title || `TC ${nextNum}: ${tcMeta.title}`;
-      const customScenario = message.scenarioName || message.title || activeDoc.metadata?.scenarioName || tcMeta.title;
+
+      // Perbarui Judul Dokumen Unit Test jika dikirim
+      if (message.docTitle && activeDoc.metadata) {
+        activeDoc.metadata.title = message.docTitle;
+      }
+
+      let customScenario = message.scenarioName || `Skenario ${nextNum}`;
+      if (!/^Skenario\s*\d+/i.test(customScenario)) {
+        customScenario = `Skenario ${nextNum}: ${customScenario}`;
+      }
+
+      const customTitle = message.title || `Melakukan ${customScenario.replace(/^Skenario\s*\d*[:.-]?\s*/i, '')}`;
       const customExpected = message.expectedResult || tcMeta.expectedResult;
 
       const newTc = {

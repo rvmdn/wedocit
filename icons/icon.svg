@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0f172a" />
+  <path d="M38 28 H78 L96 46 V98 C96 102 92 106 88 106 H38 C34 106 30 102 30 98 V36 C30 32 34 28 38 28 Z" fill="url(#grad)" />
+  <polygon points="78,28 78,46 96,46" fill="#bae6fd" />
+  <!-- Checkmark / Rec dot -->
+  <circle cx="52" cy="62" r="6" fill="#ef4444" />
+  <line x1="64" y1="62" x2="84" y2="62" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+  <circle cx="52" cy="78" r="6" fill="#10b981" />
+  <line x1="64" y1="78" x2="84" y2="78" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+</svg>

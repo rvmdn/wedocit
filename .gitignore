@@ -8,8 +8,8 @@ ehthumbs_vista.db
 $RECYCLE.BIN/
 .DS_Store
 .AppleDouble
-.LSOverride
-Icon?
+# macOS Finder custom icon file (avoid using Icon? which accidentally matches icons/ folder on Windows)
+# Icon\r
 ._*
 .Spotlight-V100
 .Trashes

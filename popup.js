@@ -73,15 +73,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. ACTION: Buat Dokumen Baru dari Menu yang Terdeteksi di Layar
   btnUseMenuNew?.addEventListener('click', () => {
-    const sc = prompt(
-      'Konfirmasi Nama Skenario Dokumen Unit Test Baru:',
-      activeScannedContext.scenarioName || 'Pengujian Alur Modul'
+    const defaultTitle = 'Unit Test Documentation - ' + (activeScannedContext.menuName || 'Pelaksanaan Modul');
+    const docTitle = prompt(
+      'Judul Dokumen Unit Test Baru:',
+      defaultTitle
     );
-    if (!sc) return;
+    if (!docTitle) return;
     const cr = prompt('Nomor CR / Defect:', 'CR: Unit Test - ' + (activeScannedContext.menuName || ''));
     chrome.runtime.sendMessage({
       type: 'CREATE_NEW_DOC',
-      scenarioName: sc,
+      docTitle: docTitle,
+      scenarioName: activeScannedContext.scenarioName || activeScannedContext.menuName || 'Pengujian Alur Modul',
       crNumber: cr || 'CR: Unit Test',
       userProfile: activeScannedContext.userProfile
     }, () => {
@@ -90,16 +92,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 2. ACTION: Jadikan Menu Terdeteksi sebagai Skenario Dokumen Aktif
+  // 2. ACTION: Jadikan Menu Terdeteksi sebagai Judul & Scope Dokumen Aktif
   btnUseMenuSync?.addEventListener('click', () => {
-    const sc = prompt(
-      'Ubah Skenario Dokumen Aktif ke Menu Ini:',
-      activeScannedContext.scenarioName || 'Pengujian Alur Modul'
+    const defaultTitle = 'Unit Test Documentation - ' + (activeScannedContext.menuName || 'Pelaksanaan Modul');
+    const docTitle = prompt(
+      'Ubah Judul Dokumen Unit Test Aktif ke Menu Ini:',
+      defaultTitle
     );
-    if (!sc) return;
+    if (!docTitle) return;
     chrome.runtime.sendMessage({
       type: 'RENAME_ACTIVE_DOC_SCENARIO',
-      scenarioName: sc,
+      docTitle: docTitle,
+      scenarioName: activeScannedContext.scenarioName || activeScannedContext.menuName || 'Pengujian Alur Modul',
       crNumber: 'CR: Unit Test - ' + (activeScannedContext.menuName || ''),
       userProfile: activeScannedContext.userProfile
     }, () => {
@@ -119,7 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const opt = document.createElement('option');
             opt.value = doc.id;
             const tcCount = (doc.testCases || []).length;
-            opt.textContent = `${doc.metadata?.testCaseId || 'CR'} - ${doc.metadata?.scenarioName || 'Skenario'} (${tcCount} TC)`;
+            const docTitleDisplay = doc.metadata?.title || doc.metadata?.scenarioName || 'Dokumen';
+            opt.textContent = `${doc.metadata?.testCaseId || 'CR'} - ${docTitleDisplay} (${tcCount} TC)`;
             if (doc.id === d.activeDocId) opt.selected = true;
             popDocSelector.appendChild(opt);
           });
@@ -175,16 +180,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Create new document (default prompt with scanned menu)
   popBtnNewDoc?.addEventListener('click', () => {
-    const sc = prompt(
-      'Masukkan Nama Skenario Dokumen Unit Test Baru:',
-      activeScannedContext.scenarioName || 'Pengujian Alur Modul'
+    const defaultTitle = 'Unit Test Documentation - ' + (activeScannedContext.menuName || 'Modul Aplikasi');
+    const docTitle = prompt(
+      'Judul Dokumen Unit Test Baru:',
+      defaultTitle
     );
-    if (!sc) return;
-    const cr = prompt('Masukkan Nomor CR / Defect:', 'CR: Unit Test - ' + (activeScannedContext.menuName || ''));
+    if (!docTitle) return;
+    const cr = prompt('Nomor CR / Defect:', 'CR: Unit Test - ' + (activeScannedContext.menuName || ''));
     chrome.runtime.sendMessage({
       type: 'CREATE_NEW_DOC',
-      scenarioName: sc,
-      crNumber: cr || 'CR: Unit Test'
+      docTitle: docTitle,
+      scenarioName: activeScannedContext.scenarioName || activeScannedContext.menuName || 'Pengujian Alur Modul',
+      crNumber: cr || 'CR: Unit Test',
+      userProfile: activeScannedContext.userProfile
     }, () => {
       refresh();
       chrome.runtime.sendMessage({ type: 'OPEN_EDITOR' });

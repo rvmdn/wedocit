@@ -125,6 +125,83 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // 1. Derivasi Expected Result berdasarkan aksi pada Test Case
+  function predictExpectedFromTestCase(tcTitle) {
+    const title = (tcTitle || '').trim();
+    const low = title.toLowerCase();
+
+    if (/propose/i.test(low)) {
+      return 'Data berhasil di-propose dan status proses terkait terbarui di sistem.';
+    }
+    if (/submit/i.test(low)) {
+      return 'Data berhasil di-submit dan status proses terkait terbarui di sistem.';
+    }
+    if (/kirim|ajukan|pengajuan|request|forward/i.test(low)) {
+      return 'Data berhasil diajukan dan alur berlanjut ke tahap verifikasi di sistem.';
+    }
+    if (/approval|persetujuan|setuju/i.test(low)) {
+      return 'Data berhasil disetujui (approved) dan status dokumen terbarui di sistem.';
+    }
+    if (/tolak|penolakan|reject|kembalikan|return/i.test(low)) {
+      return 'Pengajuan berhasil ditolak dan catatan alasan penolakan tercatat di sistem.';
+    }
+    if (/input|tambah|penambahan|buat|pembuatan|create|rekam|perekaman/i.test(low)) {
+      return 'Data baru berhasil disimpan lengkap dengan seluruh field mandatory.';
+    }
+    if (/ubah|pengubahan|edit|update|perbarui|pembaruan|koreksi/i.test(low)) {
+      return 'Perubahan informasi data berhasil tersimpan ke sistem secara akurat.';
+    }
+    if (/hapus|penghapusan|delete|remove/i.test(low)) {
+      return 'Data berhasil dihapus dari sistem dengan notifikasi konfirmasi sukses.';
+    }
+    if (/unduh|pengunduhan|ekspor|export|download|cetak/i.test(low)) {
+      return 'Sistem berhasil mengenerate berkas dokumen dalam format yang valid tanpa kendala.';
+    }
+    if (/filter|penyaringan|cari|pencarian|search/i.test(low)) {
+      return 'Sistem menyaring data secara akurat sesuai kriteria parameter pencarian.';
+    }
+    if (/verifikasi|akses|tampilan|menu|halaman/i.test(low)) {
+      return 'Halaman antarmuka berhasil dimuat lengkap dengan seluruh komponen filter, tabel, dan tombol aksi aktif.';
+    }
+    return `Tindakan pengujian berhasil dieksekusi sesuai spesifikasi sistem.`;
+  }
+
+  // 2. Derivasi Test Case (Aksi Spesifik) berdasarkan Skenario
+  function predictTestCaseFromScenario(scenarioName, nextNum = 1) {
+    const sc = (scenarioName || '').trim();
+    const scClean = sc.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
+    const low = scClean.toLowerCase();
+
+    if (/propose|pengajuan|ajukan|kirim|submit/i.test(low)) {
+      return /^(melakukan|menguji)/i.test(scClean) ? scClean : `Melakukan ${scClean}`;
+    }
+    if (/approval|persetujuan|setuju/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Persetujuan (Approval) ${scClean}`;
+    }
+    if (/tolak|penolakan|reject|kembalikan/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Penolakan (Reject) ${scClean}`;
+    }
+    if (/input|tambah|penambahan|buat|pembuatan|rekam/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan ${scClean}`;
+    }
+    if (/ubah|pengubahan|edit|update|perbarui|pembaruan/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Pembaruan ${scClean}`;
+    }
+    if (/hapus|penghapusan|delete|remove/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Penghapusan ${scClean}`;
+    }
+    if (/unduh|pengunduhan|ekspor|export|download/i.test(low)) {
+      return /^(melakukan)/i.test(scClean) ? scClean : `Melakukan Unduh / Ekspor ${scClean}`;
+    }
+    if (/filter|penyaringan|cari|pencarian|search/i.test(low)) {
+      return /^(pengujian|melakukan)/i.test(scClean) ? scClean : `Pengujian Pencarian & Filter ${scClean}`;
+    }
+    if (/verifikasi|akses|tampilan|menu|halaman/i.test(low)) {
+      return /^(verifikasi|melakukan)/i.test(scClean) ? scClean : `Verifikasi Akses & Tampilan ${scClean}`;
+    }
+    return /^(melakukan|menguji)/i.test(scClean) ? scClean : `Melakukan ${scClean || 'Pengujian Alur'}`;
+  }
+
   const MANUAL_STEP_TEMPLATES = [
     {
       title: "Akses Halaman Modul",
@@ -246,18 +323,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toLocaleDateString('id-ID');
     const docId = 'doc_' + Date.now();
     const tcId = 'tc_' + Date.now();
+    const cleanSc = scenarioName.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim() || 'Akses Halaman Modul';
+    const tc1Scenario = `Skenario 1: ${cleanSc}`;
+    const tc1Title = predictTestCaseFromScenario(tc1Scenario, 1);
+    const tc1Expected = predictExpectedFromTestCase(tc1Title);
     return {
       id: docId,
       createdAt: new Date().toISOString(),
       metadata: {
         templateType: 'BNI_EDV',
-        scenarioName: scenarioName,
-        title: 'Unit Test Documentation - ' + scenarioName,
+        scenarioName: cleanSc,
+        title: 'Unit Test Documentation - ' + cleanSc,
         systemName: 'Sistem Informasi / Web Application',
         testCaseId: crNumber,
         projectNo: crNumber.replace(/[^0-9]/g, '') || '10001',
         projectType: 'CR',
-        shortDescription: 'Pengujian dan verifikasi fitur ' + scenarioName,
+        shortDescription: 'Pengujian dan verifikasi fitur ' + cleanSc,
         developers: [],
         author: 'Prepared by EDV Team',
         startDate: today,
@@ -275,9 +356,9 @@ document.addEventListener('DOMContentLoaded', () => {
         {
           id: tcId,
           tcNumber: 1,
-          title: getContextualTcDetails(1).title,
-          scenarioName: scenarioName,
-          expectedResult: getContextualTcDetails(1).expectedResult,
+          title: tc1Title,
+          scenarioName: tc1Scenario,
+          expectedResult: tc1Expected,
           status: 'OK',
           steps: []
         }
@@ -835,13 +916,17 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
 
         <div class="form-group" style="margin-bottom: 8px;">
-          <label style="font-weight: 600; font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Skenario Pengujian (Untuk Bab 2 Tabel):</label>
-          <input type="text" class="form-control tc-scenario-input" value="${escapeHtml(tc.scenarioName || '')}" placeholder="Contoh: Rekap Audit Reguler - Anggaran Biaya" />
+          <label style="font-weight: 600; font-size: 11px; color: #38bdf8; display: block; margin-bottom: 4px;">
+            🎯 Skenario Pengujian (Skenario ${tc.tcNumber || (tcIndex + 1)}):
+          </label>
+          <input type="text" class="form-control tc-scenario-input" value="${escapeHtml(tc.scenarioName || ('Skenario ' + (tc.tcNumber || (tcIndex + 1))))}" placeholder="Contoh: Skenario 1: Propose Pendalaman" />
         </div>
 
         <div class="form-group" style="margin-bottom: 14px;">
-          <label style="font-weight: 600; font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Hasil yang Diharapkan (Expected Result untuk TC ini):</label>
-          <input type="text" class="form-control tc-expected-input" value="${escapeHtml(tc.expectedResult || '')}" placeholder="Hasil yang diharapkan..." />
+          <label style="font-weight: 600; font-size: 11px; color: #10b981; display: block; margin-bottom: 4px;">
+            🎯 Hasil yang Diharapkan (Expected Result based on Test Case):
+          </label>
+          <input type="text" class="form-control tc-expected-input" value="${escapeHtml(tc.expectedResult || '')}" placeholder="Hasil yang diharapkan based on Test Case..." />
         </div>
 
         <div style="margin-top: 10px;">
@@ -864,11 +949,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
       titleInput?.addEventListener('input', () => {
         tc.title = titleInput.value;
+        tc.__userEditedTitle = true;
+        const currentTitle = titleInput.value.trim();
+        if (currentTitle && !tc.__userEditedExpected) {
+          tc.expectedResult = predictExpectedFromTestCase(currentTitle);
+          if (expectedInput) expectedInput.value = tc.expectedResult;
+        }
         saveActiveDocState();
       });
 
       scenarioInput?.addEventListener('input', () => {
         tc.scenarioName = scenarioInput.value;
+        const currentSc = scenarioInput.value.trim();
+        if (currentSc) {
+          const derivedTitle = predictTestCaseFromScenario(currentSc, tc.tcNumber || (tcIndex + 1));
+          if (!tc.__userEditedTitle) {
+            tc.title = derivedTitle;
+            if (titleInput) titleInput.value = derivedTitle;
+          }
+          if (!tc.__userEditedExpected) {
+            tc.expectedResult = predictExpectedFromTestCase(tc.__userEditedTitle ? tc.title : derivedTitle);
+            if (expectedInput) expectedInput.value = tc.expectedResult;
+          }
+        }
         saveActiveDocState();
       });
 
@@ -879,6 +982,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       expectedInput?.addEventListener('input', () => {
         tc.expectedResult = expectedInput.value;
+        tc.__userEditedExpected = true;
         saveActiveDocState();
       });
 
@@ -1016,12 +1120,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = getActiveDoc();
     const tcs = doc.testCases || [];
     const nextNum = tcs.length + 1;
-    const tcMeta = getContextualTcDetails(nextNum);
+    const baseMod = doc.metadata?.scenarioName || 'Pelaksanaan Alur';
+    const tcScenario = `Skenario ${nextNum}: Pengujian ${baseMod}`;
+    const tcTitle = predictTestCaseFromScenario(tcScenario, nextNum);
+    const tcExpected = predictExpectedFromTestCase(tcTitle);
     tcs.push({
       id: 'tc_' + Date.now(),
       tcNumber: nextNum,
-      title: tcMeta.title,
-      expectedResult: tcMeta.expectedResult,
+      scenarioName: tcScenario,
+      title: tcTitle,
+      expectedResult: tcExpected,
       status: 'OK',
       steps: []
     });
