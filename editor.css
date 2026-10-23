@@ -547,6 +547,7 @@ textarea.form-control {
   margin-top: 8px;
   align-items: start;
   transition: all 0.15s ease;
+  position: relative;
 }
 
 .tc-substep-row:hover {
@@ -554,12 +555,48 @@ textarea.form-control {
   background: #19253a;
 }
 
+.tc-substep-row.is-dragging {
+  opacity: 0.35;
+  border: 2px dashed #38bdf8 !important;
+  background: #090d16 !important;
+}
+
+.tc-substep-row.drag-over-top {
+  border-top: 2px solid #38bdf8 !important;
+  box-shadow: 0 -3px 8px rgba(56, 189, 248, 0.25);
+}
+
+.tc-substep-row.drag-over-bottom {
+  border-bottom: 2px solid #38bdf8 !important;
+  box-shadow: 0 3px 8px rgba(56, 189, 248, 0.25);
+}
+
 .step-index-badge {
   font-weight: 800;
   color: #38bdf8;
-  font-size: 12.5px;
+  font-size: 11px;
   text-align: center;
-  padding-top: 2px;
+  padding: 3px 2px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  cursor: grab;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.step-index-badge:active {
+  cursor: grabbing;
+}
+
+.step-drag-icon {
+  font-size: 8px;
+  color: #64748b;
+  line-height: 1;
 }
 
 .step-info-col {

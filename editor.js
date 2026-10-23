@@ -810,6 +810,39 @@ document.addEventListener('DOMContentLoaded', () => {
     el?.addEventListener('input', saveActiveDocState);
   });
 
+  let draggedStepInfo = null; // { tcIndex, stepIndex }
+
+  function moveStep(tcIndex, fromIdx, toIdx) {
+    const doc = getActiveDoc();
+    const tc = doc.testCases?.[tcIndex];
+    if (!tc || !tc.steps) return;
+    if (toIdx < 0 || toIdx >= tc.steps.length || fromIdx === toIdx) return;
+
+    // Pindahkan item dalam array
+    const [moved] = tc.steps.splice(fromIdx, 1);
+    tc.steps.splice(toIdx, 0, moved);
+
+    // Tata ulang nomor urut langkah
+    tc.steps.forEach((st, idx) => {
+      st.stepNumber = idx + 1;
+    });
+
+    // Sesuaikan editingStep jika langkah yang sedang diedit ikut berpindah posisi
+    if (editingStep && editingStep.tcIndex === tcIndex) {
+      if (editingStep.stepIndex === fromIdx) {
+        editingStep.stepIndex = toIdx;
+      } else if (fromIdx < editingStep.stepIndex && toIdx >= editingStep.stepIndex) {
+        editingStep.stepIndex--;
+      } else if (fromIdx > editingStep.stepIndex && toIdx <= editingStep.stepIndex) {
+        editingStep.stepIndex++;
+      }
+    }
+
+    suppressFocusReloadUntil = Date.now() + 3000;
+    saveActiveDocState();
+    renderTestCases();
+  }
+
   function renderTestCases() {
     const doc = getActiveDoc();
     const tcs = doc.testCases || [];
@@ -898,14 +931,23 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
         } else {
           stepsHtml += `
-            <div class="tc-substep-row">
-              <div class="step-index-badge">${sIdx + 1}</div>
+            <div class="tc-substep-row" draggable="true" data-tc="${tcIndex}" data-step="${sIdx}">
+              <div class="step-index-badge" title="Tahan & geser (Drag) untuk menukar urutan langkah">
+                <span class="step-drag-icon">⠿</span>
+                <span>${sIdx + 1}</span>
+              </div>
               <div class="step-info-col">
                 <div class="step-title-text">${escapeHtml(s.title || 'Aktivitas ' + (sIdx + 1))}</div>
                 <div class="step-action-desc">${escapeHtml(s.actionDescription || '')}</div>
                 ${s.inputData && s.inputData !== '-' ? '<div class="step-input-badge">Input: <b>' + escapeHtml(s.inputData) + '</b></div>' : ''}
                 ${s.expectedResult ? '<div style="font-size: 10.5px; color: #10b981; margin-top: 2px;">Ekspektasi: ' + escapeHtml(s.expectedResult) + '</div>' : ''}
-                <div style="display: flex; gap: 6px; margin-top: 6px;">
+                <div style="display: flex; gap: 4px; align-items: center; margin-top: 6px;">
+                  <button type="button" class="btn btn-outline btn-xs btn-move-step-up" data-tc="${tcIndex}" data-step="${sIdx}" ${sIdx === 0 ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} title="Pindahkan langkah ke Atas (▲)">
+                    ▲
+                  </button>
+                  <button type="button" class="btn btn-outline btn-xs btn-move-step-down" data-tc="${tcIndex}" data-step="${sIdx}" ${sIdx === steps.length - 1 ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} title="Pindahkan langkah ke Bawah (▼)">
+                    ▼
+                  </button>
                   <button type="button" class="btn btn-outline btn-xs btn-edit-step" data-tc="${tcIndex}" data-step="${sIdx}" title="Edit Langkah ini">
                     ✏️ Edit
                   </button>
@@ -1256,6 +1298,90 @@ document.addEventListener('DOMContentLoaded', () => {
           tc.steps[sIdx].screenshot = '';
           saveActiveDocState();
           renderTestCases();
+        });
+      });
+
+      // Tombol Pindah Langkah (Naik / Turun)
+      tcCard.querySelectorAll('.btn-move-step-up').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tcIdx = parseInt(btn.dataset.tc, 10);
+          const sIdx = parseInt(btn.dataset.step, 10);
+          moveStep(tcIdx, sIdx, sIdx - 1);
+        });
+      });
+
+      tcCard.querySelectorAll('.btn-move-step-down').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const tcIdx = parseInt(btn.dataset.tc, 10);
+          const sIdx = parseInt(btn.dataset.step, 10);
+          moveStep(tcIdx, sIdx, sIdx + 1);
+        });
+      });
+
+      // Drag & Drop pada baris langkah
+      tcCard.querySelectorAll('.tc-substep-row[draggable="true"]').forEach(row => {
+        row.addEventListener('dragstart', (e) => {
+          if (e.target.closest('button, input, textarea, .zoomable-img')) {
+            e.preventDefault();
+            return;
+          }
+          const tcIdx = parseInt(row.dataset.tc, 10);
+          const sIdx = parseInt(row.dataset.step, 10);
+          draggedStepInfo = { tcIndex: tcIdx, stepIndex: sIdx };
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', `${tcIdx}:${sIdx}`);
+          row.classList.add('is-dragging');
+        });
+
+        row.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (!draggedStepInfo || draggedStepInfo.tcIndex !== parseInt(row.dataset.tc, 10)) return;
+          e.dataTransfer.dropEffect = 'move';
+          
+          const rect = row.getBoundingClientRect();
+          const offset = e.clientY - rect.top;
+          if (offset < rect.height / 2) {
+            row.classList.add('drag-over-top');
+            row.classList.remove('drag-over-bottom');
+          } else {
+            row.classList.add('drag-over-bottom');
+            row.classList.remove('drag-over-top');
+          }
+        });
+
+        row.addEventListener('dragleave', () => {
+          row.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          row.classList.remove('drag-over-top', 'drag-over-bottom');
+          if (!draggedStepInfo) return;
+
+          const targetTcIdx = parseInt(row.dataset.tc, 10);
+          const targetStepIdx = parseInt(row.dataset.step, 10);
+
+          if (draggedStepInfo.tcIndex === targetTcIdx && draggedStepInfo.stepIndex !== targetStepIdx) {
+            const rect = row.getBoundingClientRect();
+            const isUpperHalf = (e.clientY - rect.top) < (rect.height / 2);
+            let finalTargetIdx = targetStepIdx;
+
+            if (!isUpperHalf && draggedStepInfo.stepIndex < targetStepIdx) {
+              finalTargetIdx = targetStepIdx;
+            } else if (isUpperHalf && draggedStepInfo.stepIndex > targetStepIdx) {
+              finalTargetIdx = targetStepIdx;
+            }
+
+            moveStep(draggedStepInfo.tcIndex, draggedStepInfo.stepIndex, finalTargetIdx);
+          }
+          draggedStepInfo = null;
+        });
+
+        row.addEventListener('dragend', () => {
+          row.classList.remove('is-dragging', 'drag-over-top', 'drag-over-bottom');
+          draggedStepInfo = null;
         });
       });
 
