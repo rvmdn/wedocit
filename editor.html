@@ -265,9 +265,19 @@
     <!-- Right Column: Step by Step List (Test Cases) -->
     <section class="content-steps">
       <div class="steps-header">
-        <h2 class="section-title">
-          Daftar Test Case (<span id="total-step-count">0</span> Test Case)
-        </h2>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <h2 class="section-title" style="margin: 0;">
+            Daftar Test Case (<span id="total-step-count">0</span> Test Case)
+          </h2>
+          <div class="tc-global-collapse-actions" style="display: inline-flex; gap: 6px;">
+            <button type="button" id="btn-collapse-all" class="btn btn-outline btn-xs" title="Ciutkan semua Test Case agar hemat tempat" style="font-size: 11px; padding: 3px 9px; border-color: #334155; color: #94a3b8;">
+              ◀▶ Ciutkan Semua
+            </button>
+            <button type="button" id="btn-expand-all" class="btn btn-outline btn-xs" title="Bentangkan semua Test Case" style="font-size: 11px; padding: 3px 9px; border-color: #334155; color: #38bdf8;">
+              ▼ Bentangkan Semua
+            </button>
+          </div>
+        </div>
         <div class="steps-filter">
           <span class="filter-tip">💡 Skenario: <b id="lbl-scenario-preview" style="color:#38bdf8;">Pengujian Alur Modul</b></span>
         </div>

@@ -58,8 +58,11 @@
       document.removeEventListener('mousedown', onMouseDownHandler, true);
       document.removeEventListener('click', onClickHandler, true);
       document.removeEventListener('change', onChangeHandler, true);
+      document.removeEventListener('input', onInputHandler, true);
       document.removeEventListener('focusout', onFocusOutHandler, true);
       window.removeEventListener('keydown', onKeydownHandler);
+      if (inputDebounceTimer) { clearTimeout(inputDebounceTimer); inputDebounceTimer = null; }
+      activePendingInput = null;
       if (toastObserver) { toastObserver.disconnect(); toastObserver = null; }
       isListenersAttached = false;
     } catch (e) {}
@@ -219,7 +222,8 @@
   function getActiveTc() {
     const doc = getActiveDoc();
     const tcs = doc.testCases || [];
-    return tcs.find(t => t.id === doc.activeTcId) || tcs[0] || { tcNumber: 1, title: 'TC 1', steps: [] };
+    const targetId = doc.activeTcId || sessionData.activeTcId;
+    return tcs.find(t => t.id === targetId) || tcs[0] || { tcNumber: 1, title: 'TC 1', steps: [] };
   }
 
     // ==============================================================
@@ -240,6 +244,7 @@
         document.addEventListener('mousedown', onMouseDownHandler, true);
         document.addEventListener('click', onClickHandler, true);
         document.addEventListener('change', onChangeHandler, true);
+        document.addEventListener('input', onInputHandler, true);
         document.addEventListener('focusout', onFocusOutHandler, true);
         isListenersAttached = true;
       }
@@ -251,9 +256,12 @@
         document.removeEventListener('mousedown', onMouseDownHandler, true);
         document.removeEventListener('click', onClickHandler, true);
         document.removeEventListener('change', onChangeHandler, true);
+        document.removeEventListener('input', onInputHandler, true);
         document.removeEventListener('focusout', onFocusOutHandler, true);
         isListenersAttached = false;
       }
+      if (inputDebounceTimer) { clearTimeout(inputDebounceTimer); inputDebounceTimer = null; }
+      activePendingInput = null;
       if (toastObserver) {
         try { toastObserver.disconnect(); } catch (e) {}
         toastObserver = null;
@@ -317,6 +325,7 @@
 
     safeSendMessage({
       type: 'ADD_STEP',
+      tcId: getActiveTc()?.id,
       step: {
         title: `Notifikasi: "${summary || fullText}"`,
         actionDescription: `Sistem menampilkan pesan konfirmasi: "${fullText}".`,
@@ -806,10 +815,13 @@
     }
 
     // MODE FULL (LENGKAP - RAMPING & ICON-FIRST DENGAN TOOLTIP)
+    const currentActiveTc = getActiveTc();
+    const currentActiveTcId = currentActiveTc?.id || (activeDoc && activeDoc.activeTcId) || sessionData.activeTcId;
     let tcOptionsHtml = '';
     tcs.forEach((tc) => {
-      const selected = tc.id === sessionData.activeTcId ? 'selected' : '';
-      tcOptionsHtml += `<option value="${tc.id}" ${selected}>TC ${tc.tcNumber}: ${escapeHtml(tc.title || 'TC ' + tc.tcNumber)}</option>`;
+      const selected = tc.id === currentActiveTcId ? 'selected' : '';
+      const numLabel = tc.tcNumberStr || ('TC ' + tc.tcNumber);
+      tcOptionsHtml += `<option value="${tc.id}" ${selected}>${numLabel}: ${escapeHtml(tc.title || numLabel)}</option>`;
     });
     tcOptionsHtml += `<option value="__NEW_TC__">➕ Buat TC Baru...</option>`;
 
@@ -946,6 +958,7 @@
       // 4. Tambahkan sebagai Langkah Baru di Test Case aktif
       safeSendMessage({
         type: 'ADD_STEP',
+        tcId: getActiveTc()?.id,
         step: {
           title: stepTitle,
           actionDescription: actionDesc,
@@ -1202,7 +1215,8 @@
       // Revert dropdown TC jika user membatalkan pilihan __NEW_TC__
       const selTc = shadowRoot?.getElementById('sel-active-tc');
       if (selTc && selTc.value === '__NEW_TC__') {
-        selTc.value = sessionData.activeTcId || '';
+        const curDoc = getActiveDoc();
+        selTc.value = (curDoc && curDoc.activeTcId) || sessionData.activeTcId || '';
       }
     };
 
@@ -1275,12 +1289,23 @@
         if (val === '__NEW_TC__') {
           openNewTcModal();
         } else {
+          // 1. Update in-memory state seketika agar tidak flicker / lompat kembali ke TC sebelumnya
+          const doc = getActiveDoc();
+          if (doc) doc.activeTcId = val;
+          sessionData.activeTcId = val;
+
+          // 2. Beritahu background service worker
           safeSendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: val }, (res) => {
             if (res?.sessionData) {
               sessionData = res.sessionData;
-              updateWidgetUI();
             }
-            showToast('🔄 Berpindah ke ' + selTc.options[selTc.selectedIndex].text);
+            const curDoc = getActiveDoc();
+            if (curDoc) curDoc.activeTcId = val;
+            sessionData.activeTcId = val;
+            updateWidgetUI();
+            const curTc = getActiveTc();
+            const label = curTc.tcNumberStr || ('TC ' + curTc.tcNumber);
+            showToast('🔄 Berpindah ke ' + label);
           });
         }
       };
@@ -1937,48 +1962,56 @@
     }, 700);
   }
 
+  let captureQueue = Promise.resolve();
+
   function captureScreenshot() {
-    return new Promise(async (resolve) => {
-      if (!isExtensionValid()) {
-        resolve('');
-        return;
-      }
-      isCapturing = true;
+    const doCapture = () => {
+      return new Promise(async (resolve) => {
+        if (!isExtensionValid()) {
+          resolve('');
+          return;
+        }
+        isCapturing = true;
 
-      // Jika belum di-prehide (misal klik via keyboard Enter / touch tap), sembunyikan sekarang
-      if (!isWidgetPreHidden) {
-        hideWidget();
-        if (document.body) void document.body.offsetHeight;
-        await new Promise((r) => {
-          requestAnimationFrame(() => {
-            setTimeout(r, 40);
+        // Jika belum di-prehide (misal klik via keyboard Enter / touch tap), sembunyikan sekarang
+        if (!isWidgetPreHidden) {
+          hideWidget();
+          if (document.body) void document.body.offsetHeight;
+          await new Promise((r) => {
+            requestAnimationFrame(() => {
+              setTimeout(r, 40);
+            });
           });
-        });
-      }
+        }
 
-      // Ambil screenshot seketika (< 3ms) sebelum SPA router membongkar halaman lama
-      try {
-        chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, (res) => {
+        // Ambil screenshot seketika (< 3ms) sebelum SPA router membongkar halaman lama
+        try {
+          chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, (res) => {
+            isCapturing = false;
+            showWidget();
+            try {
+              if (chrome.runtime && chrome.runtime.lastError) {
+                resolve('');
+                return;
+              }
+            } catch (e) {}
+            if (!res || !res.success) {
+              resolve('');
+            } else {
+              resolve(res.dataUrl || '');
+            }
+          });
+        } catch (e) {
           isCapturing = false;
           showWidget();
-          try {
-            if (chrome.runtime && chrome.runtime.lastError) {
-              resolve('');
-              return;
-            }
-          } catch (e) {}
-          if (!res || !res.success) {
-            resolve('');
-          } else {
-            resolve(res.dataUrl || '');
-          }
-        });
-      } catch (e) {
-        isCapturing = false;
-        showWidget();
-        resolve('');
-      }
-    });
+          resolve('');
+        }
+      });
+    };
+
+    const nextPromise = captureQueue.then(doCapture, doCapture);
+    captureQueue = nextPromise.then(() => new Promise(r => setTimeout(r, 120)), () => new Promise(r => setTimeout(r, 120)));
+    return nextPromise;
   }
 
   // Helper: Mengekstrak ringkasan field dalam modal / formulir aktif (khususnya field mandatory / berbintang)
@@ -2259,13 +2292,25 @@
       const tr = el.closest('tr');
       const tds = Array.from(tr.querySelectorAll('td'))
         .map(td => td.innerText ? td.innerText.trim().replace(/\s+/g, ' ') : '')
-        .filter(t => t.length > 0 && t !== '-' && !/^(edit|hapus|detail|pilih|aksi)$/i.test(t));
-      const rowId = tds[0] || tds[1] || cleanLabel || 'Data';
-      title = title || `Pilih Baris Data [${rowId.substring(0, 30)}]`;
-      action = `Pengguna memilih baris data "${rowId.substring(0, 40)}" pada tabel untuk peninjauan lebih lanjut.`;
-      expected = expected || `Baris data [${rowId.substring(0, 30)}] terpilih dan sistem menampilkan rincian data terkait.`;
-      actual = `Baris data [${rowId.substring(0, 30)}] berhasil dipilih.`;
-      inputData = rowId.substring(0, 40);
+        .filter(t => t.length > 0 && t !== '-' && !/^(edit|hapus|detail|pilih|aksi|action)$/i.test(t));
+
+      // Cari kolom teks yang bermakna (bukan sekadar nomor urut baris 1, 2, 3.. 7)
+      const meaningfulCol = tds.find(t => !/^\d{1,3}$/.test(t) && t.length > 2);
+      const rowLabel = meaningfulCol ? meaningfulCol.substring(0, 35) : '';
+
+      if (rowLabel) {
+        title = title || `Pilih Data [${rowLabel}]`;
+        action = `Pengguna memilih data "${rowLabel}" yang akan diuji.`;
+        expected = expected || `Sistem menandai data [${rowLabel}] dan menampilkan rincian data terkait.`;
+        actual = `Data [${rowLabel}] berhasil dipilih.`;
+        inputData = rowLabel;
+      } else {
+        title = title || 'Pilih Data yang Akan Diuji';
+        action = 'Pengguna memilih data yang akan diuji.';
+        expected = expected || 'Sistem menandai baris data yang dipilih dan menampilkan rincian data terkait.';
+        actual = 'Data yang akan diuji berhasil dipilih.';
+        inputData = '-';
+      }
     }
     // 19. PAGINASI TABEL (PrimeNG Paginator)
     else if (el.closest('.p-paginator') || el.classList.contains('p-paginator-page') || el.classList.contains('p-paginator-next') || el.classList.contains('p-paginator-prev')) {
@@ -2370,6 +2415,11 @@
       return;
     }
 
+    // Jika ada input field/komentar yang baru saja selesai diketik sebelum tombol ditekan, commit segera nilainya
+    if (activePendingInput) {
+      commitPendingFieldInput();
+    }
+
     // Pastikan bukan bagian dari uploader file dokumen
     if (clickable.closest('.p-fileupload, .p-fileupload-choose')) {
       return;
@@ -2402,6 +2452,7 @@
 
       safeSendMessage({
         type: 'ADD_STEP',
+        tcId: getActiveTc()?.id,
         step: {
           title: wording.title,
           actionDescription: wording.action,
@@ -2418,8 +2469,98 @@
     })();
   }
 
-  // Helper: Merekam langkah input teks, komentar / catatan pengujian, dan field mandatory
-  function recordFieldInputStep(target, sourceEvent) {
+  // =========================================================================
+  // SISTEM DEBOUNCE INPUT & KOMENTAR (Mencegah Screenshot per Huruf)
+  // Screenshot dan langkah HANYA dicatat saat masukan pengguna sudah FULL
+  // =========================================================================
+  let activePendingInput = null;
+  let inputDebounceTimer = null;
+
+  // Ekstrak nilai bersih teks dari elemen (termasuk PrimeNG p-editor / Quill / textarea)
+  // Menghilangkan tag HTML seperti <p>...</p>, <br>, dan decode entities
+  function cleanAndExtractFieldValue(element) {
+    if (!element) return '';
+    const isQuill = element.classList?.contains('ql-editor') || !!element.closest?.('.ql-editor');
+    const actual = isQuill ? (element.classList?.contains('ql-editor') ? element : element.closest('.ql-editor')) : element;
+    const tagName = actual.tagName ? actual.tagName.toUpperCase() : '';
+
+    let rawVal = '';
+    if (isQuill) {
+      rawVal = (actual.innerText || actual.textContent || '').trim();
+    } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
+      rawVal = (actual.value || '').trim();
+    } else {
+      rawVal = (actual.innerText || actual.textContent || actual.value || '').trim();
+    }
+
+    // Bersihkan tag HTML (seperti <p>propose</p> dari Quill / Angular p-editor)
+    let stripped = rawVal.replace(/<\/p>|<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').trim();
+    // Decode HTML entities umum
+    stripped = stripped.replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"');
+    stripped = stripped.replace(/\s+/g, ' ').trim();
+    return stripped;
+  }
+
+  // Deteksi label field secara cerdas (mencegah fallback generic seperti [Elemen UI])
+  function detectFieldLabel(actualTarget, tagName, isQuill) {
+    const meta = extractElementMetadata(actualTarget);
+    let label = (meta.computedLabel || '').trim();
+
+    // Jika label masih generic seperti "field", "input", "text", "elemen", "Elemen UI":
+    if (!label || /^(field|input|text|elemen|elemen ui|ui)$/i.test(label)) {
+      // 1. Cari dari container PrimeNG / form-group terdekat
+      const container = actualTarget.closest('.p-field, .form-group, .field, p-editor, .p-editor-container, [formgroupname], tr, .col-12, .col-6, div');
+      if (container) {
+        const lbl = container.querySelector('label, .p-label, th, .form-label');
+        if (lbl) label = lbl.innerText.trim();
+      }
+      // 2. Cari dari previous sibling elemen
+      if (!label || /^(field|input|text|elemen|elemen ui|ui)$/i.test(label)) {
+        const host = actualTarget.closest('p-editor, .p-editor-container, textarea, input');
+        if (host && host.previousElementSibling) {
+          const prev = host.previousElementSibling;
+          if (prev.tagName === 'LABEL') {
+            label = prev.innerText.trim();
+          } else if (prev.querySelector('label')) {
+            label = prev.querySelector('label').innerText.trim();
+          }
+        }
+      }
+      // 3. Dari atribut formControlName atau name atau id
+      if (!label || /^(field|input|text|elemen|elemen ui|ui)$/i.test(label)) {
+        const ctrl = actualTarget.getAttribute('formcontrolname') ||
+          actualTarget.closest('[formcontrolname]')?.getAttribute('formcontrolname') ||
+          actualTarget.getAttribute('name') ||
+          actualTarget.getAttribute('id') || '';
+        if (ctrl) {
+          label = ctrl.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').trim();
+          label = label.charAt(0).toUpperCase() + label.slice(1);
+        }
+      }
+    }
+
+    if (!label || /^(field|input|text|elemen|elemen ui|ui)$/i.test(label)) {
+      label = actualTarget.getAttribute('placeholder') || actualTarget.getAttribute('aria-label') || '';
+    }
+
+    const clean = label.replace(/[*:]/g, '').trim();
+    if (!clean || /^(field|input|text|elemen|elemen ui|ui)$/i.test(clean)) {
+      return (tagName === 'TEXTAREA' || isQuill) ? 'Catatan / Komentar' : 'Input Data';
+    }
+    return clean;
+  }
+
+  // Eksekusi perekaman langkah input setelah masukan FULL / selesai diketik
+  function commitPendingFieldInput() {
+    if (inputDebounceTimer) {
+      clearTimeout(inputDebounceTimer);
+      inputDebounceTimer = null;
+    }
+    if (!activePendingInput) return;
+
+    const target = activePendingInput.target;
+    activePendingInput = null;
+
     if (!isExtensionValid()) {
       cleanupDeadExtension();
       return;
@@ -2432,45 +2573,28 @@
     const actualTarget = isQuill ? (target.classList?.contains('ql-editor') ? target : target.closest('.ql-editor')) : target;
     const tagName = actualTarget.tagName ? actualTarget.tagName.toUpperCase() : '';
 
-    let val = '';
-    if (isQuill) {
-      val = (actualTarget.innerText || '').trim();
-    } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
-      val = (actualTarget.value || '').trim();
-    } else {
-      val = (actualTarget.innerText || actualTarget.value || '').trim();
-    }
+    const val = cleanAndExtractFieldValue(actualTarget);
+    if (!val) return; // Kosong / hanya spasi / tag html kosong
 
-    // Hindari duplikasi jika isi belum berubah atau masih kosong
-    const lastVal = actualTarget.dataset.__wedocit_last_val || '';
-    if (!val && !lastVal) return;
-    if (val === lastVal) return;
+    // Hindari duplikasi jika isi sama persis dengan yang sudah pernah di-commit
+    const committedVal = actualTarget.dataset.__wedocit_committed_val || '';
+    if (val === committedVal) return;
 
-    actualTarget.dataset.__wedocit_last_val = val;
+    actualTarget.dataset.__wedocit_committed_val = val;
 
+    const cleanLabel = detectFieldLabel(actualTarget, tagName, isQuill);
     const meta = extractElementMetadata(actualTarget);
-    let label = (meta.computedLabel || '').trim();
-
-    // Deteksi label dari form-group / p-field sekitar jika label masih generic
-    if (!label || /^(field|input|text|elemen)$/i.test(label)) {
-      const parentGroup = actualTarget.closest('.p-field, .form-group, .field, tr, .col-12, .col-6, div');
-      if (parentGroup) {
-        const lbl = parentGroup.querySelector('label, .p-label, th');
-        if (lbl) label = lbl.innerText.trim();
-      }
-    }
-    if (!label) {
-      label = actualTarget.getAttribute('placeholder') || actualTarget.getAttribute('aria-label') || actualTarget.name || actualTarget.id || '';
+    if (!meta.computedLabel || /^(field|input|text|elemen|elemen ui|ui)$/i.test(meta.computedLabel)) {
+      meta.computedLabel = cleanLabel;
     }
 
     const isMandatory = actualTarget.required ||
       actualTarget.getAttribute('aria-required') === 'true' ||
       actualTarget.classList.contains('p-invalid') ||
       actualTarget.classList.contains('ng-invalid') ||
-      label.includes('*') ||
+      (meta.computedLabel && meta.computedLabel.includes('*')) ||
       !!actualTarget.closest('.p-field, .form-group, .field')?.querySelector('label .required, label .p-error, .text-danger, .mandatory');
 
-    const cleanLabel = label.replace(/[*:]/g, '').trim() || (tagName === 'TEXTAREA' || isQuill ? 'Komentar Pengujian' : 'Input Data');
     const isComment = /komentar|catatan|keterangan|alasan|tanggapan|note|remark|reason|comment|description/i.test(
       cleanLabel + ' ' + (actualTarget.placeholder || '') + ' ' + (actualTarget.name || '') + ' ' + (actualTarget.id || '') + ' ' + actualTarget.className
     ) || tagName === 'TEXTAREA' || isQuill;
@@ -2510,6 +2634,7 @@
 
       safeSendMessage({
         type: 'ADD_STEP',
+        tcId: getActiveTc()?.id,
         step: {
           title: stepTitle,
           actionDescription: actionDesc,
@@ -2524,6 +2649,63 @@
         showToast(`✔ ${isComment ? 'Komentar' : 'Input'}: ${cleanLabel}`);
       });
     })();
+  }
+
+  // Antrekan input step: saat user mengetik, tunggu jeda (debounce) atau commit segera saat focusout
+  function queueFieldInputStep(target, immediate) {
+    if (!isExtensionValid()) {
+      cleanupDeadExtension();
+      return;
+    }
+    if (!sessionData.isRecording || sessionData.isPaused) return;
+    if (rootContainer && rootContainer.contains(target)) return;
+    if (!target) return;
+
+    const isQuill = target.classList?.contains('ql-editor') || !!target.closest?.('.ql-editor');
+    const actualTarget = isQuill ? (target.classList?.contains('ql-editor') ? target : target.closest('.ql-editor')) : target;
+    const tagName = actualTarget.tagName ? actualTarget.tagName.toUpperCase() : '';
+
+    if (!isQuill && tagName !== 'TEXTAREA' && tagName !== 'INPUT') return;
+    if (tagName === 'INPUT' && /^(checkbox|radio|submit|button|file|image|reset)$/i.test(actualTarget.type || '')) return;
+
+    // Bersihkan nilai saat ini, jika kosong maka tidak perlu antrekan pending
+    const currentVal = cleanAndExtractFieldValue(actualTarget);
+    if (!currentVal) return;
+
+    activePendingInput = { target: actualTarget };
+
+    if (inputDebounceTimer) {
+      clearTimeout(inputDebounceTimer);
+      inputDebounceTimer = null;
+    }
+
+    if (immediate) {
+      // Focusout: User selesai mengisi dan berpindah field -> rekam SEGERA nilai akhirnya
+      commitPendingFieldInput();
+    } else {
+      // Saat event input / change: tunda 1500ms dari ketukan terakhir (user selesai mengetik)
+      inputDebounceTimer = setTimeout(() => {
+        commitPendingFieldInput();
+      }, 1500);
+    }
+  }
+
+  // Listener event input (menangani pengetikan pada input, textarea, maupun rich text contenteditable)
+  function onInputHandler(e) {
+    if (!isExtensionValid()) {
+      cleanupDeadExtension();
+      return;
+    }
+    if (!sessionData.isRecording || sessionData.isPaused) return;
+    if (rootContainer && rootContainer.contains(e.target)) return;
+
+    const target = e.target;
+    if (!target) return;
+    const isQuill = target.classList?.contains('ql-editor') || !!target.closest?.('.ql-editor');
+    const tagName = target.tagName ? target.tagName.toUpperCase() : '';
+    if (isQuill || tagName === 'TEXTAREA' || tagName === 'INPUT') {
+      queueFieldInputStep(target, false);
+    }
   }
 
   function onChangeHandler(e) {
@@ -2556,6 +2738,7 @@
 
         safeSendMessage({
           type: 'ADD_STEP',
+          tcId: getActiveTc()?.id,
           step: {
             title: stepTitle,
             actionDescription: actionDesc,
@@ -2571,7 +2754,8 @@
         showToast('✔ Pilihan: ' + selectedOption);
       })();
     } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
-      recordFieldInputStep(target, 'change');
+      // Debounce input text/textarea: jangan pernah rekam per huruf
+      queueFieldInputStep(target, false);
     }
   }
 
@@ -2588,7 +2772,8 @@
 
     const tagName = target.tagName ? target.tagName.toUpperCase() : '';
     if (target.classList?.contains('ql-editor') || target.closest?.('.ql-editor') || tagName === 'TEXTAREA' || tagName === 'INPUT') {
-      recordFieldInputStep(target, 'focusout');
+      // Focusout: User selesai mengisi dan berpindah field -> rekam SEGERA nilai akhirnya
+      queueFieldInputStep(target, true);
     }
   }
   // Dynamic event listeners

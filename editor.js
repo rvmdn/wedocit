@@ -258,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let isSavingLocally = false;
   let saveDebounceTimer = null;
+  let suppressFocusReloadUntil = 0;
   let editingStep = null; // { tcIndex, stepIndex }
 
   // Load State (Direct from Local Storage with Service Worker Fallback)
@@ -284,8 +285,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load state immediately
   loadFreshState();
 
-  // 1. Auto-refresh saat tab editor difokuskan / dibuka kembali
+  // 1. Auto-refresh saat tab editor difokuskan / dibuka kembali dari luar
   window.addEventListener('focus', () => {
+    if (Date.now() < suppressFocusReloadUntil) return;
+    if (isSavingLocally) return;
     const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
     if (!isTyping && !editingStep) {
       loadFreshState();
@@ -293,6 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('visibilitychange', () => {
+    if (Date.now() < suppressFocusReloadUntil) return;
+    if (isSavingLocally) return;
     if (document.visibilityState === 'visible') {
       const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
       if (!isTyping && !editingStep) {
@@ -311,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Dengarkan event perubahan storage dari background / content script
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.sessionData) {
-      if (isSavingLocally) return;
+      if (Date.now() < suppressFocusReloadUntil || isSavingLocally) return;
       const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
       if (!isTyping && !editingStep) {
         loadFreshState();
@@ -356,6 +361,8 @@ document.addEventListener('DOMContentLoaded', () => {
         {
           id: tcId,
           tcNumber: 1,
+          tcNumberStr: 'TC 1',
+          role: '',
           title: tc1Title,
           scenarioName: tc1Scenario,
           expectedResult: tc1Expected,
@@ -595,16 +602,30 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
-  // Tampilkan status template siap secara pasif tanpa melakukan network fetch saat halaman dibuka
-  if (badgeTemplateStatus && !customDocxTemplateBuffer) {
-    badgeTemplateStatus.textContent = '🟢 Template Siap';
-    badgeTemplateStatus.style.color = '#34d399';
-    badgeTemplateStatus.style.borderColor = 'rgba(52, 211, 153, 0.4)';
-  }
-  if (lblTemplateName && !customDocxTemplateBuffer) {
-    lblTemplateName.textContent = 'templates/template-bni-edv.docx';
-    lblTemplateName.style.color = '#34d399';
-  }
+  // Cek ketersediaan template bawaan secara asinkron saat editor dibuka
+  loadBundledTemplate().then((buf) => {
+    if (buf) {
+      if (badgeTemplateStatus && !customDocxTemplateBuffer) {
+        badgeTemplateStatus.textContent = '🟢 Template Bawaan Siap';
+        badgeTemplateStatus.style.color = '#34d399';
+        badgeTemplateStatus.style.borderColor = 'rgba(52, 211, 153, 0.4)';
+      }
+      if (lblTemplateName && !customDocxTemplateBuffer) {
+        lblTemplateName.textContent = 'template-bni-edv.docx';
+        lblTemplateName.style.color = '#34d399';
+      }
+    } else {
+      if (badgeTemplateStatus && !customDocxTemplateBuffer) {
+        badgeTemplateStatus.textContent = '⚠️ Belum Ada Template';
+        badgeTemplateStatus.style.color = '#f59e0b';
+        badgeTemplateStatus.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+      }
+      if (lblTemplateName && !customDocxTemplateBuffer) {
+        lblTemplateName.textContent = 'Silakan upload template .docx';
+        lblTemplateName.style.color = '#f59e0b';
+      }
+    }
+  });
 
   // Template DOCX upload handling
   btnChooseTemplate?.addEventListener('click', () => {
@@ -686,12 +707,25 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCustomMetaFields();
   });
 
-  function saveActiveDocState() {
+  function getDefaultTesterRole() {
+    const doc = getActiveDoc();
+    const roleCustom = (doc.metadata?.customFields || []).find(f => /role/i.test(f.key || f.label || ''))?.value;
+    if (roleCustom) return roleCustom;
+    const author = doc.metadata?.author || '';
+    if (author.includes(' - ')) {
+      const parts = author.split(' - ');
+      return parts[parts.length - 1].trim();
+    }
+    return '';
+  }
+
+  function saveActiveDocState(onSaved) {
     isSavingLocally = true;
+    suppressFocusReloadUntil = Date.now() + 4000;
     if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
     saveDebounceTimer = setTimeout(() => {
       isSavingLocally = false;
-    }, 600);
+    }, 1500);
 
     const doc = getActiveDoc();
     const devs = doc.metadata?.developers || [];
@@ -724,9 +758,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (lblScenarioPreview) lblScenarioPreview.textContent = doc.metadata.scenarioName;
     updateFilenamePreview();
-    chrome.runtime.sendMessage({
-      type: 'UPDATE_STATE',
-      payload: { documents: sessionData.documents }
+
+    // Simpan langsung ke chrome.storage.local agar tidak ada race condition reload
+    sessionData.activeTcId = doc.activeTcId || sessionData.activeTcId;
+    chrome.storage.local.set({ sessionData: sessionData }, () => {
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_STATE',
+        payload: { documents: sessionData.documents, activeDocId: sessionData.activeDocId, activeTcId: sessionData.activeTcId }
+      });
+      if (typeof onSaved === 'function') onSaved();
     });
     renderDocSelector();
   }
@@ -897,13 +937,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      const isCollapsed = !!tc.__isCollapsed;
+      const isStepsCollapsed = !!tc.__isStepsCollapsed;
+      if (isCollapsed) {
+        tcCard.classList.add('is-collapsed');
+      }
+
       tcCard.innerHTML = `
         <div class="tc-header-row">
           <div class="tc-badge-wrap">
             <div class="tc-num-badge">
-              TC ${tc.tcNumber || (tcIndex + 1)}
+              ${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))}
             </div>
             <input type="text" class="tc-title-input" value="${escapeHtml(tc.title || 'Test Case ' + (tcIndex + 1))}" placeholder="Nama Test Case" />
+            <span class="tc-steps-pill" style="font-size:10.5px; color:#94a3b8; background:#1e293b; border:1px solid #334155; padding:2px 7px; border-radius:12px; white-space:nowrap; user-select:none;">
+              ${steps.length} Langkah
+            </span>
+            ${tc.role ? `<span class="tc-role-pill" style="font-size:10.5px; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid rgba(2,132,199,0.3); padding:2px 7px; border-radius:12px; white-space:nowrap;">👤 ${escapeHtml(tc.role)}</span>` : ''}
+            ${(doc.activeTcId === tc.id || (!doc.activeTcId && tcIndex === 0)) ? `<span class="tc-active-pill" style="font-size:10.5px; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:2px 7px; border-radius:12px; white-space:nowrap; font-weight:600;" title="Test Case ini merupakan target aktif perekaman di layar">🎯 Target Rekam</span>` : `<button type="button" class="btn btn-outline btn-xs btn-set-active-tc" data-tc-id="${tc.id}" style="font-size:10px; padding:1px 6px; color:#94a3b8; border-color:#475569;" title="Jadikan Test Case ini target rekaman aktif di layar">Jadikan Target</button>`}
           </div>
           <div class="tc-controls">
             <select class="tc-status-select ${(tc.status || 'OK').toLowerCase()}">
@@ -911,41 +962,111 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="NOK" ${tc.status === 'NOK' ? 'selected' : ''}>❌ NOK</option>
               <option value="Pending" ${tc.status === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
             </select>
+            <button type="button" class="btn btn-outline btn-xs btn-toggle-tc" title="Ciutkan / Bentangkan Test Case ini" style="font-size: 11px; padding: 2px 8px; border-color: #38bdf8; color: #38bdf8; font-weight: 600;">
+              ${isCollapsed ? '▶ Bentangkan' : '▼ Ciutkan'}
+            </button>
             <button class="btn btn-danger btn-xs btn-del-tc" title="Hapus Test Case ini">🗑 Hapus TC</button>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label style="font-weight: 600; font-size: 11px; color: #38bdf8; display: block; margin-bottom: 4px;">
-            🎯 Skenario Pengujian (Skenario ${tc.tcNumber || (tcIndex + 1)}):
-          </label>
-          <input type="text" class="form-control tc-scenario-input" value="${escapeHtml(tc.scenarioName || ('Skenario ' + (tc.tcNumber || (tcIndex + 1))))}" placeholder="Contoh: Skenario 1: Propose Pendalaman" />
-        </div>
-
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label style="font-weight: 600; font-size: 11px; color: #10b981; display: block; margin-bottom: 4px;">
-            🎯 Hasil yang Diharapkan (Expected Result based on Test Case):
-          </label>
-          <input type="text" class="form-control tc-expected-input" value="${escapeHtml(tc.expectedResult || '')}" placeholder="Hasil yang diharapkan based on Test Case..." />
-        </div>
-
-        <div style="margin-top: 10px;">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 12px; font-weight: 700; color: #cbd5e1;">Aktivitas & Evidens Screenshot (${steps.length} Langkah):</span>
-            <button class="btn btn-outline btn-sm btn-add-substep" data-tc="${tcIndex}">➕ Tambah Langkah Manual</button>
+        <div class="tc-body-content" style="${isCollapsed ? 'display: none;' : ''}">
+          <!-- BARIS DETAIL TERPISAH: NOMOR TC (URUT DEFAULT, EDITABLE) & ROLE PENGUJI (OPSIONAL) -->
+          <div style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 8px;">
+            <div class="form-group" style="margin: 0;">
+              <label style="font-weight: 600; font-size: 11px; color: #94a3b8; display: block; margin-bottom: 3px;">
+                🔢 Nomor Test Case:
+              </label>
+              <input type="text" class="form-control tc-number-input" value="${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))}" placeholder="Contoh: TC 1 / TC-01" style="font-weight: 700; color: #38bdf8;" />
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label style="font-weight: 600; font-size: 11px; color: #94a3b8; display: block; margin-bottom: 3px;">
+                👤 Role Penguji / Aktor (Opsional):
+              </label>
+              <input type="text" class="form-control tc-role-input" value="${escapeHtml(tc.role || '')}" placeholder="Contoh: Auditor / PKA / Penyelia / Maker / Approver" />
+            </div>
           </div>
-          <div class="tc-steps-list">
-            ${stepsHtml || '<div style="color:#64748b; font-size:12px; font-style:italic; padding:12px 0;">Belum ada langkah/screenshot pada TC ini. Rekam menggunakan WeDocIt atau tambahkan langkah manual.</div>'}
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label style="font-weight: 600; font-size: 11px; color: #38bdf8; display: block; margin-bottom: 4px;">
+              🎯 Skenario Pengujian (Skenario ${tc.tcNumber || (tcIndex + 1)}):
+            </label>
+            <input type="text" class="form-control tc-scenario-input" value="${escapeHtml(tc.scenarioName || ('Skenario ' + (tc.tcNumber || (tcIndex + 1))))}" placeholder="Contoh: Skenario 1: Propose Pendalaman" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label style="font-weight: 600; font-size: 11px; color: #10b981; display: block; margin-bottom: 4px;">
+              🎯 Hasil yang Diharapkan (Expected Result based on Test Case):
+            </label>
+            <input type="text" class="form-control tc-expected-input" value="${escapeHtml(tc.expectedResult || '')}" placeholder="Hasil yang diharapkan based on Test Case..." />
+          </div>
+
+          <div style="margin-top: 10px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 12px; font-weight: 700; color: #cbd5e1;">Aktivitas & Evidens Screenshot (${steps.length} Langkah):</span>
+                <button type="button" class="btn btn-outline btn-xs btn-toggle-steps-only" style="font-size: 10px; padding: 1px 7px; border-color: #334155; color: #94a3b8;" title="Sembunyikan / Tampilkan daftar evidens screenshot TC ini">
+                  ${isStepsCollapsed ? '▶ Buka Evidens' : '▼ Tutup Evidens'}
+                </button>
+              </div>
+              <button class="btn btn-outline btn-sm btn-add-substep" data-tc="${tcIndex}">➕ Tambah Langkah Manual</button>
+            </div>
+            <div class="tc-steps-list" style="${isStepsCollapsed ? 'display: none;' : ''}">
+              ${stepsHtml || '<div style="color:#64748b; font-size:12px; font-style:italic; padding:12px 0;">Belum ada langkah/screenshot pada TC ini. Rekam menggunakan WeDocIt atau tambahkan langkah manual.</div>'}
+            </div>
           </div>
         </div>
       `;
 
       const titleInput = tcCard.querySelector('.tc-title-input');
+      const numberInput = tcCard.querySelector('.tc-number-input');
+      const roleInput = tcCard.querySelector('.tc-role-input');
+      const numBadge = tcCard.querySelector('.tc-num-badge');
       const scenarioInput = tcCard.querySelector('.tc-scenario-input');
       const statusSelect = tcCard.querySelector('.tc-status-select');
       const expectedInput = tcCard.querySelector('.tc-expected-input');
       const delTcBtn = tcCard.querySelector('.btn-del-tc');
       const addSubstepBtn = tcCard.querySelector('.btn-add-substep');
+      const toggleTcBtn = tcCard.querySelector('.btn-toggle-tc');
+      const tcBodyContent = tcCard.querySelector('.tc-body-content');
+      const toggleStepsOnlyBtn = tcCard.querySelector('.btn-toggle-steps-only');
+      const tcStepsList = tcCard.querySelector('.tc-steps-list');
+
+      numberInput?.addEventListener('input', () => {
+        tc.tcNumberStr = numberInput.value.trim() || `TC ${tc.tcNumber || (tcIndex + 1)}`;
+        if (numBadge) numBadge.textContent = tc.tcNumberStr;
+        saveActiveDocState();
+      });
+
+      roleInput?.addEventListener('input', () => {
+        tc.role = roleInput.value.trim();
+        saveActiveDocState();
+      });
+
+      toggleTcBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tc.__isCollapsed = !tc.__isCollapsed;
+        if (tc.__isCollapsed) {
+          tcBodyContent.style.display = 'none';
+          tcCard.classList.add('is-collapsed');
+          toggleTcBtn.textContent = '▶ Bentangkan';
+        } else {
+          tcBodyContent.style.display = 'block';
+          tcCard.classList.remove('is-collapsed');
+          toggleTcBtn.textContent = '▼ Ciutkan';
+        }
+      });
+
+      toggleStepsOnlyBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tc.__isStepsCollapsed = !tc.__isStepsCollapsed;
+        if (tc.__isStepsCollapsed) {
+          tcStepsList.style.display = 'none';
+          toggleStepsOnlyBtn.textContent = '▶ Buka Evidens';
+        } else {
+          tcStepsList.style.display = 'block';
+          toggleStepsOnlyBtn.textContent = '▼ Tutup Evidens';
+        }
+      });
 
       titleInput?.addEventListener('input', () => {
         tc.title = titleInput.value;
@@ -986,10 +1107,33 @@ document.addEventListener('DOMContentLoaded', () => {
         saveActiveDocState();
       });
 
+      const setActiveBtn = tcCard.querySelector('.btn-set-active-tc');
+      setActiveBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        doc.activeTcId = tc.id;
+        sessionData.activeTcId = tc.id;
+        saveActiveDocState(() => {
+          chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: tc.id });
+          renderTestCases();
+        });
+      });
+
       delTcBtn?.addEventListener('click', () => {
-        if (confirm(`Hapus Test Case ${tc.tcNumber || (tcIndex + 1)} ("${tc.title}")?`)) {
+        suppressFocusReloadUntil = Date.now() + 5000;
+        const tcLabel = tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1)));
+        if (confirm(`Hapus Test Case ${tcLabel} ("${tc.title}")?`)) {
           tcs.splice(tcIndex, 1);
-          tcs.forEach((t, i) => t.tcNumber = i + 1);
+          tcs.forEach((t, i) => {
+            t.tcNumber = i + 1;
+            if (!t.tcNumberStr || /^TC\s*\d+$/i.test(t.tcNumberStr)) {
+              t.tcNumberStr = 'TC ' + (i + 1);
+            }
+          });
+          if (doc.activeTcId === tc.id) {
+            doc.activeTcId = tcs[0]?.id || '';
+            sessionData.activeTcId = doc.activeTcId;
+            chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: doc.activeTcId });
+          }
           saveActiveDocState();
           renderTestCases();
         }
@@ -1095,8 +1239,10 @@ document.addEventListener('DOMContentLoaded', () => {
       tcCard.querySelectorAll('.btn-del-step').forEach(btn => {
         btn.addEventListener('click', () => {
           const sIdx = parseInt(btn.dataset.step, 10);
+          suppressFocusReloadUntil = Date.now() + 5000;
           if (confirm('Hapus langkah ini?')) {
             tc.steps.splice(sIdx, 1);
+            tc.steps.forEach((st, idx) => { st.stepNumber = idx + 1; });
             saveActiveDocState();
             renderTestCases();
           }
@@ -1106,6 +1252,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tcCard.querySelectorAll('.btn-del-img').forEach(btn => {
         btn.addEventListener('click', () => {
           const sIdx = parseInt(btn.dataset.step, 10);
+          suppressFocusReloadUntil = Date.now() + 4000;
           tc.steps[sIdx].screenshot = '';
           saveActiveDocState();
           renderTestCases();
@@ -1124,9 +1271,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tcScenario = `Skenario ${nextNum}: Pengujian ${baseMod}`;
     const tcTitle = predictTestCaseFromScenario(tcScenario, nextNum);
     const tcExpected = predictExpectedFromTestCase(tcTitle);
+    const defaultRole = getDefaultTesterRole();
     tcs.push({
       id: 'tc_' + Date.now(),
       tcNumber: nextNum,
+      tcNumberStr: `TC ${nextNum}`,
+      role: defaultRole,
       scenarioName: tcScenario,
       title: tcTitle,
       expectedResult: tcExpected,
@@ -1140,6 +1290,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnAddStep?.addEventListener('click', addNewTestCase);
+
+  document.getElementById('btn-collapse-all')?.addEventListener('click', () => {
+    const doc = getActiveDoc();
+    const tcs = doc.testCases || [];
+    tcs.forEach(t => { t.__isCollapsed = true; });
+    renderTestCases();
+  });
+
+  document.getElementById('btn-expand-all')?.addEventListener('click', () => {
+    const doc = getActiveDoc();
+    const tcs = doc.testCases || [];
+    tcs.forEach(t => { t.__isCollapsed = false; t.__isStepsCollapsed = false; });
+    renderTestCases();
+  });
 
   btnResetSteps?.addEventListener('click', () => {
     if (confirm('Yakin ingin mereset seluruh langkah pada dokumen ini ke 0?')) {
@@ -1175,6 +1339,52 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === modalZoom) modalZoom.classList.remove('active');
   });
 
+  function showMissingTemplateModal() {
+    const existing = document.getElementById('wedocit-missing-template-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'wedocit-missing-template-modal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:99999;';
+    modal.innerHTML = `
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:12px; width:450px; max-width:92%; padding:24px; text-align:center; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
+        <div style="font-size:36px; margin-bottom:12px;">📁</div>
+        <h3 style="font-size:16px; font-weight:700; color:#f1f5f9; margin-bottom:8px;">Template Word BNI EDV Belum Ada</h3>
+        <p style="font-size:12.5px; color:#94a3b8; line-height:1.5; margin-bottom:20px;">
+          File template bawaan (<code>template-bni-edv.docx</code>) tidak ditemukan pada instalasi ekstensi ini (biasanya karena folder template diabaikan saat clone Git).
+        </p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" class="btn btn-primary" id="btn-modal-upload-tpl" style="justify-content:center; padding:10px; font-weight:600;">
+            📂 Pilih File Template .docx
+          </button>
+          <button type="button" class="btn btn-secondary" id="btn-modal-export-general" style="justify-content:center; padding:10px; font-weight:600;">
+            📄 Ekspor Format Standar (Tanpa Template)
+          </button>
+          <button type="button" class="btn btn-outline" id="btn-modal-cancel-tpl" style="justify-content:center; margin-top:4px; color:#94a3b8;">
+            Tutup
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelector('#btn-modal-upload-tpl')?.addEventListener('click', () => {
+      modal.remove();
+      // Dipicu langsung dari event listener klik user -> 100% valid User Activation di Chrome!
+      templateDocxFile?.click();
+    });
+
+    modal.querySelector('#btn-modal-export-general')?.addEventListener('click', () => {
+      modal.remove();
+      if (exportFormatSelect) exportFormatSelect.value = 'html_standard';
+      btnExportWord?.click();
+    });
+
+    modal.querySelector('#btn-modal-cancel-tpl')?.addEventListener('click', () => {
+      modal.remove();
+    });
+  }
+
   // =========================================================================
   // EXPORT WORD: DUAL ENGINE (NATIVE DOCX TEMPLATE REPLACER + CLEAN DOC EXPORT)
   // =========================================================================
@@ -1197,16 +1407,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (isUsingTemplate && !templateBufferToUse) {
-      const chooseUpload = confirm(
-        'Template resmi BNI EDV belum ditemukan di:\n' +
-        'wedocit/templates/template-bni-edv.docx\n\n' +
-        '• Klik "OK" untuk memilih file template .docx Anda secara manual.\n' +
-        '• Klik "Cancel" untuk mengekspor dalam Format Umum (Standar WeDocIt).'
-      );
-      if (chooseUpload) {
-        templateDocxFile?.click();
-        return;
-      }
+      showMissingTemplateModal();
+      return;
     }
 
     // =========================================================================
@@ -1316,10 +1518,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }];
 
             return safeTcs.map((tc, idx) => {
+              const tcNumberFormatted = tc.tcNumberStr || String(idx + 1);
+              const tcTitleWithRole = tc.role ? `${tc.title || `Test Case ${idx + 1}`} (Role: ${tc.role})` : (tc.title || `Test Case ${idx + 1}`);
               const rowMap = {
-                '{no}': String(idx + 1),
+                '{no}': tcNumberFormatted,
                 '{skenario}': tc.scenarioName || scName || tc.title || 'Skenario Pengujian',
-                '{test_case}': tc.title || `Test Case ${idx + 1}`,
+                '{test_case}': tcTitleWithRole,
                 '{ekspektasi}': tc.expectedResult || 'Berhasil',
                 '{result}': tc.status || 'OK'
               };
@@ -1375,14 +1579,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
           for (let tcIdx = 0; tcIdx < safeTcs.length; tcIdx++) {
             const tc = safeTcs[tcIdx];
-            const tcNum = tcIdx + 1;
+            const tcNum = tc.tcNumberStr || `TC ${tcIdx + 1}`;
+            const roleSuffix = tc.role ? ` [Role: ${tc.role}]` : '';
 
             generatedXml += `
               <w:p>
                 <w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr>
                 <w:r>
                   <w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="003366"/></w:rPr>
-                  <w:t xml:space="preserve">3.1.${tcNum} ${escapeXml(tc.title || 'Test Case ' + tcNum)}</w:t>
+                  <w:t xml:space="preserve">3.1.${tcIdx + 1} ${escapeXml(tcNum)}: ${escapeXml(tc.title || 'Test Case ' + (tcIdx + 1))}${escapeXml(roleSuffix)}</w:t>
                 </w:r>
               </w:p>
             `;
@@ -1536,7 +1741,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tableRowsHtml += `
         <tr style="page-break-inside: avoid;">
           <td style="border: 1px solid #777; padding: 6px 8px; text-align: center; vertical-align: top; width: 5%;">
-            ${idx + 1}
+            ${escapeHtml(tc.tcNumberStr || String(idx + 1))}
           </td>
           ${!hasDistinctScenarios ? (idx === 0 ? `
             <td rowspan="${totalTcs}" style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%; font-weight: bold;">
@@ -1548,7 +1753,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </td>
           `}
           <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 25%;">
-            ${escapeHtml(tc.title || 'TC ' + (idx + 1))}
+            <b>${escapeHtml(tc.title || 'TC ' + (idx + 1))}</b>${tc.role ? `<div style="font-size: 8.5pt; color: #4b5563; margin-top: 3px;">👤 Role: <i>${escapeHtml(tc.role)}</i></div>` : ''}
           </td>
           <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%;">
             ${escapeHtml(tc.expectedResult || '')}
@@ -1588,7 +1793,7 @@ document.addEventListener('DOMContentLoaded', () => {
       evidenceSectionsHtml += `
         <div style="margin-top: 24px; margin-bottom: 24px; page-break-inside: avoid;">
           <h3 style="font-size: 12pt; color: #003366; margin: 0 0 8px 0; font-weight: bold;">
-            ${idx + 1}. ${escapeHtml(tc.title || 'Test Case ' + (idx + 1))}
+            ${escapeHtml(tc.tcNumberStr || ('TC ' + (idx + 1)))}: ${escapeHtml(tc.title || 'Test Case ' + (idx + 1))}${tc.role ? ' (Role: ' + escapeHtml(tc.role) + ')' : ''}
           </h3>
           ${tcStepsHtml || '<p style="color:#666; font-style:italic; font-size:10pt;">(Belum ada langkah/evidens untuk Test Case ini)</p>'}
         </div>

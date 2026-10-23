@@ -450,6 +450,23 @@ textarea.form-control {
   border-radius: 10px;
   padding: 14px;
   box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  transition: padding 0.15s ease, background 0.15s ease;
+}
+
+.tc-container-card.is-collapsed {
+  padding: 10px 14px;
+  background: #0b1120;
+}
+
+.tc-container-card.is-collapsed .tc-header-row {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.tc-global-collapse-actions button:hover {
+  border-color: #38bdf8 !important;
+  color: #38bdf8 !important;
 }
 
 .tc-header-row {

@@ -104,6 +104,8 @@ function createDefaultDoc(scenarioName, crNumber, userProfile, docTitle) {
       {
         id: tcId,
         tcNumber: 1,
+        tcNumberStr: "TC 1",
+        role: (userProfile && (userProfile.allRoles || userProfile.primaryRole)) || "",
         title: getContextualTcDetails(1).title,
         scenarioName: "Skenario 1: " + (scenarioName || "Pengujian Alur Modul"),
         expectedResult: getContextualTcDetails(1).expectedResult,
@@ -300,6 +302,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const newTc = {
         id: 'tc_' + Date.now(),
         tcNumber: nextNum,
+        tcNumberStr: message.tcNumberStr || `TC ${nextNum}`,
+        role: message.role || (activeDoc.metadata?.customFields || []).find(f => /role/i.test(f.key || f.label || ''))?.value || '',
         title: customTitle,
         scenarioName: customScenario,
         expectedResult: customExpected,
@@ -309,6 +313,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       tcs.push(newTc);
       activeDoc.testCases = tcs;
       activeDoc.activeTcId = newTc.id;
+      current.activeTcId = newTc.id;
       current.isRecording = true;
       current.isPaused = false;
       chrome.storage.local.set({ sessionData: current }, () => {
@@ -325,6 +330,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const current = res.sessionData || {};
       const activeDoc = getActiveDoc(current);
       activeDoc.activeTcId = message.tcId;
+      current.activeTcId = message.tcId;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
         sendResponse({ success: true, activeTcId: message.tcId, sessionData: current });
@@ -342,6 +348,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const defaultTc = {
         id: "tc_" + Date.now(),
         tcNumber: 1,
+        tcNumberStr: "TC 1",
         title: initTc.title,
         expectedResult: initTc.expectedResult,
         status: "OK",
@@ -349,6 +356,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       };
       activeDoc.testCases = [defaultTc];
       activeDoc.activeTcId = defaultTc.id;
+      current.activeTcId = defaultTc.id;
       current.isRecording = false;
       current.isPaused = false;
       chrome.storage.local.set({ sessionData: current }, () => {
@@ -388,6 +396,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         tcs = [{
           id: "tc_1",
           tcNumber: 1,
+          tcNumberStr: "TC 1",
           title: initTc.title,
           expectedResult: initTc.expectedResult,
           status: "OK",
@@ -395,9 +404,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }];
         activeDoc.testCases = tcs;
         activeDoc.activeTcId = "tc_1";
+        current.activeTcId = "tc_1";
       }
 
-      let activeTc = tcs.find(t => t.id === activeDoc.activeTcId) || tcs[0];
+      const targetTcId = message.tcId || activeDoc.activeTcId || current.activeTcId;
+      let activeTc = tcs.find(t => t.id === targetTcId) || tcs.find(t => t.id === activeDoc.activeTcId) || tcs[0];
+      if (activeTc) {
+        activeDoc.activeTcId = activeTc.id;
+        current.activeTcId = activeTc.id;
+      }
       const newStep = {
         id: 'step_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
         stepNumber: (activeTc.steps || []).length + 1,
@@ -421,13 +436,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const current = res.sessionData || {};
       const activeDoc = getActiveDoc(current);
       const tcs = activeDoc.testCases || [];
-      let activeTc = tcs.find(t => t.id === activeDoc.activeTcId) || tcs[tcs.length - 1];
+      const targetTcId = message.tcId || activeDoc.activeTcId || current.activeTcId;
+      let activeTc = tcs.find(t => t.id === targetTcId) || tcs.find(t => t.id === activeDoc.activeTcId) || tcs[tcs.length - 1];
 
       if (!activeTc) {
         const initTc = getContextualTcDetails(1);
         activeTc = {
           id: "tc_1",
           tcNumber: 1,
+          tcNumberStr: "TC 1",
           title: initTc.title,
           expectedResult: initTc.expectedResult,
           status: "OK",
@@ -436,6 +453,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         tcs.push(activeTc);
         activeDoc.testCases = tcs;
         activeDoc.activeTcId = activeTc.id;
+        current.activeTcId = activeTc.id;
+      } else {
+        activeDoc.activeTcId = activeTc.id;
+        current.activeTcId = activeTc.id;
       }
 
       if (activeTc.steps && activeTc.steps.length > 0) {
@@ -486,6 +507,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Helper to strip heavy base64 screenshots for fast IPC transmission (< 1KB vs 20MB)
 function getLightState(sessionData) {
   if (!sessionData) return {};
+  const activeDoc = getActiveDoc(sessionData);
+  const curActiveTcId = (activeDoc && activeDoc.activeTcId) || sessionData.activeTcId || '';
   return {
     isRecording: !!sessionData.isRecording,
     isPaused: !!sessionData.isPaused,
@@ -493,7 +516,7 @@ function getLightState(sessionData) {
     autoHighlight: sessionData.autoHighlight !== false,
     isWidgetClosed: !!sessionData.isWidgetClosed,
     activeDocId: sessionData.activeDocId,
-    activeTcId: sessionData.activeTcId,
+    activeTcId: curActiveTcId,
     documents: (sessionData.documents || []).map(doc => ({
       id: doc.id,
       metadata: {
@@ -505,6 +528,8 @@ function getLightState(sessionData) {
       testCases: (doc.testCases || []).map(tc => ({
         id: tc.id,
         tcNumber: tc.tcNumber,
+        tcNumberStr: tc.tcNumberStr,
+        role: tc.role,
         title: tc.title,
         status: tc.status,
         steps: (tc.steps || []).map(s => ({
