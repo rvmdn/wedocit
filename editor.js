@@ -264,9 +264,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Normalisasi dan Pembersihan Dokumen Lama agar sesuai update terbaru:
   // 1. Membersihkan base64 gambar besar dari field teks/komentar
-  // 2. Membersihkan screenshot berlebih pada step input formulir
-  // 3. Menormalkan Judul Dokumen agar tidak tertimpa nama skenario terakhir
-  // 4. Standarisasi resolusi layar ke 1366x768
+  // 2. Membersihkan dummy concatenation 'Field: "1"; Field: "1"...' pada action buttons
+  // 3. Membersihkan raw HTML tags dari rich-text/komentar (<p>...</p>)
+  // 4. Membersihkan screenshot berlebih pada step input formulir & klik placeholder kosong
+  // 5. Menormalkan Judul Dokumen agar tidak tertimpa nama skenario terakhir
+  // 6. Standarisasi resolusi layar ke 1366x768
   function cleanAndMigrateOldDocumentData(data) {
     if (!data || !data.documents || !Array.isArray(data.documents)) return { modified: false, cleanedSteps: 0, cleanedTexts: 0 };
     let modified = false;
@@ -277,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!doc) return;
       if (!doc.metadata) doc.metadata = {};
 
-      // Standarisasi resolusi layar
+      // 1. Standarisasi resolusi layar
       if (!doc.metadata.screenResolution || doc.metadata.screenResolution === '1707x1067' || doc.metadata.screenResolution === '1280x1024') {
         doc.metadata.screenResolution = '1366x768';
         modified = true;
@@ -285,29 +287,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const tcs = doc.testCases || [];
 
-      // Periksa Judul Dokumen (metadata.title)
-      // Jika metadata.title berakhiran dengan nama skenario terakhir (misal: "Unit Test Documentation - RHA"),
-      // kembalikan menjadi judul modul utama yang lebih tepat
-      if (tcs.length > 1 && doc.metadata.title) {
-        const lastTc = tcs[tcs.length - 1];
-        const lastScName = (lastTc.scenarioName || lastTc.title || '').replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
-
-        if (lastScName) {
-          const regexLastSc = new RegExp(`[-–|:]\\s*${lastScName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i');
-          if (regexLastSc.test(doc.metadata.title)) {
-            const firstTc = tcs[0];
-            const firstScName = (firstTc.scenarioName || firstTc.title || '').replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').replace(/^(Verifikasi|Akses|Tampilan|Pengujian)\s*/i, '').trim();
-            const betterModule = firstScName || doc.metadata.systemName || 'Pelaksanaan Modul';
-            doc.metadata.title = `Unit Test Documentation - ${betterModule}`;
-            modified = true;
+      // 2. Deteksi modul aktual dari breadcrumb/steps
+      let detectedModule = '';
+      for (const tc of tcs) {
+        for (const s of (tc.steps || [])) {
+          const text = (s.title || '') + ' ' + (s.actionDescription || '');
+          const match = text.match(/Audit Reguler\s*>\s*Manajemen Audit\s*>\s*([^>"]+)/i);
+          if (match && match[1]) {
+            const mod = match[1].trim().replace(/\s*Offline\s*/i, ' ').trim();
+            if (mod) {
+              detectedModule = mod;
+              break;
+            }
           }
         }
+        if (detectedModule) break;
       }
 
-      // Bersihkan teks field dan screenshot berlebih pada step input formulir
-      tcs.forEach((tc) => {
+      if (!detectedModule) detectedModule = 'Pelaksanaan Audit';
+
+      // Perbaiki judul dokumen agar tidak terkontaminasi nama skenario terakhir
+      if (doc.metadata.title && /[-–|:]\s*(RHA|Export|View|Save)\s*$/i.test(doc.metadata.title)) {
+        doc.metadata.title = `Unit Test Documentation - ${detectedModule}`;
+        modified = true;
+      } else if (!doc.metadata.title || doc.metadata.title === 'Unit Test Documentation') {
+        doc.metadata.title = `Unit Test Documentation - ${detectedModule}`;
+        modified = true;
+      }
+
+      // Set metadata pendukung jika belum ada
+      if (!doc.metadata.systemName || doc.metadata.systemName === 'Sistem Informasi / Web Application') {
+        doc.metadata.systemName = 'AMS Fast - Pelaksanaan Audit';
+        modified = true;
+      }
+      if (!doc.metadata.projectName) {
+        doc.metadata.projectName = 'AMS (Audit Management System)';
+        modified = true;
+      }
+
+      // 3. Bersihkan teks field, HTML, dummy concatenation, dan screenshot berlebih
+      tcs.forEach((tc, tcIdx) => {
+        // Normalisasi penomoran skenario jika ada anomali
+        if (tc.scenarioName && /Skenario\s*47/i.test(tc.scenarioName) && tcIdx === 45) {
+          tc.scenarioName = 'Skenario 46: Export to Word (RHA)';
+          modified = true;
+        }
+
         (tc.steps || []).forEach((s) => {
-          // Bersihkan s.inputData dari base64
+          // A. Bersihkan s.inputData dari dummy concatenation 'Field: "1"; Field: "1"...'
+          if (s.inputData && (s.inputData.startsWith('Field: "1";') || s.inputData.startsWith('Field: "0";') || /^(\s*Field:\s*"[^"]*";?\s*)+$/i.test(s.inputData))) {
+            s.inputData = '-';
+            cleanedTexts++;
+            modified = true;
+          }
+
+          // B. Bersihkan HTML tags pada inputData (misal <p>propose</p> -> propose)
+          if (s.inputData && /<[^>]+>/.test(s.inputData)) {
+            s.inputData = s.inputData.replace(/<[^>]+>/g, '').trim() || '-';
+            cleanedTexts++;
+            modified = true;
+          }
+
+          // C. Bersihkan s.inputData dari base64
           if (s.inputData && typeof s.inputData === 'string') {
             if (/data:image\/[a-zA-Z]+;base64,/i.test(s.inputData)) {
               let clean = s.inputData.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').replace(/<[^>]+>/g, '').trim();
@@ -322,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Bersihkan s.actionDescription dari base64
+          // D. Bersihkan s.actionDescription dari base64
           if (s.actionDescription && typeof s.actionDescription === 'string') {
             if (/data:image\/[a-zA-Z]+;base64,/i.test(s.actionDescription)) {
               let clean = s.actionDescription.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').replace(/<[^>]+>/g, '').trim();
@@ -332,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Bersihkan s.expectedResult dari base64
+          // E. Bersihkan s.expectedResult dari base64
           if (s.expectedResult && typeof s.expectedResult === 'string') {
             if (/data:image\/[a-zA-Z]+;base64,/i.test(s.expectedResult)) {
               s.expectedResult = s.expectedResult.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').replace(/<[^>]+>/g, '').trim();
@@ -341,7 +382,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Bersihkan screenshot berlebih pada step input formulir (bukan tombol simpan/aksi)
+          // F. Normalisasi klik placeholder kosong editor Quill ("Tulis di sini... CHARS: 0 WORDS: 0")
+          if (s.title && s.title.includes('CHARS: 0 WORDS: 0')) {
+            s.title = 'Fokus pada Editor Catatan/Komentar';
+            s.actionDescription = 'Pengguna memfokuskan kursor pada editor catatan / komentar.';
+            s.inputData = '-';
+            if (s.screenshot) {
+              s.screenshot = '';
+              cleanedSteps++;
+            }
+            modified = true;
+          }
+
+          // G. Normalisasi nama dropdown trigger PrimeNG
+          if (s.title && s.title.toLowerCase().includes('dropdown trigger')) {
+            s.title = 'Buka Pilihan Dropdown';
+            s.actionDescription = 'Pengguna membuka menu dropdown pilihan data.';
+            if (s.screenshot) {
+              s.screenshot = '';
+              cleanedSteps++;
+            }
+            modified = true;
+          }
+
+          // H. Bersihkan screenshot berlebih pada step input formulir (bukan tombol simpan/aksi)
           const isFieldInputStep = /^(Input\s|Input Field\s|Input Komentar:|Input Catatan:|Pilih\s*\[)/i.test(s.title || '') ||
             (s.metadata && /^(input|textarea|ql-editor|select)$/i.test(s.metadata.tagName || ''));
 
@@ -2278,7 +2342,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnCleanDoc?.addEventListener('click', () => {
-    closeDropdown();
     const res = cleanAndMigrateOldDocumentData(sessionData);
     if (res.modified) {
       chrome.storage.local.set({ sessionData: sessionData }, () => {
