@@ -418,12 +418,23 @@ textarea.form-control {
    CONTENT STEPS & TEST CASES (Proportional & Responsive)
    ============================================================== */
 .content-steps .steps-header {
+  position: sticky;
+  top: 47px;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  margin-bottom: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
+  transition: box-shadow 0.2s ease;
 }
 
 .section-title {
