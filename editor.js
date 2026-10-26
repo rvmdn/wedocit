@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportMd = document.getElementById('btn-export-md');
   const btnExportJson = document.getElementById('btn-export-json');
   const btnImportJson = document.getElementById('btn-import-json');
+  const btnCleanDoc = document.getElementById('btn-clean-doc');
   const btnPrintPdf = document.getElementById('btn-print-pdf');
   const fileInputJson = document.getElementById('file-input-json');
   const globalReplaceImg = document.getElementById('global-replace-img');
@@ -261,11 +262,110 @@ document.addEventListener('DOMContentLoaded', () => {
   let suppressFocusReloadUntil = 0;
   let editingStep = null; // { tcIndex, stepIndex }
 
+  // Normalisasi dan Pembersihan Dokumen Lama agar sesuai update terbaru:
+  // 1. Membersihkan base64 gambar besar dari field teks/komentar
+  // 2. Membersihkan screenshot berlebih pada step input formulir
+  // 3. Menormalkan Judul Dokumen agar tidak tertimpa nama skenario terakhir
+  // 4. Standarisasi resolusi layar ke 1366x768
+  function cleanAndMigrateOldDocumentData(data) {
+    if (!data || !data.documents || !Array.isArray(data.documents)) return { modified: false, cleanedSteps: 0, cleanedTexts: 0 };
+    let modified = false;
+    let cleanedSteps = 0;
+    let cleanedTexts = 0;
+
+    data.documents.forEach((doc) => {
+      if (!doc) return;
+      if (!doc.metadata) doc.metadata = {};
+
+      // Standarisasi resolusi layar
+      if (!doc.metadata.screenResolution || doc.metadata.screenResolution === '1707x1067' || doc.metadata.screenResolution === '1280x1024') {
+        doc.metadata.screenResolution = '1366x768';
+        modified = true;
+      }
+
+      const tcs = doc.testCases || [];
+
+      // Periksa Judul Dokumen (metadata.title)
+      // Jika metadata.title berakhiran dengan nama skenario terakhir (misal: "Unit Test Documentation - RHA"),
+      // kembalikan menjadi judul modul utama yang lebih tepat
+      if (tcs.length > 1 && doc.metadata.title) {
+        const lastTc = tcs[tcs.length - 1];
+        const lastScName = (lastTc.scenarioName || lastTc.title || '').replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
+
+        if (lastScName) {
+          const regexLastSc = new RegExp(`[-–|:]\\s*${lastScName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i');
+          if (regexLastSc.test(doc.metadata.title)) {
+            const firstTc = tcs[0];
+            const firstScName = (firstTc.scenarioName || firstTc.title || '').replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').replace(/^(Verifikasi|Akses|Tampilan|Pengujian)\s*/i, '').trim();
+            const betterModule = firstScName || doc.metadata.systemName || 'Pelaksanaan Modul';
+            doc.metadata.title = `Unit Test Documentation - ${betterModule}`;
+            modified = true;
+          }
+        }
+      }
+
+      // Bersihkan teks field dan screenshot berlebih pada step input formulir
+      tcs.forEach((tc) => {
+        (tc.steps || []).forEach((s) => {
+          // Bersihkan s.inputData dari base64
+          if (s.inputData && typeof s.inputData === 'string') {
+            if (/data:image\/[a-zA-Z]+;base64,/i.test(s.inputData)) {
+              let clean = s.inputData.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').replace(/<[^>]+>/g, '').trim();
+              s.inputData = clean ? `${clean} [Lampiran Gambar]` : '[Lampiran Gambar]';
+              cleanedTexts++;
+              modified = true;
+            }
+            if (s.inputData.length > 250) {
+              s.inputData = s.inputData.substring(0, 247) + '...';
+              cleanedTexts++;
+              modified = true;
+            }
+          }
+
+          // Bersihkan s.actionDescription dari base64
+          if (s.actionDescription && typeof s.actionDescription === 'string') {
+            if (/data:image\/[a-zA-Z]+;base64,/i.test(s.actionDescription)) {
+              let clean = s.actionDescription.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').replace(/<[^>]+>/g, '').trim();
+              s.actionDescription = clean ? `${clean} [Lampiran Gambar]` : 'Pengguna mengunggah lampiran gambar evidensi.';
+              cleanedTexts++;
+              modified = true;
+            }
+          }
+
+          // Bersihkan s.expectedResult dari base64
+          if (s.expectedResult && typeof s.expectedResult === 'string') {
+            if (/data:image\/[a-zA-Z]+;base64,/i.test(s.expectedResult)) {
+              s.expectedResult = s.expectedResult.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').replace(/<[^>]+>/g, '').trim();
+              cleanedTexts++;
+              modified = true;
+            }
+          }
+
+          // Bersihkan screenshot berlebih pada step input formulir (bukan tombol simpan/aksi)
+          const isFieldInputStep = /^(Input\s|Input Field\s|Input Komentar:|Input Catatan:|Pilih\s*\[)/i.test(s.title || '') ||
+            (s.metadata && /^(input|textarea|ql-editor|select)$/i.test(s.metadata.tagName || ''));
+
+          if (isFieldInputStep && s.screenshot) {
+            s.screenshot = '';
+            cleanedSteps++;
+            modified = true;
+          }
+        });
+      });
+    });
+
+    return { modified, cleanedSteps, cleanedTexts };
+  }
+
   // Load State (Direct from Local Storage with Service Worker Fallback)
   function loadFreshState(callback) {
     chrome.storage.local.get(['sessionData'], (localRes) => {
       if (localRes && localRes.sessionData && localRes.sessionData.documents) {
         sessionData = localRes.sessionData;
+        const res = cleanAndMigrateOldDocumentData(sessionData);
+        if (res.modified) {
+          chrome.storage.local.set({ sessionData: sessionData });
+        }
         renderDocSelector();
         populateActiveDoc();
         if (callback) callback();
@@ -273,6 +373,10 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.runtime.sendMessage({ type: 'GET_STATE', full: true }, (res) => {
           if (res && res.data) {
             sessionData = res.data;
+            const cleanRes = cleanAndMigrateOldDocumentData(sessionData);
+            if (cleanRes.modified) {
+              chrome.storage.local.set({ sessionData: sessionData });
+            }
             renderDocSelector();
             populateActiveDoc();
           }
@@ -2171,6 +2275,21 @@ document.addEventListener('DOMContentLoaded', () => {
     a.download = 'wedocit_workspace.json';
     a.click();
     URL.revokeObjectURL(url);
+  });
+
+  btnCleanDoc?.addEventListener('click', () => {
+    closeDropdown();
+    const res = cleanAndMigrateOldDocumentData(sessionData);
+    if (res.modified) {
+      chrome.storage.local.set({ sessionData: sessionData }, () => {
+        chrome.runtime.sendMessage({ type: 'STORAGE_UPDATED' });
+        renderDocSelector();
+        populateActiveDoc();
+        alert(`✔ Dokumen berhasil dinormalisasi!\n\n- ${res.cleanedTexts} teks field/komentar dibersihkan dari gambar base64 besar.\n- ${res.cleanedSteps} screenshot step input formulir dirapikan.\n- Judul dokumen & resolusi layar disesuaikan.`);
+      });
+    } else {
+      alert('Dokumen ini sudah dalam kondisi bersih dan teroptimasi sesuai standar terbaru.');
+    }
   });
 
   btnImportJson?.addEventListener('click', () => {
