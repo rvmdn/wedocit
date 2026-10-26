@@ -25,6 +25,17 @@
 
 ## 📌 Catatan Rilis (Changelog)
 
+### v1.1.1
+* **Fix IPC 64MiB Hard Limit:** Menangani tuntas error `Message exceeded maximum allowed size of 64MiB` dengan menerapkan pola transmisi state ringan (*lightweight state*) pada seluruh komunikasi antar-komponen ekstensi.
+* **Sanitasi Evidens Gambar & Form Input:** Mengeliminasi penyimpanan string base64 gambar berlebih pada field komentar/teks, serta meniadakan screenshot redundan pada setiap keystroke input form.
+* **Kunci Judul Dokumen (Title Locking):** Memastikan judul dokumen unit test konsisten dan tidak tertimpa oleh nama skenario terakhir.
+* **Fitur Gembok Modal (Padlock Toggle):** Menambahkan toggle gembok (`🔒 / 🔓`) pada modal penambahan Test Case agar isian (Expected Result, Test Case, Skenario) tetap tersimpan persisten saat membuat skenario berikutnya.
+* **Triple-Freeze Sticky UI:** Header atas aplikasi kini 100% fixed permanen, sementara Sidebar Metadata dan Toolbar Daftar Test Case tetap beku (*sticky*) saat menggulir puluhan TC.
+* **Dinamis & Responsif Layar 1366x768:** Tampilan toolbar header dan panel editor dioptimalkan proporsional sehingga seluruh tombol (termasuk *Ekspor Word*) tampil utuh tanpa terpotong.
+* **Perbaikan UX Dropdown File Opsi:** Menghubungkan celah hover dengan *invisible bridge* dan menambahkan dukungan *click-to-toggle* agar menu tidak menutup mendadak.
+* **Format Tabel Word 2.1 (EDV BNI):** Kolom `No` disempurnakan menjadi nomor urut murni sekuensial (`1, 2, 3...`) dan kode Test Case diposisikan rapi di dalam kolom `Scenario` (contoh: `[TC-007] Propose Pendalaman`).
+* **Auto-Cleansing & Normalisasi Dokumen Lama:** Fitur pembersihan otomatis saat membuka editor serta tombol manual untuk merapikan dokumen hasil pengujian terdahulu.
+
 ### v1.1.0
 * **Fix Switch TC:** Memperbaiki bug pemilihan Test Case pada toolbar layar agar tidak otomatis reset ke TC 1 dan dapat melanjutkan perekaman pada TC sebelumnya.
 * **Rearrange Urutan Langkah:** Langkah evidens per-TC kini dapat diatur urutannya secara fleksibel menggunakan **Drag & Drop** langsung (handle `⠿`) atau tombol panah cepat (**▲ / ▼**). Penomoran langkah otomatis tersinkronisasi.
