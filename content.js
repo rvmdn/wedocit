@@ -2053,13 +2053,13 @@
 
       let val = '';
       if (el.classList.contains('ql-editor')) {
-        val = el.innerText.trim();
+        val = cleanAndExtractFieldValue(el);
       } else if (el.tagName.toUpperCase() === 'P-DROPDOWN' || el.classList.contains('p-dropdown')) {
         val = el.querySelector('.p-dropdown-label')?.innerText?.trim() || '';
       } else if (el.tagName.toUpperCase() === 'SELECT') {
         val = el.options[el.selectedIndex]?.text?.trim() || el.value?.trim() || '';
       } else {
-        val = (el.value || '').trim();
+        val = cleanAndExtractFieldValue(el);
       }
 
       if (val && val !== '-' && val !== 'Pilih' && val !== 'Select' && !val.startsWith('--')) {
@@ -2477,7 +2477,7 @@
   let inputDebounceTimer = null;
 
   // Ekstrak nilai bersih teks dari elemen (termasuk PrimeNG p-editor / Quill / textarea)
-  // Menghilangkan tag HTML seperti <p>...</p>, <br>, dan decode entities
+  // Menghilangkan tag HTML, decode entities, dan membersihkan lampiran gambar base64 besar
   function cleanAndExtractFieldValue(element) {
     if (!element) return '';
     const isQuill = element.classList?.contains('ql-editor') || !!element.closest?.('.ql-editor');
@@ -2485,19 +2485,55 @@
     const tagName = actual.tagName ? actual.tagName.toUpperCase() : '';
 
     let rawVal = '';
+    let hasImage = false;
+
     if (isQuill) {
+      if (actual.querySelector && actual.querySelector('img')) {
+        hasImage = true;
+      }
       rawVal = (actual.innerText || actual.textContent || '').trim();
     } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
       rawVal = (actual.value || '').trim();
     } else {
+      if (actual.querySelector && actual.querySelector('img')) {
+        hasImage = true;
+      }
       rawVal = (actual.innerText || actual.textContent || actual.value || '').trim();
     }
 
+    // Periksa apakah terdapat data gambar base64 (misal paste screenshot ke text area)
+    if (/data:image\/[a-zA-Z]+;base64,/i.test(rawVal)) {
+      hasImage = true;
+      rawVal = rawVal.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/gi, ' ').trim();
+    }
+
     // Bersihkan tag HTML (seperti <p>propose</p> dari Quill / Angular p-editor)
-    let stripped = rawVal.replace(/<\/p>|<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').trim();
+    let stripped = rawVal.replace(/<img[^>]*>/gi, ' ')
+      .replace(/<\/p>|<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]+>/g, '')
+      .trim();
+
     // Decode HTML entities umum
-    stripped = stripped.replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"');
+    stripped = stripped.replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"');
     stripped = stripped.replace(/\s+/g, ' ').trim();
+
+    if (hasImage) {
+      if (!stripped) {
+        return '[Lampiran Gambar]';
+      } else {
+        return `${stripped} [Lampiran Gambar]`;
+      }
+    }
+
+    // Batasi panjang nilai teks per field agar rapi dan tidak membengkak
+    if (stripped.length > 200) {
+      stripped = stripped.substring(0, 197) + '...';
+    }
+
     return stripped;
   }
 
@@ -2621,34 +2657,22 @@
 
     const inputDataStr = isMandatory ? `[Wajib] ${val}` : val;
 
-    (async () => {
-      let screenshot = '';
-      if (sessionData.autoScreenshot === true) {
-        let cleanupHighlight = () => {};
-        if (sessionData.autoHighlight !== false) {
-          cleanupHighlight = highlightElement(actualTarget);
-        }
-        screenshot = await captureScreenshot();
-        cleanupHighlight();
+    safeSendMessage({
+      type: 'ADD_STEP',
+      tcId: getActiveTc()?.id,
+      step: {
+        title: stepTitle,
+        actionDescription: actionDesc,
+        inputData: inputDataStr,
+        expectedResult: expected,
+        actual: `Data ${isComment ? 'catatan/komentar' : 'input'} [${cleanLabel}] tersimpan pada formulir.`,
+        status: 'Pass',
+        metadata: meta,
+        screenshot: '' // Pengisian field formulir tidak membutuhkan screenshot (cukup teks informatif)
       }
-
-      safeSendMessage({
-        type: 'ADD_STEP',
-        tcId: getActiveTc()?.id,
-        step: {
-          title: stepTitle,
-          actionDescription: actionDesc,
-          inputData: inputDataStr,
-          expectedResult: expected,
-          actual: `Data ${isComment ? 'catatan/komentar' : 'input'} [${cleanLabel}] tersimpan pada formulir.`,
-          status: 'Pass',
-          metadata: meta,
-          screenshot: screenshot
-        }
-      }, () => {
-        showToast(`✔ ${isComment ? 'Komentar' : 'Input'}: ${cleanLabel}`);
-      });
-    })();
+    }, () => {
+      showToast(`✔ ${isComment ? 'Komentar' : 'Input'}: ${cleanLabel}`);
+    });
   }
 
   // Antrekan input step: saat user mengetik, tunggu jeda (debounce) atau commit segera saat focusout
@@ -2728,31 +2752,22 @@
       const actionDesc = `Pengguna menentukan pilihan "${selectedOption}" pada dropdown [${label}].`;
       const expected = meta.customExpected || `Sistem menerapkan opsi "${selectedOption}" dan memperbarui data/tampilan pada field [${label}].`;
 
-      (async () => {
-        let screenshot = '';
-        if (sessionData.autoScreenshot === true) {
-          const cleanupHighlight = highlightElement(target);
-          screenshot = await captureScreenshot();
-          cleanupHighlight();
+      safeSendMessage({
+        type: 'ADD_STEP',
+        tcId: getActiveTc()?.id,
+        step: {
+          title: stepTitle,
+          actionDescription: actionDesc,
+          inputData: selectedOption,
+          expectedResult: expected,
+          actual: `Opsi "${selectedOption}" berhasil diterapkan.`,
+          status: 'Pass',
+          metadata: meta,
+          screenshot: '' // Pemilihan opsi dropdown formulir tanpa screenshot
         }
-
-        safeSendMessage({
-          type: 'ADD_STEP',
-          tcId: getActiveTc()?.id,
-          step: {
-            title: stepTitle,
-            actionDescription: actionDesc,
-            inputData: selectedOption,
-            expectedResult: expected,
-            actual: `Opsi "${selectedOption}" berhasil diterapkan.`,
-            status: 'Pass',
-            metadata: meta,
-            screenshot: screenshot
-          }
-        });
-
+      }, () => {
         showToast('✔ Pilihan: ' + selectedOption);
-      })();
+      });
     } else if (tagName === 'TEXTAREA' || tagName === 'INPUT') {
       // Debounce input text/textarea: jangan pernah rekam per huruf
       queueFieldInputStep(target, false);
