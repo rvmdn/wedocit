@@ -2341,7 +2341,28 @@ document.addEventListener('DOMContentLoaded', () => {
     URL.revokeObjectURL(url);
   });
 
+  const btnFileMenu = document.getElementById('btn-file-menu');
+  const fileMenuDropdown = document.getElementById('file-menu-dropdown');
+
+  btnFileMenu?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    fileMenuDropdown?.classList.toggle('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-wrapper')) {
+      fileMenuDropdown?.classList.remove('show');
+    }
+  });
+
+  fileMenuDropdown?.querySelectorAll('.dropdown-item').forEach(item => {
+    item.addEventListener('click', () => {
+      fileMenuDropdown?.classList.remove('show');
+    });
+  });
+
   btnCleanDoc?.addEventListener('click', () => {
+    fileMenuDropdown?.classList.remove('show');
     const res = cleanAndMigrateOldDocumentData(sessionData);
     if (res.modified) {
       chrome.storage.local.set({ sessionData: sessionData }, () => {
