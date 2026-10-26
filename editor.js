@@ -1679,6 +1679,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Helper: Format kolom Skenario dengan tag TC (misal: [TC-007] Propose Pendalaman)
+  function formatScenarioWithTc(tc, idx, fallbackScName) {
+    const tcTag = tc.tcNumberStr || `TC ${idx + 1}`;
+    let baseScenario = (tc.scenarioName || fallbackScName || tc.title || 'Skenario Pengujian').trim();
+
+    // Jika skenario sudah diawali dengan [TC...], gunakan apa adanya
+    if (/^\[TC[-0-9\s]+\]/i.test(baseScenario)) {
+      return baseScenario;
+    }
+
+    // Jika skenario diawali dengan "TC-007" atau "TC 1:", buang prefix tersebut agar diganti [TC-xxx] rapi
+    if (/^TC[-0-9\s]+[:.-]?\s*/i.test(baseScenario)) {
+      const withoutPrefix = baseScenario.replace(/^TC[-0-9\s]+[:.-]?\s*/i, '').trim();
+      return `[${tcTag}] ${withoutPrefix}`;
+    }
+
+    return `[${tcTag}] ${baseScenario}`;
+  }
+
   // =========================================================================
   // EXPORT WORD: DUAL ENGINE (NATIVE DOCX TEMPLATE REPLACER + CLEAN DOC EXPORT)
   // =========================================================================
@@ -1812,11 +1831,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }];
 
             return safeTcs.map((tc, idx) => {
-              const tcNumberFormatted = tc.tcNumberStr || String(idx + 1);
+              const tcNumberFormatted = String(idx + 1); // Kolom nomor SELALU berupa nomor urut 1, 2, 3... bukan TC
+              const formattedScenario = formatScenarioWithTc(tc, idx, scName); // TC dimasukkan ke kolom Skenario: misal [TC-007] Propose Pendalaman
               const tcTitleWithRole = tc.role ? `${tc.title || `Test Case ${idx + 1}`} (Role: ${tc.role})` : (tc.title || `Test Case ${idx + 1}`);
               const rowMap = {
                 '{no}': tcNumberFormatted,
-                '{skenario}': tc.scenarioName || scName || tc.title || 'Skenario Pengujian',
+                '{skenario}': formattedScenario,
                 '{test_case}': tcTitleWithRole,
                 '{ekspektasi}': tc.expectedResult || 'Berhasil',
                 '{result}': tc.status || 'OK'
@@ -2030,16 +2050,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tcs.forEach((tc, idx) => {
       const statusColor = (tc.status === 'OK' || tc.status === 'Pass') ? '#047857' : ((tc.status === 'NOK' || tc.status === 'Fail') ? '#b91c1c' : '#b45309');
-      const rowScenario = tc.scenarioName || scenarioName;
+      const rowScenario = formatScenarioWithTc(tc, idx, scenarioName);
       
       tableRowsHtml += `
         <tr style="page-break-inside: avoid;">
           <td style="border: 1px solid #777; padding: 6px 8px; text-align: center; vertical-align: top; width: 5%;">
-            ${escapeHtml(tc.tcNumberStr || String(idx + 1))}
+            ${idx + 1}
           </td>
           ${!hasDistinctScenarios ? (idx === 0 ? `
             <td rowspan="${totalTcs}" style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%; font-weight: bold;">
-              ${escapeHtml(scenarioName)}
+              ${escapeHtml(formatScenarioWithTc(tc, idx, scenarioName))}
             </td>
           ` : '') : `
             <td style="border: 1px solid #777; padding: 6px 8px; vertical-align: top; width: 30%; font-weight: 500;">
@@ -2317,7 +2337,7 @@ document.addEventListener('DOMContentLoaded', () => {
     md += `| :---: | :--- | :--- | :--- | :---: |\n`;
 
     tcs.forEach((tc, idx) => {
-      const rowScenario = tc.scenarioName || scenarioName;
+      const rowScenario = formatScenarioWithTc(tc, idx, scenarioName);
       md += `| ${idx + 1} | ${rowScenario.replace(/\|/g, '-')} | ${(tc.title || '').replace(/\|/g, '-')} | ${(tc.expectedResult || '').replace(/\|/g, '-')} | **${tc.status || 'OK'}** |\n`;
     });
 
