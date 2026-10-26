@@ -296,8 +296,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const nextNum = tcs.length + 1;
       const tcMeta = getContextualTcDetails(nextNum);
 
-      // Perbarui Judul Dokumen Unit Test jika dikirim
-      if (message.docTitle && activeDoc.metadata) {
+      // Judul Dokumen Unit Test hanya ditetapkan 1x saja per Dokumen (TIDAK BOLEH berubah-ubah berdasarkan skenario)
+      if (!activeDoc.metadata.title && message.docTitle) {
         activeDoc.metadata.title = message.docTitle;
       }
 

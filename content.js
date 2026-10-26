@@ -1113,13 +1113,13 @@
           <button class="wedocit-modal-close" id="btn-modal-close" title="Batal (Esc)">✕</button>
         </div>
 
-        <!-- 1. JUDUL UNIT TEST (DOKUMEN PENGUJIAN) -->
-        <div class="wedocit-form-group">
-          <label class="wedocit-form-label" for="inp-modal-doc-title">
-            📄 Judul Dokumen Unit Test:
-          </label>
-          <input type="text" class="wedocit-input" id="inp-modal-doc-title" value="${escapeHtml(currentDocTitle)}" placeholder="Contoh: Unit Test Documentation - Pelaksanaan Audit" />
-          <div class="wedocit-form-hint">Judul umum dokumen pengujian (terpisah dari nomor skenario alur).</div>
+        <!-- INFORMASI DOKUMEN UNIT TEST (TETAP / KONSISTEN) -->
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; gap: 6px;">
+            <span>📄 Judul Dokumen:</span>
+            <strong style="color: #38bdf8; font-weight: 600;">${escapeHtml(currentDocTitle)}</strong>
+          </div>
+          <span style="font-size: 10px; color: #64748b; background: rgba(51, 65, 85, 0.4); padding: 2px 6px; border-radius: 4px;">Tetap</span>
         </div>
 
         <!-- 2. SKENARIO (PER NOMOR) -->
@@ -1163,7 +1163,6 @@
 
     shadowRoot.appendChild(modalBackdrop);
 
-    const inpDocTitle = shadowRoot.getElementById('inp-modal-doc-title');
     const inpScenario = shadowRoot.getElementById('inp-modal-scenario');
     const inpTitle = shadowRoot.getElementById('inp-modal-title');
     const inpExpected = shadowRoot.getElementById('inp-modal-expected');
@@ -1221,7 +1220,6 @@
     };
 
     const submitNewTc = () => {
-      const finalDocTitle = inpDocTitle?.value?.trim() || currentDocTitle;
       const rawSc = inpScenario?.value?.trim() || cleanSuggestedScenario;
       const cleanSc = rawSc.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
       const finalScenario = `Skenario ${nextNum}: ${cleanSc}`;
@@ -1230,7 +1228,6 @@
 
       safeSendMessage({
         type: 'CREATE_NEXT_TC',
-        docTitle: finalDocTitle,
         scenarioName: finalScenario,
         title: finalTitle,
         expectedResult: finalExpected
