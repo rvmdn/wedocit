@@ -40,6 +40,29 @@
   // Dynamic observer activation
   let isMinimized = localStorage.getItem('__wedocit_minimized') === 'true';
 
+  // Persistent Field Locks untuk modal Tambah Skenario / TC Baru
+  let modalLocks = {
+    expected: false,
+    expectedVal: '',
+    title: false,
+    titleVal: '',
+    scenario: false,
+    scenarioVal: ''
+  };
+
+  try {
+    const savedLocks = localStorage.getItem('__wedocit_modal_locks');
+    if (savedLocks) {
+      modalLocks = { ...modalLocks, ...JSON.parse(savedLocks) };
+    }
+  } catch (e) {}
+
+  function saveModalLocks() {
+    try {
+      localStorage.setItem('__wedocit_modal_locks', JSON.stringify(modalLocks));
+    } catch (e) {}
+  }
+
   // Safe validity checker with try-catch (Proxy safe)
   function isExtensionValid() {
     try {
@@ -695,6 +718,31 @@
         color: #cbd5e1;
         margin-bottom: 5px;
       }
+      .wedocit-btn-lock {
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px solid #334155;
+        color: #94a3b8;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+      }
+      .wedocit-btn-lock:hover {
+        background: #334155;
+        color: #f1f5f9;
+        border-color: #475569;
+      }
+      .wedocit-btn-lock.locked {
+        background: rgba(56, 189, 248, 0.15);
+        border-color: #38bdf8;
+        color: #38bdf8;
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.25);
+      }
       .wedocit-form-hint {
         font-size: 10px;
         color: #64748b;
@@ -1088,12 +1136,13 @@
     // 2. Skenario per nomor (Skenario ${nextNum})
     const rawSuggestedScenario = context.predictedScenario || context.scenarioName || context.menuName || `Pengujian Alur ${nextNum}`;
     const cleanSuggestedScenario = rawSuggestedScenario.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
+    const initialScenario = (modalLocks.scenario && modalLocks.scenarioVal) ? modalLocks.scenarioVal : cleanSuggestedScenario;
 
     // 3. Test Case (Based on Skenario)
-    const defaultTitle = predictTestCaseFromScenario(cleanSuggestedScenario, nextNum);
+    const initialTitle = (modalLocks.title && modalLocks.titleVal) ? modalLocks.titleVal : predictTestCaseFromScenario(initialScenario, nextNum);
 
     // 4. Expected Result (Based on Test Case)
-    const defaultExpected = predictExpectedFromTestCase(defaultTitle);
+    const initialExpected = (modalLocks.expected && modalLocks.expectedVal) ? modalLocks.expectedVal : predictExpectedFromTestCase(initialTitle);
 
     const modalBackdrop = document.createElement('div');
     modalBackdrop.className = 'wedocit-modal-backdrop';
@@ -1124,31 +1173,50 @@
 
         <!-- 2. SKENARIO (PER NOMOR) -->
         <div class="wedocit-form-group">
-          <label class="wedocit-form-label" for="inp-modal-scenario">
-            🎯 Skenario Pengujian (Skenario ${nextNum}):
-          </label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <label class="wedocit-form-label" for="inp-modal-scenario" style="margin-bottom: 0;">
+              🎯 Skenario Pengujian (Skenario ${nextNum}):
+            </label>
+            <button type="button" id="btn-lock-scenario" class="wedocit-btn-lock ${modalLocks.scenario ? 'locked' : ''}" title="${modalLocks.scenario ? 'Skenario Terkunci (Klik untuk buka kunci)' : 'Kunci isi Skenario ini agar tetap ada untuk TC berikutnya'}">
+              <span>${modalLocks.scenario ? '🔒' : '🔓'}</span>
+              <span>${modalLocks.scenario ? 'Terkunci' : 'Kunci'}</span>
+            </button>
+          </div>
           <div style="display: flex; gap: 8px; align-items: center;">
             <span style="font-weight: 700; color: #38bdf8; font-size: 12.5px; white-space: nowrap; padding: 6px 10px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px;">Skenario ${nextNum}:</span>
-            <input type="text" class="wedocit-input" id="inp-modal-scenario" value="${escapeHtml(cleanSuggestedScenario)}" placeholder="Contoh: Propose Pendalaman / Persetujuan Alur" style="flex: 1;" />
+            <input type="text" class="wedocit-input" id="inp-modal-scenario" value="${escapeHtml(initialScenario)}" placeholder="Contoh: Propose Pendalaman / Persetujuan Alur" style="flex: 1;" />
           </div>
-          <div class="wedocit-form-hint">Alur fitur spesifik Skenario ${nextNum}. Mengubah ini otomatis memperbarui Test Case &amp; Expected Result.</div>
+          <div class="wedocit-form-hint">Alur fitur spesifik Skenario ${nextNum}. Mengubah ini otomatis memperbarui Test Case &amp; Expected Result (kecuali jika dikunci).</div>
         </div>
 
         <!-- 3. TEST CASE (BASED ON SKENARIO) -->
         <div class="wedocit-form-group">
-          <label class="wedocit-form-label" for="inp-modal-title">
-            📝 Test Case (Based on Skenario ${nextNum}):
-          </label>
-          <input type="text" class="wedocit-input" id="inp-modal-title" value="${escapeHtml(defaultTitle)}" placeholder="Contoh: Melakukan Propose Pendalaman" />
-          <div class="wedocit-form-hint">Tindakan spesifik yang dilakukan pada skenario. Mengubah ini otomatis memperbarui Expected Result.</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <label class="wedocit-form-label" for="inp-modal-title" style="margin-bottom: 0;">
+              📝 Test Case (Based on Skenario ${nextNum}):
+            </label>
+            <button type="button" id="btn-lock-title" class="wedocit-btn-lock ${modalLocks.title ? 'locked' : ''}" title="${modalLocks.title ? 'Test Case Terkunci (Klik untuk buka kunci)' : 'Kunci isi Test Case ini agar tetap ada untuk TC berikutnya'}">
+              <span>${modalLocks.title ? '🔒' : '🔓'}</span>
+              <span>${modalLocks.title ? 'Terkunci' : 'Kunci'}</span>
+            </button>
+          </div>
+          <input type="text" class="wedocit-input" id="inp-modal-title" value="${escapeHtml(initialTitle)}" placeholder="Contoh: Melakukan Propose Pendalaman" />
+          <div class="wedocit-form-hint">Tindakan spesifik yang dilakukan pada skenario. Mengubah ini otomatis memperbarui Expected Result (kecuali jika dikunci).</div>
         </div>
 
         <!-- 4. EXPECTED RESULT (BASED ON TEST CASE) -->
         <div class="wedocit-form-group">
-          <label class="wedocit-form-label" for="inp-modal-expected">
-            🎯 Hasil yang Diharapkan (Expected Result based on Test Case):
-          </label>
-          <textarea class="wedocit-textarea" id="inp-modal-expected" rows="3" placeholder="Contoh: Data berhasil diajukan dan status proses terkait terbarui di sistem...">${escapeHtml(defaultExpected)}</textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <label class="wedocit-form-label" for="inp-modal-expected" style="margin-bottom: 0;">
+              🎯 Hasil yang Diharapkan (Expected Result based on Test Case):
+            </label>
+            <button type="button" id="btn-lock-expected" class="wedocit-btn-lock ${modalLocks.expected ? 'locked' : ''}" title="${modalLocks.expected ? 'Hasil yang Diharapkan Terkunci (Klik untuk buka kunci)' : 'Kunci isi Hasil yang Diharapkan ini agar tetap ada untuk TC berikutnya'}">
+              <span>${modalLocks.expected ? '🔒' : '🔓'}</span>
+              <span>${modalLocks.expected ? 'Terkunci' : 'Kunci'}</span>
+            </button>
+          </div>
+          <textarea class="wedocit-textarea" id="inp-modal-expected" rows="3" placeholder="Contoh: Data berhasil diajukan dan status proses terkait terbarui di sistem...">${escapeHtml(initialExpected)}</textarea>
+          <div class="wedocit-form-hint">Klik tombol gembok jika ingin mengunci hasil yang diharapkan agar otomatis terisi sama pada TC berikutnya.</div>
         </div>
 
         <div class="wedocit-modal-actions">
@@ -1169,16 +1237,75 @@
     const btnClose = shadowRoot.getElementById('btn-modal-close');
     const btnCancel = shadowRoot.getElementById('btn-modal-cancel');
     const btnSubmit = shadowRoot.getElementById('btn-modal-submit');
+    const btnLockScenario = shadowRoot.getElementById('btn-lock-scenario');
+    const btnLockTitle = shadowRoot.getElementById('btn-lock-title');
+    const btnLockExpected = shadowRoot.getElementById('btn-lock-expected');
 
-    let userEditedTitle = false;
-    let userEditedExpected = false;
+    const updateLockBtn = (btn, isLocked, fieldLabel) => {
+      if (!btn) return;
+      if (isLocked) {
+        btn.classList.add('locked');
+        btn.innerHTML = '<span>🔒</span><span>Terkunci</span>';
+        btn.title = `${fieldLabel} Terkunci (Klik untuk buka kunci)`;
+      } else {
+        btn.classList.remove('locked');
+        btn.innerHTML = '<span>🔓</span><span>Kunci</span>';
+        btn.title = `Kunci isi ${fieldLabel} ini agar tetap ada untuk TC berikutnya`;
+      }
+    };
+
+    btnLockExpected?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      modalLocks.expected = !modalLocks.expected;
+      if (modalLocks.expected) {
+        modalLocks.expectedVal = inpExpected.value.trim();
+        showToast('🔒 Hasil yang diharapkan dikunci untuk TC berikutnya');
+      } else {
+        showToast('🔓 Kunci hasil yang diharapkan dibuka');
+      }
+      updateLockBtn(btnLockExpected, modalLocks.expected, 'Hasil yang Diharapkan');
+      saveModalLocks();
+    });
+
+    btnLockTitle?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      modalLocks.title = !modalLocks.title;
+      if (modalLocks.title) {
+        modalLocks.titleVal = inpTitle.value.trim();
+        showToast('🔒 Test Case dikunci untuk TC berikutnya');
+      } else {
+        showToast('🔓 Kunci Test Case dibuka');
+      }
+      updateLockBtn(btnLockTitle, modalLocks.title, 'Test Case');
+      saveModalLocks();
+    });
+
+    btnLockScenario?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      modalLocks.scenario = !modalLocks.scenario;
+      if (modalLocks.scenario) {
+        modalLocks.scenarioVal = inpScenario.value.trim();
+        showToast('🔒 Skenario dikunci untuk TC berikutnya');
+      } else {
+        showToast('🔓 Kunci Skenario dibuka');
+      }
+      updateLockBtn(btnLockScenario, modalLocks.scenario, 'Skenario');
+      saveModalLocks();
+    });
+
+    let userEditedTitle = !!(modalLocks.title && modalLocks.titleVal);
+    let userEditedExpected = !!(modalLocks.expected && modalLocks.expectedVal);
 
     // Saat user mengetik / mengubah Test Case secara manual
     inpTitle?.addEventListener('input', () => {
       userEditedTitle = true;
+      if (modalLocks.title) {
+        modalLocks.titleVal = inpTitle.value.trim();
+        saveModalLocks();
+      }
       const currentTitle = inpTitle.value.trim();
-      // Perbarui Expected Result berdasarkan Test Case jika user belum mengedit expected result secara spesifik
-      if (!userEditedExpected && currentTitle) {
+      // Perbarui Expected Result berdasarkan Test Case jika user belum mengedit expected result dan tidak terkunci
+      if (!userEditedExpected && !modalLocks.expected && currentTitle) {
         inpExpected.value = predictExpectedFromTestCase(currentTitle);
       }
     });
@@ -1186,19 +1313,27 @@
     // Saat user mengetik / mengubah Expected Result secara manual
     inpExpected?.addEventListener('input', () => {
       userEditedExpected = true;
+      if (modalLocks.expected) {
+        modalLocks.expectedVal = inpExpected.value.trim();
+        saveModalLocks();
+      }
     });
 
     // Saat user mengetik / mengubah Skenario:
-    // 1. Test case otomatis terisi based on skenario
-    // 2. Expected result otomatis terisi based on test case yang dihasilkan
+    // 1. Test case otomatis terisi based on skenario (jika tidak dikunci)
+    // 2. Expected result otomatis terisi based on test case yang dihasilkan (jika tidak dikunci)
     inpScenario?.addEventListener('input', () => {
+      if (modalLocks.scenario) {
+        modalLocks.scenarioVal = inpScenario.value.trim();
+        saveModalLocks();
+      }
       const currentSc = inpScenario.value.trim();
       if (!currentSc) return;
       const derivedTitle = predictTestCaseFromScenario(currentSc, nextNum);
-      if (!userEditedTitle) {
+      if (!userEditedTitle && !modalLocks.title) {
         inpTitle.value = derivedTitle;
       }
-      if (!userEditedExpected) {
+      if (!userEditedExpected && !modalLocks.expected) {
         inpExpected.value = predictExpectedFromTestCase(userEditedTitle ? inpTitle.value : derivedTitle);
       }
     });
@@ -1223,8 +1358,21 @@
       const rawSc = inpScenario?.value?.trim() || cleanSuggestedScenario;
       const cleanSc = rawSc.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim();
       const finalScenario = `Skenario ${nextNum}: ${cleanSc}`;
-      const finalTitle = inpTitle?.value?.trim() || defaultTitle;
-      const finalExpected = inpExpected?.value?.trim() || defaultExpected;
+      const finalTitle = inpTitle?.value?.trim() || initialTitle;
+      const finalExpected = inpExpected?.value?.trim() || initialExpected;
+
+      if (modalLocks.expected) {
+        modalLocks.expectedVal = finalExpected;
+        saveModalLocks();
+      }
+      if (modalLocks.title) {
+        modalLocks.titleVal = finalTitle;
+        saveModalLocks();
+      }
+      if (modalLocks.scenario) {
+        modalLocks.scenarioVal = rawSc;
+        saveModalLocks();
+      }
 
       safeSendMessage({
         type: 'CREATE_NEXT_TC',
