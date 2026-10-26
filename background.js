@@ -205,7 +205,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         chrome.storage.local.set({ sessionData: current }, () => {
           broadcastState(current);
-          sendResponse({ success: true, sessionData: current });
+          sendResponse({ success: true, sessionData: getLightState(current) });
         });
       } else {
         sendResponse({ success: false });
@@ -226,7 +226,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       current.isPaused = false;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, newDoc: newDoc, sessionData: current });
+        sendResponse({ success: true, newDoc: newDoc, sessionData: getLightState(current) });
       });
     });
     return true;
@@ -239,7 +239,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       current.activeDocId = message.docId;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, sessionData: current });
+        sendResponse({ success: true, sessionData: getLightState(current) });
       });
     });
     return true;
@@ -258,8 +258,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       current.activeDocId = docs[0].id;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, sessionData: current });
+        sendResponse({ success: true, sessionData: getLightState(current) });
       });
+    });
+    return true;
+  }
+
+  // STORAGE UPDATED / SYNC FROM EDITOR OR STORAGE
+  if (message.type === 'STORAGE_UPDATED' || message.type === 'SYNC_STATE') {
+    chrome.storage.local.get(['sessionData'], (res) => {
+      const current = res.sessionData || {};
+      broadcastState(current);
+      sendResponse({ success: true, sessionData: getLightState(current) });
     });
     return true;
   }
@@ -271,7 +281,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const updated = { ...current, ...message.payload };
       chrome.storage.local.set({ sessionData: updated }, () => {
         broadcastState(updated);
-        sendResponse({ success: true, sessionData: updated });
+        sendResponse({ success: true, sessionData: getLightState(updated) });
       });
     });
     return true;
@@ -318,7 +328,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       current.isPaused = false;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, newTc: newTc, sessionData: current });
+        sendResponse({ success: true, newTc: newTc, sessionData: getLightState(current) });
       });
     });
     return true;
@@ -333,7 +343,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       current.activeTcId = message.tcId;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, activeTcId: message.tcId, sessionData: current });
+        sendResponse({ success: true, activeTcId: message.tcId, sessionData: getLightState(current) });
       });
     });
     return true;
@@ -361,7 +371,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       current.isPaused = false;
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, sessionData: current });
+        sendResponse({ success: true, sessionData: getLightState(current) });
       });
     });
     return true;
@@ -380,7 +390,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     };
     chrome.storage.local.set({ sessionData: freshData }, () => {
       broadcastState(freshData);
-      sendResponse({ success: true, sessionData: freshData });
+      sendResponse({ success: true, sessionData: getLightState(freshData) });
     });
     return true;
   }
@@ -424,7 +434,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, step: newStep, activeTc: activeTc });
+        sendResponse({
+          success: true,
+          step: { id: newStep.id, stepNumber: newStep.stepNumber, title: newStep.title },
+          activeTc: { id: activeTc.id, tcNumber: activeTc.tcNumber, stepCount: (activeTc.steps || []).length }
+        });
       });
     });
     return true;
@@ -475,7 +489,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       chrome.storage.local.set({ sessionData: current }, () => {
         broadcastState(current);
-        sendResponse({ success: true, activeTc: activeTc });
+        sendResponse({
+          success: true,
+          activeTc: { id: activeTc.id, tcNumber: activeTc.tcNumber, stepCount: (activeTc.steps || []).length }
+        });
       });
     });
     return true;
@@ -520,9 +537,13 @@ function getLightState(sessionData) {
     documents: (sessionData.documents || []).map(doc => ({
       id: doc.id,
       metadata: {
+        title: doc.metadata?.title || '',
         scenarioName: doc.metadata?.scenarioName || '',
         testCaseId: doc.metadata?.testCaseId || '',
-        author: doc.metadata?.author || ''
+        author: doc.metadata?.author || '',
+        systemName: doc.metadata?.systemName || '',
+        screenResolution: doc.metadata?.screenResolution || '',
+        customFields: doc.metadata?.customFields || []
       },
       activeTcId: doc.activeTcId,
       testCases: (doc.testCases || []).map(tc => ({
@@ -531,6 +552,8 @@ function getLightState(sessionData) {
         tcNumberStr: tc.tcNumberStr,
         role: tc.role,
         title: tc.title,
+        scenarioName: tc.scenarioName,
+        expectedResult: tc.expectedResult,
         status: tc.status,
         steps: (tc.steps || []).map(s => ({
           id: s.id,

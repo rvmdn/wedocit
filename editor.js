@@ -408,12 +408,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // SWITCH DOCUMENT EVENT
   docSelector?.addEventListener('change', () => {
     const targetDocId = docSelector.value;
-    chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_DOC', docId: targetDocId }, (res) => {
-      chrome.runtime.sendMessage({ type: 'GET_STATE', full: true }, (r) => { if (r && r.data) sessionData = r.data; populateActiveDoc(); });
-      if (res && res.sessionData) {
-        sessionData = res.sessionData;
-        populateActiveDoc();
-      }
+    chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_DOC', docId: targetDocId }, () => {
+      chrome.storage.local.get(['sessionData'], (localRes) => {
+        if (localRes && localRes.sessionData) {
+          sessionData = localRes.sessionData;
+          populateActiveDoc();
+        }
+      });
     });
   });
 
@@ -763,8 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionData.activeTcId = doc.activeTcId || sessionData.activeTcId;
     chrome.storage.local.set({ sessionData: sessionData }, () => {
       chrome.runtime.sendMessage({
-        type: 'UPDATE_STATE',
-        payload: { documents: sessionData.documents, activeDocId: sessionData.activeDocId, activeTcId: sessionData.activeTcId }
+        type: 'STORAGE_UPDATED'
       });
       if (typeof onSaved === 'function') onSaved();
     });
@@ -2187,13 +2187,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const imported = JSON.parse(evt.target.result);
         if (imported) {
           sessionData = imported;
-          chrome.runtime.sendMessage({
-            type: 'UPDATE_STATE',
-            payload: sessionData
-          }, () => {
-            renderDocSelector();
-            populateActiveDoc();
-            alert('Workspace Dokumen Unit Test berhasil diimpor!');
+          chrome.storage.local.set({ sessionData: sessionData }, () => {
+            chrome.runtime.sendMessage({
+              type: 'STORAGE_UPDATED'
+            }, () => {
+              renderDocSelector();
+              populateActiveDoc();
+              alert('Workspace Dokumen Unit Test berhasil diimpor!');
+            });
           });
         }
       } catch (err) {
