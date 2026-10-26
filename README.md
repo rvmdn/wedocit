@@ -23,6 +23,17 @@
 
 ---
 
+## 📌 Catatan Rilis (Changelog)
+
+### v1.1.0
+* **Fix Switch TC:** Memperbaiki bug pemilihan Test Case pada toolbar layar agar tidak otomatis reset ke TC 1 dan dapat melanjutkan perekaman pada TC sebelumnya.
+* **Rearrange Urutan Langkah:** Langkah evidens per-TC kini dapat diatur urutannya secara fleksibel menggunakan **Drag & Drop** langsung (handle `⠿`) atau tombol panah cepat (**▲ / ▼**). Penomoran langkah otomatis tersinkronisasi.
+* **Collapse / Expand Test Case:** Menghemat ruang kerja di editor dengan melipat/membentangkan kartu Test Case secara individual maupun serentak (*Ciutkan Semua / Bentangkan Semua*).
+* **Nomor TC & Role Penguji Custom:** Nomor TC terpisah dan bebas diedit (format custom), serta dilengkapi field opsional *Role Penguji* yang otomatis membaca akun/role aktif di sistem.
+* **Keandalan & Dialog Ekspor:** Perbaikan penghapusan instan langkah/TC tanpa perlu refresh, serta penanganan modal interaktif saat file template Word belum terpasang di perangkat baru.
+
+---
+
 ## 🛠 Cara Pasang di Google Chrome / Microsoft Edge
 1. Buka browser **Chrome** atau **Edge**.
 2. Masuk ke halaman ekstensi:
