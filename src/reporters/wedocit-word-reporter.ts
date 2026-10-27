@@ -91,6 +91,19 @@ export default class WeDocItWordReporter implements Reporter {
       const templateBuffer = fs.readFileSync(templatePath);
       const zip = await JSZip.loadAsync(templateBuffer);
 
+      // Jika menjalankan seluruh suite pengujian gabungan (> 3 Test Cases)
+      if (this.testCases.length > 3 && !process.env.DOC_TITLE) {
+        this.metadata.title = 'Unit Test Documentation - Pelaksanaan Audit (Offline & Online)';
+        this.metadata.module = 'Pelaksanaan Audit (Offline & Online)';
+        this.metadata.scope = 'Pengujian menyeluruh modul Pelaksanaan Audit Offline (AP Non-Kredit, Pengujian AP, AP Kredit, RHA) dan Pelaksanaan Audit Online';
+        this.metadata.acceptanceCriteria = 'Seluruh skenario pengujian (Rich Text Jodit Editor, Notifikasi, Validasi Upload Lampiran, dan Hak Akses Role) berjalan sukses dan data tersimpan di sistem.';
+      } else if (process.env.DOC_TITLE) {
+        this.metadata.title = process.env.DOC_TITLE;
+        if (process.env.DOC_MODULE) this.metadata.module = process.env.DOC_MODULE;
+        if (process.env.DOC_SCOPE) this.metadata.scope = process.env.DOC_SCOPE;
+        if (process.env.DOC_CR_NO) this.metadata.crNo = process.env.DOC_CR_NO;
+      }
+
       const devs = this.metadata.developers || [];
       let devHeaderFormatted = '';
       let devNamesOnly = '';
