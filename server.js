@@ -202,6 +202,20 @@ function handleApiRequest(req, res, pathname) {
     return;
   }
 
+  // GET /api/latest-results (Mengambil hasil test cases & bukti screenshot dari run terakhir)
+  if (pathname === '/api/latest-results' && req.method === 'GET') {
+    const resultsJsonPath = path.join(OUTPUT_DIR, 'latest_run_results.json');
+    if (!fs.existsSync(resultsJsonPath)) {
+      return sendJson(res, 404, { error: 'Belum ada hasil pengujian yang tersimpan di output/latest_run_results.json' });
+    }
+    try {
+      const data = fs.readFileSync(resultsJsonPath, 'utf8');
+      return sendJson(res, 200, JSON.parse(data));
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Gagal membaca latest_run_results.json', details: err.message });
+    }
+  }
+
   // GET /api/outputs
   if (pathname === '/api/outputs' && req.method === 'GET') {
     try {

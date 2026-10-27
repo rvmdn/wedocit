@@ -1,66 +1,108 @@
-# 🚀 WeDocIt - Smart Test & Guide Documenter (Chrome / Edge Extension)
+# 🚀 WeDocIt Enterprise Studio v3.0 - Unit Test Documentation & Automation Suite
 
-**WeDocIt** adalah ekstensi browser khusus untuk membuat dokumen pengujian sistem (**Unit Test, SIT, UAT, Skenario Testing**) dan **Buku Panduan Pengguna (User Guide)** secara otomatis dengan tangkapan layar cerdas dan narasi **Bahasa Indonesia**.
+**WeDocIt** adalah perangkat lunak desktop mandiri (*standalone desktop tool*) dan mesin otomasi pengujian sistem yang dirancang khusus untuk memproduksi dokumen pengujian (**Unit Test, SIT, UAT, EDV**) berstandar resmi **PT Bank Negara Indonesia (Persero) Tbk** secara otomatis, rapi, dan aman.
+
+> [!NOTE]
+> **Arsitektur Mandiri (Desktop Native):** WeDocIt kini beroperasi penuh sebagai aplikasi desktop mandiri tanpa ketergantungan pada ekstensi browser (*Chrome Extension*), sehingga kebal terhadap kebijakan pemblokiran ekstensi pada browser korporasi.
 
 ---
 
 ## 🌟 Fitur Utama
-1. **Floating Toolbar Praktis:**
-   * Tombol Rekam, Jeda, Screenshot Manual, dan Selesai selalu melayang di layar tanpa mengganggu pekerjaan.
-2. **Smart DOM Parser (Bahasa Indonesia):**
-   * Otomatis mengenali Tombol, Input Form, Dropdown PrimeNG (`p-dropdown`), Checkbox, Radio, dan Navigasi Tabel.
-   * Format kalimat otomatis: *"Klik tombol [Simpan Data]"*, *"Isi field [Nomor Surat] dengan '001/AUDIT/2026'"*, dsb.
-3. **Auto-Highlight Elemen:**
-   * Menyorot elemen yang diklik dengan kotak merah sebelum screenshot diambil.
-4. **Studio Dokumen Terintegrasi (`editor.html`):**
-   * Edit deskripsi langkah, pindahkan urutan langkah (Up/Down), hapus langkah yang tidak perlu (anti-spam klik), ubah status *Pass / Fail*.
-   * Preview dan perbesar screenshot.
-5. **Ekspor 1-Klik:**
-   * 📄 **Microsoft Word (.docx / .doc)**: Format tabel pengujian rapi lengkap dengan header institusi, kolom status, evidens tangkapan layar, dan form tanda tangan persetujuan (*Sign-Off*).
-   * 🖨️ **Cetak / PDF**: Format siap cetak kertas A4.
-   * 📑 **Markdown**: Siap disalin ke Jira, Confluence, GitHub, atau Gitlab.
-   * 💾 **JSON**: Simpan dan muat kembali sesi pengujian kapan saja.
+
+### 1. 🖥️ Standalone Desktop Studio UI
+- **Penyimpanan Lokal Persisten (`data/workspace.json`):** Seluruh sesi dan dokumen pengujian disimpan langsung di direktori lokal tanpa risiko batasan kuota storage browser.
+- **Tampilan Native App Window:** Berjalan dalam jendela aplikasi mandiri Microsoft Edge / Google Chrome tanpa address bar atau bookmark yang mengganggu.
+- **Penyusunan Evidens Fleksibel:** Pengurutan langkah (*Drag & Drop* handle `⠿` / panah `▲ / ▼`), ganti evidens screenshot manual, perbesar gambar (*lightbox zoom*), serta pelipatan (*collapse/expand*) kartu Test Case.
+- **Bukti Manual (`MANUAL` Proof Placeholder):** Mendukung penandaan evidens manual bertanda `📎 [BUKTI MANUAL]` untuk alur pengujian fisik/offline yang belum terotomasi.
+
+### 2. ⚡ Playwright Automated Test Runner
+- **Runner 1-Klik Langsung dari Studio UI:** Eksekusi seluruh skenario atau per-modul (AP Non-Kredit, Pengujian AP, AP Kredit, RHA, Pelaksanaan Online) langsung dari tombol modal `[▶ Jalankan Otomasi]`.
+- **Live Terminal Console Streaming:** Memantau log proses pengujian dan status *PASS / FAILED* secara real-time.
+- **📥 Sinkronisasi Hasil Uji Otomasi:** Satu klik untuk menarik seluruh Test Case, narasi langkah, dan evidens tangkapan layar hasil Playwright langsung ke editor visual Studio.
+
+### 3. 📄 Generator Dokumen Word Resmi BNI EDV & Ekspor PDF Native
+- **Format Baku EDV BNI:** Mengisi tabel pengujian dokumen Word (`template-bni-edv.docx`) secara presisi (Header Developer / NPP, Periode, Scope, Acceptance Criteria, Deskripsi Singkat, dan Tabel Evidens 3.1).
+- **Ekspor PDF Native via Word COM:** Mengonversi dokumen Word ke PDF secara 1:1 menggunakan automasi Microsoft Word COM di latar belakang tanpa dependensi konverter pihak ketiga.
+- **Pembersih Metadata & Privasi Dokumen:** Menghapus identitas pengguna OS / komputer lokal dari metadata berkas Word (`docProps/core.xml` & `app.xml`) dan menggantinya dengan atribut resmi institusi demi kepatuhan audit.
+
+### 4. 🛡️ Audit & Mutasi Aman (`mutationOnce`)
+- **Anti Double-Submit Guard:** Memastikan aksi mutasi transaksional (seperti Simpan Data, Kirim Persetujuan, Propose) hanya dapat dieksekusi satu kali per siklus pengujian dan memverifikasi respons HTTP sebelum melanjutkan langkah berikutnya.
 
 ---
 
-## 📌 Catatan Rilis (Changelog)
+## 🚀 Panduan Memulai Cepat (Quick Start)
 
-### v1.1.1
-* **Fix IPC 64MiB Hard Limit:** Menangani tuntas error `Message exceeded maximum allowed size of 64MiB` dengan menerapkan pola transmisi state ringan (*lightweight state*) pada seluruh komunikasi antar-komponen ekstensi.
-* **Sanitasi Evidens Gambar & Form Input:** Mengeliminasi penyimpanan string base64 gambar berlebih pada field komentar/teks, serta meniadakan screenshot redundan pada setiap keystroke input form.
-* **Kunci Judul Dokumen (Title Locking):** Memastikan judul dokumen unit test konsisten dan tidak tertimpa oleh nama skenario terakhir.
-* **Fitur Gembok Modal (Padlock Toggle):** Menambahkan toggle gembok (`🔒 / 🔓`) pada modal penambahan Test Case agar isian (Expected Result, Test Case, Skenario) tetap tersimpan persisten saat membuat skenario berikutnya.
-* **Triple-Freeze Sticky UI:** Header atas aplikasi kini 100% fixed permanen, sementara Sidebar Metadata dan Toolbar Daftar Test Case tetap beku (*sticky*) saat menggulir puluhan TC.
-* **Dinamis & Responsif Layar 1366x768:** Tampilan toolbar header dan panel editor dioptimalkan proporsional sehingga seluruh tombol (termasuk *Ekspor Word*) tampil utuh tanpa terpotong.
-* **Perbaikan UX Dropdown File Opsi:** Menghubungkan celah hover dengan *invisible bridge* dan menambahkan dukungan *click-to-toggle* agar menu tidak menutup mendadak.
-* **Format Tabel Word 2.1 (EDV BNI):** Kolom `No` disempurnakan menjadi nomor urut murni sekuensial (`1, 2, 3...`) dan kode Test Case diposisikan rapi di dalam kolom `Scenario` (contoh: `[TC-007] Propose Pendalaman`).
-* **Auto-Cleansing & Normalisasi Dokumen Lama:** Fitur pembersihan otomatis saat membuka editor serta tombol manual untuk merapikan dokumen hasil pengujian terdahulu.
+### Persyaratan Sistem
+- **Node.js** v18 atau yang lebih baru.
+- **Microsoft Word** (untuk fitur ekspor PDF native via Word COM).
+- **Microsoft Edge** atau **Google Chrome**.
 
-### v1.1.0
-* **Fix Switch TC:** Memperbaiki bug pemilihan Test Case pada toolbar layar agar tidak otomatis reset ke TC 1 dan dapat melanjutkan perekaman pada TC sebelumnya.
-* **Rearrange Urutan Langkah:** Langkah evidens per-TC kini dapat diatur urutannya secara fleksibel menggunakan **Drag & Drop** langsung (handle `⠿`) atau tombol panah cepat (**▲ / ▼**). Penomoran langkah otomatis tersinkronisasi.
-* **Collapse / Expand Test Case:** Menghemat ruang kerja di editor dengan melipat/membentangkan kartu Test Case secara individual maupun serentak (*Ciutkan Semua / Bentangkan Semua*).
-* **Nomor TC & Role Penguji Custom:** Nomor TC terpisah dan bebas diedit (format custom), serta dilengkapi field opsional *Role Penguji* yang otomatis membaca akun/role aktif di sistem.
-* **Keandalan & Dialog Ekspor:** Perbaikan penghapusan instan langkah/TC tanpa perlu refresh, serta penanganan modal interaktif saat file template Word belum terpasang di perangkat baru.
+### 1. Menjalankan Desktop Studio
+Cukup **klik dua kali (double-click)** pada file launcher:
+```bat
+launch-desktop.bat
+```
+Atau melalui terminal:
+```bash
+npm run desktop
+```
+> Server lokal akan aktif pada `http://127.0.0.1:4400` dan otomatis membuka jendela aplikasi WeDocIt Studio Desktop.
+
+### 2. Menjalankan Pengujian Otomasi dari UI
+1. Klik tombol **`▶ Jalankan Otomasi`** di header atas Studio.
+2. Pilih suite pengujian modul yang diinginkan pada dropdown.
+3. Klik **`Mulai Eksekusi`**.
+4. Pantau log terminal secara langsung. Setelah selesai, dokumen Word otomatis terbuat di folder `output/`.
+5. Klik **`📥 Sinkronkan Hasil Uji ke Dokumen`** untuk menampilkan evidens di antarmuka visual Studio.
+6. Klik **`🖨️ Ekspor PDF Dokumen Hasil`** untuk menghasilkan file PDF resmi.
+
+### 3. Menjalankan Pengujian Otomasi via CLI (Command Line)
+Untuk menjalankan runner Playwright secara langsung:
+```bash
+# Jalankan seluruh suite offline
+npm run test:offline
+
+# Jalankan dengan browser terlihat (headed mode)
+npm run test:headed
+```
 
 ---
 
-## 🛠 Cara Pasang di Google Chrome / Microsoft Edge
-1. Buka browser **Chrome** atau **Edge**.
-2. Masuk ke halaman ekstensi:
-   * Chrome: `chrome://extensions/`
-   * Edge: `edge://extensions/`
-3. Aktifkan **Developer mode** (Mode pengembang) di pojok kanan atas.
-4. Klik tombol **Load unpacked** (Muat yang belum dibongkar).
-5. Pilih folder:
-   📁 `F:\Project\Desktop\wedocit`
-6. Ekstensi **WeDocIt** siap digunakan! Pasang pin di toolbar browser Anda.
+## 📁 Struktur Direktori Proyek
+
+```
+wedocit/
+├── data/
+│   └── workspace.json         # Penyimpanan berkas & sesi dokumen Studio
+├── output/
+│   ├── EDV_Unit_Test_*.docx   # Dokumen Word hasil generate
+│   ├── EDV_Unit_Test_*.pdf    # Dokumen PDF hasil konversi Word COM
+│   ├── latest_run_results.json# Data hasil run Playwright terakhir
+│   └── screenshots/           # Tangkapan layar evidens
+├── src/
+│   ├── fixtures/
+│   │   └── wedocit.ts         # WeDocIt Playwright fixture (captureStep, mutationOnce)
+│   └── reporters/
+│       └── wedocit-word-reporter.ts # Reporter Word BNI EDV + Sanitasi Metadata
+├── templates/
+│   └── template-bni-edv.docx  # Template resmi Word EDV BNI
+├── tests/
+│   ├── 01-ap-non-kredit-offline.spec.ts
+│   ├── 02-pengujian-ap-non-kredit-offline.spec.ts
+│   ├── 03-ap-kredit-offline.spec.ts
+│   ├── 04-rha-offline.spec.ts
+│   ├── 05-pelaksanaan-audit-online.spec.ts
+│   └── auth.setup.ts
+├── editor.html                # Antarmuka Visual Desktop Studio
+├── editor.js                  # Logika Desktop Studio & sinkronisasi API
+├── launch-desktop.bat         # Launcher Desktop 1-Klik
+├── package.json               # Konfigurasi npm scripts
+├── playwright.config.ts       # Konfigurasi Playwright & WeDocIt Reporter
+└── server.js                  # Server HTTP & API lokal mandiri (Port 4400)
+```
 
 ---
 
-## 📖 Cara Penggunaan
-1. Buka aplikasi web yang ingin diuji.
-2. Klik tombol **Mulai Rekam** pada floating bar di pojok kanan bawah (atau via icon popup WeDocIt).
-3. Lakukan alur pengujian seperti biasa.
-4. Setelah selesai, klik **⏹ Selesai**.
-5. Halaman **Document Studio** akan terbuka otomatis. Periksa teks, sesuaikan judul & hasil pengujian, lalu klik **Ekspor Dokumen Word**!
+## 📜 Kepatuhan Keamanan & Privasi
+- File kredensial `.env` dan autentikasi sesi `.auth/` otomatis diabaikan dari pelacakan git (`.gitignore`).
+- Tangkapan layar dan metadata dokumen dibersihkan dari informasi privat akun OS lokal sebelum dipublikasikan.

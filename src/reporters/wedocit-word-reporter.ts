@@ -251,7 +251,26 @@ export default class WeDocItWordReporter implements Reporter {
               </w:p>
             `;
 
-            if (s.screenshot && s.screenshot.startsWith('data:image')) {
+            if (s.status === 'MANUAL') {
+              generatedXml += `
+                <w:p>
+                  <w:pPr>
+                    <w:pBdr>
+                      <w:top w:val="single" w:sz="8" w:space="4" w:color="0284C7"/>
+                      <w:left w:val="single" w:sz="8" w:space="4" w:color="0284C7"/>
+                      <w:bottom w:val="single" w:sz="8" w:space="4" w:color="0284C7"/>
+                      <w:right w:val="single" w:sz="8" w:space="4" w:color="0284C7"/>
+                    </w:pBdr>
+                    <w:shd w:val="clear" w:color="auto" w:fill="F0F9FF"/>
+                    <w:spacing w:before="100" w:after="160"/>
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="0369A1"/></w:rPr>
+                    <w:t xml:space="preserve">📎 [BUKTI MANUAL] ${escapeXml(s.note || 'Pengujian diverifikasi secara manual oleh tester / Bukti dokumen terlampir')}</w:t>
+                  </w:r>
+                </w:p>
+              `;
+            } else if (s.screenshot && s.screenshot.startsWith('data:image')) {
               imgCounter++;
               const imgFileName = `wedocit_evidens_${imgCounter}.png`;
               const relId = `rIdWeDocIt_${imgCounter}`;
@@ -348,6 +367,25 @@ export default class WeDocItWordReporter implements Reporter {
         }
       }
 
+      // Sanitasi metadata identitas dokumen (Privacy & Audit Security)
+      const cleanIdentity = (xmlStr: string) => {
+        const authorName = escapeXml(this.metadata.testedBy || 'WeDocIt Enterprise Studio');
+        return xmlStr
+          .replace(/<dc:creator>[\s\S]*?<\/dc:creator>/g, `<dc:creator>${authorName}</dc:creator>`)
+          .replace(/<cp:lastModifiedBy>[\s\S]*?<\/cp:lastModifiedBy>/g, `<cp:lastModifiedBy>${authorName}</cp:lastModifiedBy>`)
+          .replace(/<Company>[\s\S]*?<\/Company>/g, `<Company>PT Bank Negara Indonesia (Persero) Tbk</Company>`)
+          .replace(/<Manager>[\s\S]*?<\/Manager>/g, `<Manager></Manager>`)
+          .replace(/<HyperlinkBase>[\s\S]*?<\/HyperlinkBase>/g, `<HyperlinkBase></HyperlinkBase>`);
+      };
+
+      for (const propPath of ['docProps/core.xml', 'docProps/app.xml', 'docProps/custom.xml']) {
+        const pFile = zip.file(propPath);
+        if (pFile) {
+          const pXml = await pFile.async('text');
+          zip.file(propPath, cleanIdentity(pXml));
+        }
+      }
+
       // Generate buffer and save
       const outputBuffer = await zip.generateAsync({
         type: 'nodebuffer',
@@ -358,6 +396,20 @@ export default class WeDocItWordReporter implements Reporter {
       const outputDir = path.resolve(process.cwd(), wedocitConfig.document?.outputDir || 'output');
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
+      }
+
+      // Simpan hasil test case terstruktur untuk sinkronisasi ke Desktop Studio UI
+      const resultsJsonPath = path.join(outputDir, 'latest_run_results.json');
+      const resultsData = {
+        timestamp: new Date().toISOString(),
+        metadata: this.metadata,
+        totalTestCases: this.testCases.length,
+        testCases: this.testCases
+      };
+      try {
+        fs.writeFileSync(resultsJsonPath, JSON.stringify(resultsData, null, 2), 'utf8');
+      } catch (eRes) {
+        console.warn('Gagal menyimpan latest_run_results.json:', eRes);
       }
 
       const safeModule = (this.metadata.module || this.metadata.title || 'Modul')

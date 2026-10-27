@@ -2507,12 +2507,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const runnerStatusBadge = document.getElementById('runner-status-badge');
   const runnerResultSummary = document.getElementById('runner-result-summary');
   const btnRunnerExportPdf = document.getElementById('btn-runner-export-pdf');
+  const btnSyncTestResults = document.getElementById('btn-sync-test-results');
   const btnExportPdfNative = document.getElementById('btn-export-pdf-native');
 
   let runnerPollInterval = null;
 
+  async function checkLatestResultsAvailability() {
+    try {
+      const resp = await fetch('/api/latest-results');
+      if (resp.ok && btnSyncTestResults) {
+        btnSyncTestResults.style.display = 'inline-block';
+      }
+    } catch {}
+  }
+
   btnRunAutomation?.addEventListener('click', () => {
     if (modalRunner) modalRunner.style.display = 'flex';
+    checkLatestResultsAvailability();
   });
 
   function closeRunnerModal() {
@@ -2525,6 +2536,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnCloseRunner?.addEventListener('click', closeRunnerModal);
   btnRunnerClose?.addEventListener('click', closeRunnerModal);
+
+  btnSyncTestResults?.addEventListener('click', async () => {
+    try {
+      const resp = await fetch('/api/latest-results');
+      if (!resp.ok) {
+        alert('Tidak ditemukan data hasil run pengujian (latest_run_results.json). Silakan jalankan otomasi terlebih dahulu.');
+        return;
+      }
+      const data = await resp.json();
+      if (!data.testCases || data.testCases.length === 0) {
+        alert('Data hasil pengujian kosong.');
+        return;
+      }
+
+      const activeDoc = getActiveDoc();
+      const currentCount = (activeDoc.testCases || []).length;
+      const confirmMsg = `Ditemukan ${data.testCases.length} Test Case dari otomasi Playwright.\n\nApakah Anda ingin mengganti/memperbarui daftar Test Case pada dokumen aktif (${activeDoc.metadata?.scenarioName || 'Dokumen Aktif'}) dengan hasil otomasi ini?`;
+      if (!confirm(confirmMsg)) return;
+
+      if (data.metadata) {
+        if (data.metadata.title) activeDoc.metadata.title = data.metadata.title;
+        if (data.metadata.module) activeDoc.metadata.scenarioName = data.metadata.module;
+        if (data.metadata.systemName) activeDoc.metadata.systemName = data.metadata.systemName;
+        if (data.metadata.crNo) activeDoc.metadata.testCaseId = data.metadata.crNo;
+        if (data.metadata.acceptanceCriteria) activeDoc.metadata.acceptanceCriteria = data.metadata.acceptanceCriteria;
+        if (data.metadata.scope) activeDoc.metadata.scope = data.metadata.scope;
+        if (data.metadata.shortDescription) activeDoc.metadata.shortDescription = data.metadata.shortDescription;
+        if (data.metadata.developers && data.metadata.developers.length > 0) {
+          activeDoc.metadata.developers = data.metadata.developers;
+        }
+      }
+
+      activeDoc.testCases = data.testCases.map((tc, idx) => ({
+        id: tc.id || `tc_imported_${Date.now()}_${idx + 1}`,
+        tcNumber: idx + 1,
+        tcNumberStr: tc.tcNumberStr || `TC ${idx + 1}`,
+        role: tc.role || '',
+        title: tc.title || `Test Case ${idx + 1}`,
+        scenarioName: tc.scenarioName || tc.title || `Skenario ${idx + 1}`,
+        expectedResult: tc.expectedResult || 'Sistem berjalan sesuai ekspektasi.',
+        status: tc.status === 'NOK' ? 'NOK' : 'OK',
+        steps: (tc.steps || []).map((s, sIdx) => ({
+          stepNumber: sIdx + 1,
+          title: s.title || `Langkah ${sIdx + 1}`,
+          actionDescription: s.actionDescription || s.title || '',
+          inputData: s.inputData || '-',
+          expectedResult: s.expectedResult || 'Berhasil',
+          screenshot: s.screenshot || (s.imageBase64 ? `data:image/png;base64,${s.imageBase64}` : ''),
+          status: s.status || 'READY',
+          note: s.note || ''
+        }))
+      }));
+
+      saveActiveDocState();
+      populateActiveDoc();
+      renderDocSelector();
+      closeRunnerModal();
+      alert(`🎉 Berhasil menyinkronkan ${activeDoc.testCases.length} Test Case ke Dokumen Studio!`);
+    } catch (err) {
+      alert(`Gagal menyinkronkan hasil pengujian: ${err.message}`);
+    }
+  });
 
   btnTriggerRun?.addEventListener('click', async () => {
     const spec = runnerSpecSelect ? runnerSpecSelect.value : '';
@@ -2573,6 +2646,8 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(runnerPollInterval);
             runnerPollInterval = null;
             if (btnTriggerRun) btnTriggerRun.disabled = false;
+
+            checkLatestResultsAvailability();
 
             if (stData.exitCode === 0) {
               if (runnerStatusBadge) {

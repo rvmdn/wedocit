@@ -27,6 +27,8 @@ export interface WeDocItStep {
   inputData?: string;
   expectedResult?: string;
   screenshot?: string; // base64
+  status?: 'READY' | 'MANUAL';
+  note?: string;
 }
 
 export interface WeDocItTestCaseInfo {
@@ -42,6 +44,7 @@ export interface WeDocItTestCaseInfo {
 export class WeDocItContext {
   private page: Page;
   private testInfo: any;
+  private attemptedMutation: boolean = false;
 
   constructor(page: Page, testInfo: any) {
     this.page = page;
@@ -62,14 +65,58 @@ export class WeDocItContext {
     });
   }
 
+  /**
+   * Proteksi Mutasi Transaksional Sekali Eksekusi (Anti Double-Submit)
+   * Mengadopsi standar audit safety untuk operasi simpan/approval/mutasi data.
+   */
+  async mutationOnce(options: {
+    action: () => Promise<any>;
+    matches: (res: any) => boolean;
+    verify?: (res: any) => Promise<void> | void;
+    timeout?: number;
+  }) {
+    if (this.attemptedMutation) {
+      throw new Error('[WeDocIt Safety] Mutasi sebelumnya belum selesai atau sudah dieksekusi. Dilarang mengirim ulang (Anti Double-Submit).');
+    }
+    if (typeof options.matches !== 'function') {
+      throw new Error('[WeDocIt Safety] Predicate HTTP response matches wajib disediakan.');
+    }
+
+    this.attemptedMutation = true;
+    const timeout = options.timeout || 60000;
+
+    try {
+      const [response] = await Promise.all([
+        this.page.waitForResponse(options.matches, { timeout }),
+        options.action()
+      ]);
+
+      if (!response.ok()) {
+        throw new Error(`[WeDocIt Safety] Respons mutasi gagal dengan HTTP Status: ${response.status()}`);
+      }
+
+      if (typeof options.verify === 'function') {
+        await options.verify(response);
+      }
+
+      this.attemptedMutation = false;
+      return response;
+    } catch (err: any) {
+      throw new Error(`[WeDocIt Safety] Mutasi gagal diverifikasi: ${err.message}`);
+    }
+  }
+
   async captureStep(options: {
     title: string;
     description?: string;
     input?: string;
     expected?: string;
     screenshot?: boolean;
+    manual?: boolean;
+    note?: string;
   }) {
-    const takeScreenshot = options.screenshot !== false;
+    const isManual = options.manual === true;
+    const takeScreenshot = !isManual && options.screenshot !== false;
     let screenshotBase64 = '';
 
     if (takeScreenshot) {
@@ -87,7 +134,9 @@ export class WeDocItContext {
       actionDescription: options.description || options.title,
       inputData: options.input || '-',
       expectedResult: options.expected || 'Sistem merespons proses dengan benar.',
-      screenshot: screenshotBase64
+      screenshot: screenshotBase64,
+      status: isManual ? 'MANUAL' : 'READY',
+      note: options.note || ''
     };
 
     this.testInfo.annotations.push({
