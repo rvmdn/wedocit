@@ -48,6 +48,11 @@ out/
 *.key
 
 # Temporary files & Logs
+*.log
+scratch/
+test-results/
+output/
+playwright-report/
 logs/
 *.log
 scratch/

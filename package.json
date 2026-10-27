@@ -1,0 +1,31 @@
+{
+  "name": "wedocit-v2",
+  "version": "2.0.0",
+  "description": "WeDocIt v2.0 - Enterprise AI-Driven Playwright Automation & BNI EDV Word Documentation Studio",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "record": "playwright codegen",
+    "report": "playwright show-report"
+  },
+  "keywords": [
+    "playwright",
+    "unit-test",
+    "automation",
+    "documentation",
+    "edv",
+    "bni",
+    "docx",
+    "ai-testing"
+  ],
+  "author": "ADV / EDV Team",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}
