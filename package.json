@@ -4,6 +4,8 @@
   "description": "WeDocIt v2.0 - Enterprise AI-Driven Playwright Automation & BNI EDV Word Documentation Studio",
   "main": "index.js",
   "scripts": {
+    "start": "node server.js",
+    "desktop": "launch-desktop.bat",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",

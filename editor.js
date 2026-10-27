@@ -1,5 +1,44 @@
-// WeDocIt - Multi-Document & Multi-TC Studio
+// WeDocIt - Multi-Document & Multi-TC Studio (Desktop & Extension Compatible)
 document.addEventListener('DOMContentLoaded', () => {
+  // Desktop Storage Adapter (Menyimpan langsung ke server lokal / data/workspace.json)
+  const desktopStorage = {
+    get: (keys, callback) => {
+      fetch('/api/workspace')
+        .then(r => r.json())
+        .then(data => {
+          if (callback) callback({ sessionData: data });
+        })
+        .catch(err => {
+          console.warn('[Desktop Storage] Fetch gagal, membaca fallback localStorage:', err);
+          const local = localStorage.getItem('wedocit_sessionData');
+          const parsed = local ? JSON.parse(local) : null;
+          if (callback) callback({ sessionData: parsed });
+        });
+    },
+    set: (items, callback) => {
+      if (items && items.sessionData) {
+        try {
+          localStorage.setItem('wedocit_sessionData', JSON.stringify(items.sessionData));
+          fetch('/api/workspace', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(items.sessionData)
+          }).catch(e => console.warn('[Desktop Storage] Sync server failed:', e));
+        } catch (err) {
+          console.warn('[Desktop Storage] Gagal menyimpan:', err);
+        }
+      }
+      if (callback) callback();
+    },
+    onChanged: {
+      addListener: () => {}
+    }
+  };
+
+  const appStorage = (window.chrome && window.chrome.storage && window.chrome.storage.local)
+    ? window.chrome.storage.local
+    : desktopStorage;
+
   let sessionData = {
     activeDocId: '',
     documents: []
@@ -421,31 +460,40 @@ document.addEventListener('DOMContentLoaded', () => {
     return { modified, cleanedSteps, cleanedTexts };
   }
 
-  // Load State (Direct from Local Storage with Service Worker Fallback)
+  // Load State (Direct from Desktop appStorage with Chrome Service Worker Fallback)
   function loadFreshState(callback) {
-    chrome.storage.local.get(['sessionData'], (localRes) => {
+    appStorage.get(['sessionData'], (localRes) => {
       if (localRes && localRes.sessionData && localRes.sessionData.documents) {
         sessionData = localRes.sessionData;
         const res = cleanAndMigrateOldDocumentData(sessionData);
         if (res.modified) {
-          chrome.storage.local.set({ sessionData: sessionData });
+          appStorage.set({ sessionData: sessionData });
         }
         renderDocSelector();
         populateActiveDoc();
         if (callback) callback();
-      } else {
+      } else if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
         chrome.runtime.sendMessage({ type: 'GET_STATE', full: true }, (res) => {
           if (res && res.data) {
             sessionData = res.data;
             const cleanRes = cleanAndMigrateOldDocumentData(sessionData);
             if (cleanRes.modified) {
-              chrome.storage.local.set({ sessionData: sessionData });
+              appStorage.set({ sessionData: sessionData });
             }
             renderDocSelector();
             populateActiveDoc();
           }
           if (callback) callback();
         });
+      } else {
+        if (!sessionData || !sessionData.documents || sessionData.documents.length === 0) {
+          const def = createDefaultDocument();
+          sessionData = { activeDocId: def.id, documents: [def] };
+          appStorage.set({ sessionData });
+        }
+        renderDocSelector();
+        populateActiveDoc();
+        if (callback) callback();
       }
     });
   }
@@ -474,23 +522,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 2. Dengarkan sinyal RELOAD_EDITOR dari background saat "Buka Editor" diklik
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'RELOAD_EDITOR') {
-      loadFreshState();
-    }
-  });
-
-  // 3. Dengarkan event perubahan storage dari background / content script
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.sessionData) {
-      if (Date.now() < suppressFocusReloadUntil || isSavingLocally) return;
-      const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-      if (!isTyping && !editingStep) {
+  // 2. Dengarkan sinyal RELOAD_EDITOR jika di lingkungan ekstensi Chrome
+  if (window.chrome && window.chrome.runtime && window.chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === 'RELOAD_EDITOR') {
         loadFreshState();
       }
-    }
-  });
+    });
+  }
+
+  // 3. Dengarkan event perubahan storage jika di lingkungan ekstensi Chrome
+  if (window.chrome && window.chrome.storage && window.chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.sessionData) {
+        if (Date.now() < suppressFocusReloadUntil || isSavingLocally) return;
+        const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+        if (!isTyping && !editingStep) {
+          loadFreshState();
+        }
+      }
+    });
+  }
 
   function createDefaultDocument(scenarioName = 'Pengujian Alur Modul', crNumber = 'CR: Unit Test') {
     const today = new Date().toLocaleDateString('id-ID');
@@ -549,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const def = createDefaultDocument();
       sessionData.documents = [def];
       sessionData.activeDocId = def.id;
-      chrome.storage.local.set({ sessionData: sessionData });
+      appStorage.set({ sessionData: sessionData });
     }
     let doc = sessionData.documents.find(d => d.id === sessionData.activeDocId);
     if (!doc) {
@@ -576,58 +628,39 @@ document.addEventListener('DOMContentLoaded', () => {
   // SWITCH DOCUMENT EVENT
   docSelector?.addEventListener('change', () => {
     const targetDocId = docSelector.value;
-    chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_DOC', docId: targetDocId }, () => {
-      chrome.storage.local.get(['sessionData'], (localRes) => {
-        if (localRes && localRes.sessionData) {
-          sessionData = localRes.sessionData;
-          populateActiveDoc();
-        }
-      });
+    sessionData.activeDocId = targetDocId;
+    appStorage.set({ sessionData: sessionData }, () => {
+      populateActiveDoc();
     });
+    if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_DOC', docId: targetDocId });
+    }
   });
 
   // CREATE NEW DOCUMENT EVENT
   btnCreateNewDoc?.addEventListener('click', () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      let suggestedScenario = 'Pengujian Modul AMS FAST';
-      let suggestedCr = 'CR: Unit Test';
+    const scenario = prompt('Masukkan Nama Skenario Unit Test Baru:', 'Pengujian Modul Baru');
+    if (!scenario) return;
+    const crNumber = prompt('Masukkan Nomor CR / Defect:', 'CR_2026_NEW');
 
-      const proceedPrompt = (sc, cr) => {
-        const scenario = prompt('Masukkan Nama Skenario Unit Test Baru:', sc);
-        if (!scenario) return;
-        const crNumber = prompt('Masukkan Nomor CR / Defect:', cr);
-        chrome.runtime.sendMessage({
-          type: 'CREATE_NEW_DOC',
-          scenarioName: scenario,
-          crNumber: crNumber || 'CR: Unit Test'
-        }, (res) => {
-          if (res && res.sessionData) {
-            sessionData = res.sessionData;
-            renderDocSelector();
-            populateActiveDoc();
-            alert('Dokumen Unit Test baru berhasil dibuat dan siap diuji!');
-          }
-        });
-      };
+    const newDoc = createDefaultDocument(scenario, crNumber || 'CR_2026_NEW');
+    if (!sessionData.documents) sessionData.documents = [];
+    sessionData.documents.push(newDoc);
+    sessionData.activeDocId = newDoc.id;
 
-      if (tabs && tabs[0] && tabs[0].id) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'SCAN_PAGE_CONTEXT' }, (res) => {
-          try {
-            if (chrome.runtime && chrome.runtime.lastError) {
-              proceedPrompt(suggestedScenario, suggestedCr);
-              return;
-            }
-          } catch (e) {}
-          if (res && res.success && res.data) {
-            proceedPrompt(res.data.scenarioName || suggestedScenario, 'CR: Unit Test - ' + (res.data.menuName || ''));
-          } else {
-            proceedPrompt(suggestedScenario, suggestedCr);
-          }
-        });
-      } else {
-        proceedPrompt(suggestedScenario, suggestedCr);
-      }
+    appStorage.set({ sessionData: sessionData }, () => {
+      renderDocSelector();
+      populateActiveDoc();
+      alert('Dokumen Unit Test baru berhasil dibuat dan siap diedit!');
     });
+
+    if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: 'CREATE_NEW_DOC',
+        scenarioName: scenario,
+        crNumber: crNumber || 'CR_2026_NEW'
+      });
+    }
   });
 
   // DELETE DOCUMENT EVENT
@@ -638,30 +671,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (confirm(`Yakin ingin menghapus dokumen "${docName}"?\n\n(Jika hanya tersisa 1 dokumen, data dokumen akan direset bersih ke awal).`)) {
       if (docs.length <= 1) {
-        chrome.runtime.sendMessage({ type: 'RESET_ALL_DOCUMENTS' }, (res) => {
-          if (res && res.sessionData) {
-            sessionData = res.sessionData;
-          } else {
-            sessionData = { documents: [] };
-            getActiveDoc();
-          }
-          renderDocSelector();
-          populateActiveDoc();
-          alert('Dokumen telah dibersihkan dan direset ke dokumen baru.');
-        });
+        const def = createDefaultDocument();
+        sessionData = { documents: [def], activeDocId: def.id };
       } else {
+        sessionData.documents = docs.filter(d => d.id !== activeDoc.id);
+        sessionData.activeDocId = sessionData.documents[0]?.id;
+      }
+
+      appStorage.set({ sessionData: sessionData }, () => {
+        renderDocSelector();
+        populateActiveDoc();
+        alert('Dokumen berhasil dihapus.');
+      });
+
+      if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
         chrome.runtime.sendMessage({
           type: 'DELETE_DOC',
           docId: activeDoc.id
-        }, (res) => {
-          if (res && res.sessionData) {
-            sessionData = res.sessionData;
-          } else {
-            sessionData.documents = docs.filter(d => d.id !== activeDoc.id);
-            sessionData.activeDocId = sessionData.documents[0]?.id;
-          }
-          renderDocSelector();
-          populateActiveDoc();
         });
       }
     }
@@ -759,7 +785,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadBundledTemplate() {
     if (bundledDocxTemplateBuffer) return bundledDocxTemplateBuffer;
     try {
-      const url = chrome.runtime.getURL('templates/template-bni-edv.docx');
+      const url = (window.chrome && window.chrome.runtime && window.chrome.runtime.getURL)
+        ? chrome.runtime.getURL('templates/template-bni-edv.docx')
+        : '/templates/template-bni-edv.docx';
       const res = await fetch(url);
       if (res.ok) {
         bundledDocxTemplateBuffer = await res.arrayBuffer();
@@ -928,12 +956,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lblScenarioPreview) lblScenarioPreview.textContent = doc.metadata.scenarioName;
     updateFilenamePreview();
 
-    // Simpan langsung ke chrome.storage.local agar tidak ada race condition reload
+    // Simpan langsung ke appStorage (Desktop / Local Storage)
     sessionData.activeTcId = doc.activeTcId || sessionData.activeTcId;
-    chrome.storage.local.set({ sessionData: sessionData }, () => {
-      chrome.runtime.sendMessage({
-        type: 'STORAGE_UPDATED'
-      });
+    appStorage.set({ sessionData: sessionData }, () => {
+      if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: 'STORAGE_UPDATED'
+        });
+      }
       if (typeof onSaved === 'function') onSaved();
     });
     renderDocSelector();
@@ -1323,7 +1353,9 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.activeTcId = tc.id;
         sessionData.activeTcId = tc.id;
         saveActiveDocState(() => {
-          chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: tc.id });
+          if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: tc.id });
+          }
           renderTestCases();
         });
       });
@@ -1342,7 +1374,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (doc.activeTcId === tc.id) {
             doc.activeTcId = tcs[0]?.id || '';
             sessionData.activeTcId = doc.activeTcId;
-            chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: doc.activeTcId });
+            if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+              chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_TC', tcId: doc.activeTcId });
+            }
           }
           saveActiveDocState();
           renderTestCases();
@@ -1601,30 +1635,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnResetSteps?.addEventListener('click', () => {
     if (confirm('Yakin ingin mereset seluruh langkah pada dokumen ini ke 0?')) {
-      chrome.runtime.sendMessage({ type: 'RESET_ACTIVE_DOC' }, (res) => {
-        if (res && res.sessionData) {
-          sessionData = res.sessionData;
-        }
+      const doc = getActiveDoc();
+      doc.testCases = [];
+      appStorage.set({ sessionData: sessionData }, () => {
         renderDocSelector();
         populateActiveDoc();
       });
+      if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'RESET_ACTIVE_DOC' });
+      }
     }
   });
 
   const btnResetAllDocs = document.getElementById('btn-reset-all-docs');
   btnResetAllDocs?.addEventListener('click', () => {
     if (confirm('⚠️ PERINGATAN: Yakin ingin MENGHAPUS SEMUA DOKUMEN dan mereset penyimpanan ke kondisi awal yang bersih?')) {
-      chrome.runtime.sendMessage({ type: 'RESET_ALL_DOCUMENTS' }, (res) => {
-        if (res && res.sessionData) {
-          sessionData = res.sessionData;
-        } else {
-          sessionData = { documents: [] };
-          getActiveDoc();
-        }
+      const def = createDefaultDocument();
+      sessionData = { documents: [def], activeDocId: def.id };
+      appStorage.set({ sessionData: sessionData }, () => {
         renderDocSelector();
         populateActiveDoc();
         alert('Semua dokumen berhasil dihapus dan direset ke dokumen baru yang bersih!');
       });
+      if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'RESET_ALL_DOCUMENTS' });
+      }
     }
   });
 
@@ -2385,8 +2420,10 @@ document.addEventListener('DOMContentLoaded', () => {
     fileMenuDropdown?.classList.remove('show');
     const res = cleanAndMigrateOldDocumentData(sessionData);
     if (res.modified) {
-      chrome.storage.local.set({ sessionData: sessionData }, () => {
-        chrome.runtime.sendMessage({ type: 'STORAGE_UPDATED' });
+      appStorage.set({ sessionData: sessionData }, () => {
+        if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ type: 'STORAGE_UPDATED' });
+        }
         renderDocSelector();
         populateActiveDoc();
         alert(`✔ Dokumen berhasil dinormalisasi!\n\n- ${res.cleanedTexts} teks field/komentar dibersihkan dari gambar base64 besar.\n- ${res.cleanedSteps} screenshot step input formulir dirapikan.\n- Judul dokumen & resolusi layar disesuaikan.`);
@@ -2410,14 +2447,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const imported = JSON.parse(evt.target.result);
         if (imported) {
           sessionData = imported;
-          chrome.storage.local.set({ sessionData: sessionData }, () => {
-            chrome.runtime.sendMessage({
-              type: 'STORAGE_UPDATED'
-            }, () => {
-              renderDocSelector();
-              populateActiveDoc();
-              alert('Workspace Dokumen Unit Test berhasil diimpor!');
-            });
+          appStorage.set({ sessionData: sessionData }, () => {
+            if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+              chrome.runtime.sendMessage({ type: 'STORAGE_UPDATED' });
+            }
+            renderDocSelector();
+            populateActiveDoc();
+            alert('Workspace Dokumen Unit Test berhasil diimpor!');
           });
         }
       } catch (err) {
@@ -2459,4 +2495,143 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     return bytes;
   }
+
+  // --- PLAYWRIGHT AUTOMATION RUNNER CONTROLLER (DESKTOP STUDIO) ---
+  const btnRunAutomation = document.getElementById('btn-run-automation');
+  const modalRunner = document.getElementById('modal-runner');
+  const btnCloseRunner = document.getElementById('btn-close-runner');
+  const btnRunnerClose = document.getElementById('btn-runner-close');
+  const btnTriggerRun = document.getElementById('btn-trigger-run');
+  const runnerSpecSelect = document.getElementById('runner-spec-select');
+  const runnerTerminalLogs = document.getElementById('runner-terminal-logs');
+  const runnerStatusBadge = document.getElementById('runner-status-badge');
+  const runnerResultSummary = document.getElementById('runner-result-summary');
+  const btnRunnerExportPdf = document.getElementById('btn-runner-export-pdf');
+  const btnExportPdfNative = document.getElementById('btn-export-pdf-native');
+
+  let runnerPollInterval = null;
+
+  btnRunAutomation?.addEventListener('click', () => {
+    if (modalRunner) modalRunner.style.display = 'flex';
+  });
+
+  function closeRunnerModal() {
+    if (modalRunner) modalRunner.style.display = 'none';
+    if (runnerPollInterval) {
+      clearInterval(runnerPollInterval);
+      runnerPollInterval = null;
+    }
+  }
+
+  btnCloseRunner?.addEventListener('click', closeRunnerModal);
+  btnRunnerClose?.addEventListener('click', closeRunnerModal);
+
+  btnTriggerRun?.addEventListener('click', async () => {
+    const spec = runnerSpecSelect ? runnerSpecSelect.value : '';
+    if (btnTriggerRun) btnTriggerRun.disabled = true;
+    if (runnerStatusBadge) {
+      runnerStatusBadge.textContent = 'RUNNING';
+      runnerStatusBadge.style.background = '#0284c7';
+      runnerStatusBadge.style.color = '#fff';
+    }
+    if (runnerTerminalLogs) {
+      runnerTerminalLogs.innerHTML = '<div style="color:#38bdf8;">[WeDocIt] Memulai eksekusi Playwright...</div>';
+    }
+    if (runnerResultSummary) runnerResultSummary.textContent = 'Status: Sedang mengeksekusi tes...';
+    if (btnRunnerExportPdf) btnRunnerExportPdf.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/run-tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spec })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        if (runnerTerminalLogs) runnerTerminalLogs.innerHTML += `<div style="color:#ef4444;">❌ ${data.error || 'Gagal memulai test'}</div>`;
+        if (btnTriggerRun) btnTriggerRun.disabled = false;
+        if (runnerStatusBadge) {
+          runnerStatusBadge.textContent = 'ERROR';
+          runnerStatusBadge.style.background = '#ef4444';
+        }
+        return;
+      }
+
+      // Mulai polling status & log
+      runnerPollInterval = setInterval(async () => {
+        try {
+          const stResp = await fetch('/api/test-status');
+          const stData = await stResp.json();
+
+          if (stData.logs && stData.logs.length > 0 && runnerTerminalLogs) {
+            runnerTerminalLogs.innerHTML = stData.logs.map(l => `<div>${escapeHtml(l)}</div>`).join('');
+            runnerTerminalLogs.scrollTop = runnerTerminalLogs.scrollHeight;
+          }
+
+          if (!stData.running) {
+            clearInterval(runnerPollInterval);
+            runnerPollInterval = null;
+            if (btnTriggerRun) btnTriggerRun.disabled = false;
+
+            if (stData.exitCode === 0) {
+              if (runnerStatusBadge) {
+                runnerStatusBadge.textContent = 'PASSED (100%)';
+                runnerStatusBadge.style.background = '#10b981';
+              }
+              if (runnerResultSummary) {
+                runnerResultSummary.innerHTML = `🎉 <b style="color:#10b981;">Pengujian Sukses!</b> Dokumen Word EDV ter-generate.`;
+              }
+              if (stData.lastOutputFile && btnRunnerExportPdf) {
+                btnRunnerExportPdf.style.display = 'inline-block';
+                btnRunnerExportPdf.dataset.docx = stData.lastOutputFile;
+              }
+            } else {
+              if (runnerStatusBadge) {
+                runnerStatusBadge.textContent = 'FAILED';
+                runnerStatusBadge.style.background = '#ef4444';
+              }
+              if (runnerResultSummary) {
+                runnerResultSummary.innerHTML = `⚠️ <b style="color:#ef4444;">Pengujian Selesai dengan Defect/Gagal</b> (Exit code: ${stData.exitCode})`;
+              }
+            }
+          }
+        } catch (pollErr) {
+          console.warn('Poll error:', pollErr);
+        }
+      }, 1000);
+
+    } catch (err) {
+      if (runnerTerminalLogs) runnerTerminalLogs.innerHTML += `<div style="color:#ef4444;">Gagal menghubungi server: ${err.message}</div>`;
+      if (btnTriggerRun) btnTriggerRun.disabled = false;
+    }
+  });
+
+  // Ekspor PDF Native via Word COM
+  async function triggerExportPdf(docxPath) {
+    alert('Sedang mengonversi ke PDF native melalui Microsoft Word COM di latar belakang...');
+    try {
+      const resp = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docxPath })
+      });
+      const res = await resp.json();
+      if (resp.ok && res.success) {
+        alert(`🎉 Dokumen PDF berhasil dibuat!\n\nFile: ${res.pdfPath}`);
+      } else {
+        alert(`❌ Gagal ekspor PDF: ${res.error || res.details || 'Terjadi kesalahan'}`);
+      }
+    } catch (e) {
+      alert(`Gagal menghubungi server lokal: ${e.message}`);
+    }
+  }
+
+  btnRunnerExportPdf?.addEventListener('click', () => {
+    triggerExportPdf(btnRunnerExportPdf.dataset.docx);
+  });
+
+  btnExportPdfNative?.addEventListener('click', () => {
+    triggerExportPdf();
+  });
 });

@@ -64,3 +64,9 @@ temp/
 # User Word Templates (agar file template internal/korporat tidak ikut ter-push ke GitHub)
 templates/*
 !templates/README.md
+
+# Local Desktop Workspace
+data/*.json
+!data/.gitkeep
+wedocit_workspace_cleansed.json
+
