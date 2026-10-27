@@ -4,19 +4,27 @@ import { ensureAuthenticated } from '../src/helpers/auth';
 test.describe('4. Menu RHA Pelaksanaan Offline', () => {
 
   test.beforeEach(async ({ page }) => {
-    await ensureAuthenticated(page);
+    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
   });
 
   // Helper navigasi ke RHA Pelaksanaan Offline
   async function navigateToRha(page: any) {
-    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
-
-    const rhaBtn = page.locator('p-button[ptooltip="RHA"], button:has-text("RHA"), tr td:nth-child(9) button').first();
-    if (await rhaBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await rhaBtn.click();
-      await page.waitForURL((url: any) => url.pathname.includes('/rha'), { timeout: 10000 });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
+    if (!page.url().includes('/rha')) {
+      await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
+
+      const rhaBtn = page.locator('tbody tr:first-child td:nth-child(9) button, tr td:nth-child(9) button').first();
+      if (await rhaBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await rhaBtn.click();
+        await page.waitForURL((url: any) => url.pathname.includes('/rha'), { timeout: 10000 });
+        await page.waitForTimeout(2000);
+      }
     }
   }
 

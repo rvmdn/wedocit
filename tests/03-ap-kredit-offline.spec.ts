@@ -5,19 +5,27 @@ import * as path from 'path';
 test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
 
   test.beforeEach(async ({ page }) => {
-    await ensureAuthenticated(page);
+    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
   });
 
   // Helper navigasi ke AP Kredit Pelaksanaan Offline
   async function navigateToApKredit(page: any) {
-    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
-
-    const apKreditBtn = page.locator('p-button[ptooltip="AP Kredit"], button:has-text("AP Kredit"), tr td:nth-child(8) button').first();
-    if (await apKreditBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await apKreditBtn.click();
-      await page.waitForURL((url: any) => url.pathname.includes('/ap-kredit'), { timeout: 10000 });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
+    if (!page.url().includes('/ap-kredit')) {
+      await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
+
+      const apKreditBtn = page.locator('tbody tr:first-child td:nth-child(8) button, tr td:nth-child(8) button').first();
+      if (await apKreditBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await apKreditBtn.click();
+        await page.waitForURL((url: any) => url.pathname.includes('/ap-kredit'), { timeout: 10000 });
+        await page.waitForTimeout(2000);
+      }
     }
   }
 
@@ -56,17 +64,19 @@ test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
       expected: 'Data sample debitur termuat dengan rapi tanpa muncul popup notifikasi ganda.'
     });
 
-    // Pindah halaman jika ada
-    const paginatorNext = page.locator('.p-paginator-next, .p-paginator-page').nth(1);
+    // Pindah halaman jika ada dan aktif
+    const paginatorNext = page.locator('.p-paginator-next:not(.p-disabled), .p-paginator-page').nth(1);
     if (await paginatorNext.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await paginatorNext.click();
-      await page.waitForTimeout(1500);
+      if (await paginatorNext.isEnabled().catch(() => false)) {
+        await paginatorNext.click();
+        await page.waitForTimeout(1500);
 
-      await wedocit.captureStep({
-        title: 'Verifikasi Pindah Halaman Sample Debitur',
-        description: 'Pengguna melakukan navigasi halaman tabel data debitur.',
-        expected: 'Paginasi berpindah dengan mulus tanpa memicu request tumpang tindih atau toast duplikat.'
-      });
+        await wedocit.captureStep({
+          title: 'Verifikasi Pindah Halaman Sample Debitur',
+          description: 'Pengguna melakukan navigasi halaman tabel data debitur.',
+          expected: 'Paginasi berpindah dengan mulus tanpa memicu request tumpang tindih atau toast duplikat.'
+        });
+      }
     }
 
     const toastCount = await page.locator('.p-toast-message').count();

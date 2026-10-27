@@ -4,7 +4,11 @@ import { ensureAuthenticated } from '../src/helpers/auth';
 test.describe('5. Menu Pelaksanaan Audit Online (Komparasi & View)', () => {
 
   test.beforeEach(async ({ page }) => {
-    await ensureAuthenticated(page);
+    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit', { waitUntil: 'domcontentloaded' });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+      await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit', { waitUntil: 'domcontentloaded' });
+    }
   });
 
   // --- Skenario 5.1 ---

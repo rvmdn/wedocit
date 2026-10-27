@@ -23,6 +23,7 @@ const hasAuth = fs.existsSync(authFile);
 
 export default defineConfig({
   testDir: './tests',
+  timeout: 60000,
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

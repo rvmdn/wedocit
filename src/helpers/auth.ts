@@ -28,13 +28,16 @@ export async function ensureAuthenticated(page: Page, options: LoginOptions = {}
     return;
   }
 
-  // Jika auth file sudah ada, lakukan verifikasi cepat
-  if (fs.existsSync(AUTH_FILE)) {
+  // Validasi apakah sesi saat ini masih aktif
+  if (page.url().includes(loginPath)) {
+    await loginWithCredentials(page, { username, password, loginType, resetPassword, loginPath });
     return;
   }
 
-  // Jika belum ada session file, login sekarang
-  await loginWithCredentials(page, { username, password, loginType, resetPassword, loginPath });
+  // Jika auth file belum ada, login sekarang
+  if (!fs.existsSync(AUTH_FILE)) {
+    await loginWithCredentials(page, { username, password, loginType, resetPassword, loginPath });
+  }
 }
 
 /**
@@ -52,7 +55,8 @@ export async function loginWithCredentials(page: Page, options: {
   const loginPath = options.loginPath || process.env.FAST_LOGIN_PATH || '/login';
 
   console.log(`[WeDocIt Auth] Mengakses halaman login AMS FAST dev... (User: ${options.username})`);
-  await page.goto(loginPath, { waitUntil: 'networkidle' });
+  await page.goto(loginPath, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1000);
 
   // 1. Isi Username & Password
   await page.locator('input#username').fill(options.username);

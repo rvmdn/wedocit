@@ -5,25 +5,33 @@ import * as path from 'path';
 test.describe('2. Menu Pengujian AP Non-Kredit Pelaksanaan Offline', () => {
 
   test.beforeEach(async ({ page }) => {
-    await ensureAuthenticated(page);
+    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
   });
 
   // Helper untuk membuka halaman pengujian AP Non-Kredit
   async function navigateToPengujianAp(page: any) {
-    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
-
-    const apBtn = page.locator('p-button[ptooltip="AP Non Kredit"], button:has-text("AP Non Kredit"), tr td:nth-child(7) button').first();
-    if (await apBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await apBtn.click();
-      await page.waitForURL((url: any) => url.pathname.includes('/ap-non-kredit'), { timeout: 10000 });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
+    if (!page.url().includes('/pengujian-ap')) {
+      await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2000);
 
-      const infoBtn = page.locator('p-button[icon="pi pi-info-circle"], button[icon="pi pi-info-circle"]').first();
-      if (await infoBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
-        await infoBtn.click();
-        await page.waitForURL((url: any) => url.pathname.includes('/pengujian-ap'), { timeout: 10000 });
+      const apBtn = page.locator('tbody tr:first-child td:nth-child(7) button').first();
+      if (await apBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await apBtn.click();
+        await page.waitForURL((url: any) => url.pathname.includes('/ap-non-kredit'), { timeout: 10000 });
         await page.waitForTimeout(2000);
+
+        const infoBtn = page.locator('tbody tr:first-child td:nth-child(6) button, button[icon*="info"]').first();
+        if (await infoBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+          await infoBtn.click();
+          await page.waitForURL((url: any) => url.pathname.includes('/pengujian-ap'), { timeout: 10000 });
+          await page.waitForTimeout(2000);
+        }
       }
     }
   }

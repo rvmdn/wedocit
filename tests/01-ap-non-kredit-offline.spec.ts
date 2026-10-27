@@ -4,20 +4,32 @@ import { ensureAuthenticated } from '../src/helpers/auth';
 test.describe('1. Menu AP Non-Kredit Pelaksanaan Offline', () => {
 
   test.beforeEach(async ({ page }) => {
-    await ensureAuthenticated(page);
+    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
   });
 
   // Helper untuk membuka halaman AP Non-Kredit Offline baris pertama
   async function navigateToApNonKredit(page: any) {
-    await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    if (page.url().includes('/login')) {
+      await ensureAuthenticated(page);
+    }
+    if (!page.url().includes('/pelaksanaan-audit-offline') || page.url().includes('/ap-non-kredit')) {
+      if (!page.url().includes('/ap-non-kredit')) {
+        await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit-offline', { waitUntil: 'domcontentloaded' });
+      }
+    }
 
-    // Klik tombol AP Non Kredit pada baris penugasan pertama
-    const apBtn = page.locator('p-button[ptooltip="AP Non Kredit"], button:has-text("AP Non Kredit"), tr td:nth-child(7) button').first();
-    if (await apBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await apBtn.click();
-      await page.waitForURL((url: any) => url.pathname.includes('/ap-non-kredit'), { timeout: 10000 });
+    if (!page.url().includes('/ap-non-kredit')) {
       await page.waitForTimeout(2000);
+      // Klik tombol AP Non Kredit pada baris penugasan pertama (Kolom ke-7)
+      const apBtn = page.locator('tbody tr:first-child td:nth-child(7) button, tr td:nth-child(7) button').first();
+      if (await apBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await apBtn.click();
+        await page.waitForURL((url: any) => url.pathname.includes('/ap-non-kredit'), { timeout: 10000 });
+        await page.waitForTimeout(2000);
+      }
     }
   }
 
@@ -56,17 +68,19 @@ test.describe('1. Menu AP Non-Kredit Pelaksanaan Offline', () => {
       expected: 'Data tabel program audit tersaji bersih dan tidak muncul toast notification berulang atau tumpang tindih.'
     });
 
-    // Pindah halaman tabel jika paginator tersedia
-    const nextPaginatorBtn = page.locator('.p-paginator-next, .p-paginator-page').nth(1);
+    // Pindah halaman tabel jika paginator tersedia dan aktif
+    const nextPaginatorBtn = page.locator('.p-paginator-next:not(.p-disabled), .p-paginator-page').nth(1);
     if (await nextPaginatorBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await nextPaginatorBtn.click();
-      await page.waitForTimeout(1500);
+      if (await nextPaginatorBtn.isEnabled().catch(() => false)) {
+        await nextPaginatorBtn.click();
+        await page.waitForTimeout(1500);
 
-      await wedocit.captureStep({
-        title: 'Pindah Halaman Paginasi Tabel Program Audit',
-        description: 'Pengguna berpindah ke halaman berikutnya pada tabel AP Non-Kredit.',
-        expected: 'Data halaman berikutnya tampil tanpa memicu popup toast berulang.'
-      });
+        await wedocit.captureStep({
+          title: 'Pindah Halaman Paginasi Tabel Program Audit',
+          description: 'Pengguna berpindah ke halaman berikutnya pada tabel AP Non-Kredit.',
+          expected: 'Data halaman berikutnya tampil tanpa memicu popup toast berulang.'
+        });
+      }
     }
 
     // Verifikasi jumlah toast tidak duplikat
