@@ -38,22 +38,6 @@ test.describe('2. Menu Pengujian AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 2.1 ---
   test('[TC-2.1] Upload Lampiran (Ukuran & Format)', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pengujian AP Non-Kredit Offline',
-      module: 'Pengujian AP Non-Kredit Pelaksanaan Offline',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian validasi unggah berkas lampiran dengan ukuran > 5 MB atau ekstensi file yang tidak diizinkan',
-      acceptanceCriteria: 'Sistem memblokir proses upload dan menampilkan notifikasi peringatan validasi: format/ekstensi tidak diizinkan atau ukuran melebihi batas 5 MB.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-2.1',
@@ -94,22 +78,6 @@ test.describe('2. Menu Pengujian AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 2.2 ---
   test('[TC-2.2] Upload Lampiran Valid', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pengujian AP Non-Kredit Offline',
-      module: 'Pengujian AP Non-Kredit Pelaksanaan Offline',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian alur upload lampiran pengujian dengan berkas valid <= 5 MB',
-      acceptanceCriteria: 'File valid berhasil diunggah, muncul notifikasi sukses, dan nama file tersaji pada tabel daftar lampiran.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-2.2',
@@ -148,22 +116,6 @@ test.describe('2. Menu Pengujian AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 2.3 ---
   test('[TC-2.3] Reset Jodit Editor saat Tambah Simpulan Berulang', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pengujian AP Non-Kredit Offline',
-      module: 'Pengujian AP Non-Kredit Pelaksanaan Offline',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian reset state komponen Rich Text Jodit Editor saat membuka modal Tambah Simpulan secara berulang',
-      acceptanceCriteria: 'Editor Jodit dan form ter-reset bersih (kosong), tidak ada sisa teks simpulan sebelumnya yang tertinggal.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-2.3',
@@ -215,22 +167,6 @@ test.describe('2. Menu Pengujian AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 2.4 ---
   test('[TC-2.4] Reset Jodit Editor saat Batal / Tutup Dialog', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pengujian AP Non-Kredit Offline',
-      module: 'Pengujian AP Non-Kredit Pelaksanaan Offline',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian reset state Jodit Editor saat dialog dibatalkan / ditutup melalui tombol [X] atau Cancel',
-      acceptanceCriteria: 'Editor Jodit bersih kembali saat modal dibuka ulang, tidak menyimpan draft yang dibatalkan.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-2.4',
@@ -281,22 +217,6 @@ test.describe('2. Menu Pengujian AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 2.5 ---
   test('[TC-2.5] Edit Simpulan Anggota', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pengujian AP Non-Kredit Offline',
-      module: 'Pengujian AP Non-Kredit Pelaksanaan Offline',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian pemuatan data eksisting pada modal Edit Simpulan Anggota',
-      acceptanceCriteria: 'Modal Edit Simpulan terbuka dan editor Jodit terisi sesuai data simpulan yang dipilih secara presisi.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-2.5',

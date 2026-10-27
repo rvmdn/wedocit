@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import JSZip from 'jszip';
 import { WeDocItMetadata, WeDocItStep, WeDocItTestCaseInfo } from '../fixtures/wedocit';
+import { wedocitConfig } from '../../wedocit.config';
 
 interface CollectedTestCase {
   id: string;
@@ -17,21 +18,7 @@ interface CollectedTestCase {
 
 export default class WeDocItWordReporter implements Reporter {
   private metadata: WeDocItMetadata = {
-    title: 'Unit Test Documentation - Pelaksanaan Modul',
-    systemName: 'AMS Fast (Audit Management System)',
-    projectName: 'AMS Fast',
-    crNo: 'CR-AMS-2026',
-    projectType: 'CR',
-    shortDescription: 'Pengujian dan verifikasi fungsional sistem',
-    testedBy: 'Developer / QA Team',
-    npp: '-',
-    developers: [],
-    startDate: new Date().toLocaleDateString('id-ID'),
-    endDate: new Date().toLocaleDateString('id-ID'),
-    docDate: new Date().toLocaleDateString('id-ID'),
-    copyrightYear: String(new Date().getFullYear()),
-    scope: 'Pengujian modul dan fungsionalitas proses',
-    acceptanceCriteria: 'Seluruh skenario pengujian berjalan sukses dan data tersimpan di sistem'
+    ...wedocitConfig.metadata
   };
 
   private testCases: CollectedTestCase[] = [];
@@ -81,7 +68,7 @@ export default class WeDocItWordReporter implements Reporter {
   async onEnd(result: FullResult) {
     console.log(`\n📄 [WeDocIt v2.0] Mengenerate Dokumen Word EDV BNI dari ${this.testCases.length} Test Case...`);
     
-    const templatePath = path.resolve(process.cwd(), 'templates', 'template-bni-edv.docx');
+    const templatePath = path.resolve(process.cwd(), wedocitConfig.document?.templatePath || 'templates/template-bni-edv.docx');
     if (!fs.existsSync(templatePath)) {
       console.error(`❌ Template Word BNI EDV tidak ditemukan di: ${templatePath}`);
       return;
@@ -91,18 +78,13 @@ export default class WeDocItWordReporter implements Reporter {
       const templateBuffer = fs.readFileSync(templatePath);
       const zip = await JSZip.loadAsync(templateBuffer);
 
-      // Jika menjalankan seluruh suite pengujian gabungan (> 3 Test Cases)
-      if (this.testCases.length > 3 && !process.env.DOC_TITLE) {
-        this.metadata.title = 'Unit Test Documentation - Pelaksanaan Audit (Offline & Online)';
-        this.metadata.module = 'Pelaksanaan Audit (Offline & Online)';
-        this.metadata.scope = 'Pengujian menyeluruh modul Pelaksanaan Audit Offline (AP Non-Kredit, Pengujian AP, AP Kredit, RHA) dan Pelaksanaan Audit Online';
-        this.metadata.acceptanceCriteria = 'Seluruh skenario pengujian (Rich Text Jodit Editor, Notifikasi, Validasi Upload Lampiran, dan Hak Akses Role) berjalan sukses dan data tersimpan di sistem.';
-      } else if (process.env.DOC_TITLE) {
-        this.metadata.title = process.env.DOC_TITLE;
-        if (process.env.DOC_MODULE) this.metadata.module = process.env.DOC_MODULE;
-        if (process.env.DOC_SCOPE) this.metadata.scope = process.env.DOC_SCOPE;
-        if (process.env.DOC_CR_NO) this.metadata.crNo = process.env.DOC_CR_NO;
-      }
+      // Pastikan fallback nilai metadata terisi dari konfigurasi dan environment
+      if (process.env.DOC_TITLE) this.metadata.title = process.env.DOC_TITLE;
+      if (process.env.DOC_MODULE) this.metadata.module = process.env.DOC_MODULE;
+      if (process.env.DOC_SCOPE) this.metadata.scope = process.env.DOC_SCOPE;
+      if (process.env.DOC_CR_NO) this.metadata.crNo = process.env.DOC_CR_NO;
+      if (process.env.DOC_CRITERIA) this.metadata.acceptanceCriteria = process.env.DOC_CRITERIA;
+
 
       const devs = this.metadata.developers || [];
       let devHeaderFormatted = '';
@@ -373,15 +355,19 @@ export default class WeDocItWordReporter implements Reporter {
         compressionOptions: { level: 6 }
       });
 
-      const outputDir = path.resolve(process.cwd(), 'output');
+      const outputDir = path.resolve(process.cwd(), wedocitConfig.document?.outputDir || 'output');
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      const safeModule = (this.metadata.title || 'Modul').replace(/Unit Test Documentation\s*[-–:]\s*/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeModule = (this.metadata.module || this.metadata.title || 'Modul')
+        .replace(/Unit Test Documentation\s*[-–:]\s*/i, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeCr = (this.metadata.crNo || 'CR').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `EDV_Unit_Test_${safeCr}_${safeModule}_V1.0.docx`;
+      const pattern = wedocitConfig.document?.filenamePattern || 'EDV_Unit_Test_{crNo}_{module}_V1.0.docx';
+      const filename = pattern.replace('{crNo}', safeCr).replace('{module}', safeModule);
       let outputPath = path.join(outputDir, filename);
+
       try {
         fs.writeFileSync(outputPath, outputBuffer);
       } catch (err: any) {

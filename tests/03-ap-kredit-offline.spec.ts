@@ -31,22 +31,6 @@ test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 3.1 ---
   test('[TC-3.1] Notifikasi Pemuatan Data Awal', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian stabilitas pemuatan awal data sampel debitur dan navigasi paginasi pada AP Kredit Offline',
-      acceptanceCriteria: 'Tidak muncul notifikasi toast dobel. Tabel sampel debitur termuat tanpa request tumpang tindih.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-3.1',
@@ -85,22 +69,6 @@ test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 3.2 ---
   test('[TC-3.2] Notifikasi Pencarian Manual', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian fungsionalitas pencarian manual pada daftar debitur AP Kredit',
-      acceptanceCriteria: 'Muncul notifikasi sukses "Data berhasil dimuat" tepat sebanyak 1 kali saat pencarian selesai diproses.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-3.2',
@@ -136,22 +104,6 @@ test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 3.3 ---
   test('[TC-3.3] Pengujian AP Kredit & Jodit Editor', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian reset state form simpulan kredit dan Jodit Editor pada modul AP Kredit Offline',
-      acceptanceCriteria: 'Editor Jodit di form simpulan kredit ter-reset bersih dan tidak meninggalkan residu teks lama saat modal ditutup/dibuka kembali.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-3.3',
@@ -208,22 +160,6 @@ test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 3.4 ---
   test('[TC-3.4] Upload Lampiran AP Kredit', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian validasi batas ukuran berkas lampiran pada pengujian AP Kredit',
-      acceptanceCriteria: 'Sistem menampilkan notifikasi validasi batas ukuran maksimal 5 MB saat file melebihi kapasitas diunggah.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-3.4',
@@ -247,22 +183,6 @@ test.describe('3. Menu AP Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 3.5 ---
   test('[TC-3.5] Simpulan Katim AP Kredit', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian isolasi state dialog simpulan Katim AP Kredit (*ngIf="displayEditSimpulanKatim")',
-      acceptanceCriteria: 'Dialog dimuat secara fresh (*ngIf), data tampil akurat tanpa konflik state antar baris debitur.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-3.5',

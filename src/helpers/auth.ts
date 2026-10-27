@@ -1,136 +1,149 @@
-import { Page, expect } from '@playwright/test';
+import { Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import { wedocitConfig } from '../../wedocit.config';
 
-export const AUTH_FILE = path.resolve(__dirname, '../../.auth/user.json');
+export function getAuthFilePath(role: string = 'DEFAULT'): string {
+  const safeRole = role.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  return path.resolve(process.cwd(), `.auth/user_${safeRole}.json`);
+}
 
-export interface LoginOptions {
+export interface EnsureAuthOptions {
+  role?: string;
   username?: string;
   password?: string;
   loginType?: string;
-  resetPassword?: string;
-  loginPath?: string;
+  forceLogin?: boolean;
 }
 
 /**
- * Helper untuk memastikan browser dalam kondisi terautentikasi (logged in)
+ * Helper generik untuk memastikan browser terautentikasi sesuai role yang diminta
  */
-export async function ensureAuthenticated(page: Page, options: LoginOptions = {}) {
-  const username = options.username || process.env.FAST_USERNAME;
-  const password = options.password || process.env.FAST_PASSWORD;
-  const loginType = options.loginType || process.env.FAST_LOGIN_TYPE || 'HQ';
-  const resetPassword = options.resetPassword || process.env.FAST_RESET_PASSWORD || 'ResetBni';
-  const loginPath = options.loginPath || process.env.FAST_LOGIN_PATH || '/login';
+export async function ensureAuthenticated(page: Page, options: EnsureAuthOptions = {}) {
+  const roleName = options.role ? options.role.toUpperCase() : 'DEFAULT';
+  const roleConfig = wedocitConfig.app.roles[roleName] || wedocitConfig.app.roles.DEFAULT;
+  const authFile = getAuthFilePath(roleName);
 
-  if (!username || !password) {
-    console.log('\n[WeDocIt Auth] Menunggu sesi login...');
-    console.log('Untuk menjalankan otomatis tanpa intervensi, sediakan FAST_USERNAME & FAST_PASSWORD di file .env.');
-    return;
-  }
+  const username = options.username || process.env[roleConfig.usernameEnv] || roleConfig.defaultUsername;
+  const password = options.password || process.env[roleConfig.passwordEnv] || roleConfig.defaultPassword;
+  const loginType = options.loginType || (roleConfig.loginTypeEnv ? process.env[roleConfig.loginTypeEnv] : '') || roleConfig.defaultType || 'HQ';
 
-  // Validasi apakah sesi saat ini masih aktif
-  if (page.url().includes(loginPath)) {
-    await loginWithCredentials(page, { username, password, loginType, resetPassword, loginPath });
-    return;
-  }
+  const loginPath = wedocitConfig.app.loginPath || '/login';
+  const isCurrentlyOnLogin = page.url().includes(loginPath);
 
-  // Jika auth file belum ada, login sekarang
-  if (!fs.existsSync(AUTH_FILE)) {
-    await loginWithCredentials(page, { username, password, loginType, resetPassword, loginPath });
+  // Jika dipaksa login, atau di halaman login, atau belum punya session file untuk role ini
+  if (options.forceLogin || !fs.existsSync(authFile) || isCurrentlyOnLogin) {
+    if (!username || !password) {
+      console.warn(`[WeDocIt Auth] Kredensial untuk role ${roleName} belum lengkap di .env atau wedocit.config.`);
+      return;
+    }
+    await loginWithRole(page, {
+      role: roleName,
+      username,
+      password,
+      loginType,
+      authFile
+    });
   }
 }
 
 /**
- * Melakukan proses login lengkap ke AMS FAST dev server dengan auto-reset jika sesi aktif bentrok
+ * Eksekusi login generik berbasis konfigurasi wedocit.config.ts
  */
-export async function loginWithCredentials(page: Page, options: { 
-  username: string; 
-  password: string; 
+export async function loginWithRole(page: Page, params: {
+  role: string;
+  username: string;
+  password: string;
   loginType?: string;
-  resetPassword?: string;
-  loginPath?: string;
+  authFile: string;
 }) {
-  const resetPass = options.resetPassword || 'ResetBni';
-  const typeTarget = options.loginType === '1' || !options.loginType ? 'HQ' : options.loginType;
-  const loginPath = options.loginPath || process.env.FAST_LOGIN_PATH || '/login';
+  const app = wedocitConfig.app;
+  const selectors = app.selectors;
 
-  console.log(`[WeDocIt Auth] Mengakses halaman login AMS FAST dev... (User: ${options.username})`);
-  await page.goto(loginPath, { waitUntil: 'domcontentloaded' });
+  console.log(`[WeDocIt Auth] Melakukan login sebagai Role [${params.role}] (User: ${params.username})...`);
+  await page.goto(app.loginPath, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1000);
 
   // 1. Isi Username & Password
-  await page.locator('input#username').fill(options.username);
-  await page.locator('input[type="password"]').fill(options.password);
+  await page.locator(selectors.usernameInput).fill(params.username);
+  await page.locator(selectors.passwordInput).fill(params.password);
 
-  // 2. Pilih Type (HQ)
-  await selectLoginType(page, typeTarget);
+  // 2. Pilih Type jika ada selector type
+  if (selectors.typeSelect && params.loginType) {
+    const trigger = page.locator(selectors.typeSelect);
+    if (await trigger.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await trigger.click();
+      await page.waitForTimeout(300);
+      const opt = page.locator(`.p-select-option:has-text("${params.loginType}"), li:has-text("${params.loginType}")`).first();
+      if (await opt.isVisible().catch(() => false)) {
+        await opt.click();
+      } else {
+        await page.locator('.p-select-option, li').first().click();
+      }
+    }
+  }
 
-  // 3. Klik tombol Login
-  await page.locator('button[type="submit"]:has-text("Login")').click();
+  // 3. Submit Login
+  await page.locator(selectors.submitButton).first().click();
   await page.waitForTimeout(2500);
 
-  // 4. Deteksi apakah ada pesan "User Already Login"
-  const toastTexts = await getToastMessages(page);
-  const isAlreadyLogin = toastTexts.some(t => t.toLowerCase().includes('already login'));
+  // 4. Deteksi Auto-Reset Session jika dikonfigurasi
+  if (app.autoResetSession) {
+    const toastTexts = await getToastMessages(page);
+    const hasConflict = toastTexts.some(t => t.toLowerCase().includes(app.autoResetSession!.detectKeyword.toLowerCase()));
 
-  if (isAlreadyLogin) {
-    console.log('⚠️ [WeDocIt Auth] Terdeteksi sesi aktif sebelumnya (User Already Login).');
-    console.log(`🔄 [WeDocIt Auth] Menjalankan Reset Session otomatis dengan user ${options.username} & pass ${resetPass}...`);
+    if (hasConflict) {
+      const resetPass = (app.autoResetSession.resetPasswordEnv ? process.env[app.autoResetSession.resetPasswordEnv] : '') || app.autoResetSession.defaultResetPassword || 'ResetBni';
+      console.log(`⚠️ [WeDocIt Auth] Terdeteksi sesi aktif [${app.autoResetSession.detectKeyword}].`);
+      console.log(`🔄 [WeDocIt Auth] Menjalankan Auto-Reset Session untuk [${params.username}]...`);
 
-    // Reset session dengan password ResetBni
-    await page.locator('input[type="password"]').fill(resetPass);
-    await page.locator('button[type="submit"]:has-text("Login")').click();
-    await page.waitForTimeout(2000);
+      await page.locator(selectors.passwordInput).fill(resetPass);
+      await page.locator(selectors.submitButton).first().click();
+      await page.waitForTimeout(2000);
 
-    const resetFeedback = await getToastMessages(page);
-    console.log(`✔ [WeDocIt Auth] Status Reset: ${resetFeedback.join(' | ') || 'Sukses'}`);
+      const resetFeedback = await getToastMessages(page);
+      console.log(`✔ [WeDocIt Auth] Status Reset: ${resetFeedback.join(' | ') || 'Sukses'}`);
 
-    // Login ulang dengan kredensial utama
-    console.log('🔑 [WeDocIt Auth] Login kembali dengan password utama...');
-    await page.locator('input#username').fill(options.username);
-    await page.locator('input[type="password"]').fill(options.password);
-    await selectLoginType(page, typeTarget);
-    await page.locator('button[type="submit"]:has-text("Login")').click();
+      // Login ulang
+      console.log(`🔑 [WeDocIt Auth] Login ulang dengan kredensial utama...`);
+      await page.locator(selectors.usernameInput).fill(params.username);
+      await page.locator(selectors.passwordInput).fill(params.password);
+      if (selectors.typeSelect && params.loginType) {
+        const trigger = page.locator(selectors.typeSelect);
+        if (await trigger.isVisible().catch(() => false)) {
+          await trigger.click();
+          await page.waitForTimeout(300);
+          await page.locator(`.p-select-option:has-text("${params.loginType}"), li:has-text("${params.loginType}")`).first().click();
+        }
+      }
+      await page.locator(selectors.submitButton).first().click();
+    }
   }
 
   // 5. Tunggu redirect sukses keluar dari loginPath
   try {
-    await page.waitForURL((url) => !url.pathname.includes(loginPath), { timeout: 15000 });
-    console.log(`🎉 [WeDocIt Auth] Berhasil masuk ke: ${page.url()}`);
+    await page.waitForURL((url) => !url.pathname.includes(app.loginPath), { timeout: 15000 });
+    console.log(`🎉 [WeDocIt Auth] Role [${params.role}] berhasil masuk: ${page.url()}`);
 
-    // 6. Simpan session state untuk run berikutnya
-    const authDir = path.dirname(AUTH_FILE);
+    // Simpan session state khusus role ini
+    const authDir = path.dirname(params.authFile);
     if (!fs.existsSync(authDir)) {
       fs.mkdirSync(authDir, { recursive: true });
     }
-    await page.context().storageState({ path: AUTH_FILE });
-    console.log(`💾 [WeDocIt Auth] Sesi autentikasi tersimpan aman di: ${AUTH_FILE}`);
+    await page.context().storageState({ path: params.authFile });
+    console.log(`💾 [WeDocIt Auth] Sesi role [${params.role}] tersimpan di: ${params.authFile}`);
   } catch (err) {
     const errorToasts = await getToastMessages(page);
-    console.error(`❌ [WeDocIt Auth] Gagal login: ${errorToasts.join(' | ') || 'Navigasi timeout'}`);
+    console.error(`❌ [WeDocIt Auth] Gagal login role [${params.role}]: ${errorToasts.join(' | ') || 'Timeout'}`);
     throw err;
   }
 }
 
-async function selectLoginType(page: Page, typeTarget: string) {
-  const selectTrigger = page.locator('p-select, .p-select');
-  if (await selectTrigger.isVisible()) {
-    await selectTrigger.click();
-    await page.waitForTimeout(300);
-    const targetOption = page.locator(`.p-select-option:has-text("${typeTarget}"), li:has-text("${typeTarget}")`).first();
-    if (await targetOption.isVisible()) {
-      await targetOption.click();
-    } else {
-      // Fallback ke opsi pertama atau HQ
-      await page.locator('.p-select-option, li').first().click();
-    }
-  }
-}
-
 async function getToastMessages(page: Page): Promise<string[]> {
-  return await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('.p-toast-message, .p-toast-detail, .p-toast-summary'))
+  const toastSelector = wedocitConfig.app.selectors.toastMessage || '.p-toast-message';
+  return await page.evaluate((sel) => {
+    return Array.from(document.querySelectorAll(sel))
       .map(el => (el as HTMLElement).innerText?.trim())
       .filter(Boolean);
-  });
+  }, toastSelector);
 }

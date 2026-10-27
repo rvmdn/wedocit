@@ -30,22 +30,6 @@ test.describe('4. Menu RHA Pelaksanaan Offline', () => {
 
   // --- Skenario 4.1 ---
   test('[TC-4.1] Hak Akses Role (TL vs Anggota/Lainnya)', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - RHA Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (RHA)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian pemisahan hak akses otorisasi antara Team Lead (Katim) dan Anggota Tim pada form RHA',
-      acceptanceCriteria: 'Team Lead dapat mengedit field intro, summary, dan tombol Save aktif. Selain Team Lead (Anggota/Admin dll), tampilan bersifat View Only dan tombol Save disembunyikan.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-4.1',
@@ -75,22 +59,6 @@ test.describe('4. Menu RHA Pelaksanaan Offline', () => {
 
   // --- Skenario 4.2 ---
   test('[TC-4.2] Dialog Ubah Data Temuan', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - RHA Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (RHA)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian pembersihan state modal ubah data temuan audit (*ngIf="displayUbahTemuan && selectedTemuanDetail")',
-      acceptanceCriteria: 'Modal ubah data temuan terbuka dengan state data yang bersih dan terisolasi per baris temuan.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-4.2',
@@ -117,22 +85,6 @@ test.describe('4. Menu RHA Pelaksanaan Offline', () => {
 
   // --- Skenario 4.3 ---
   test('[TC-4.3] Upload Lampiran RHA', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - RHA Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (RHA)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian validasi unggah berkas pendukung temuan RHA terhadap ukuran maksimal dan format file',
-      acceptanceCriteria: 'Validasi ukuran 5 MB dan ekstensi file pada lampiran RHA berjalan dengan benar.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-4.3',

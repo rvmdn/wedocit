@@ -35,23 +35,6 @@ test.describe('1. Menu AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 1.1 ---
   test('[TC-1.1] Notifikasi Pemuatan Data Awal', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Non-Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Non-Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian notifikasi pemuatan data awal dan transisi paginasi pada tabel AP Non-Kredit Pelaksanaan Offline',
-      acceptanceCriteria: 'Tidak muncul notifikasi toast ganda/dobel saat halaman dibuka maupun saat paginasi berpindah halaman. Data tabel langsung tersaji bersih.'
-    });
-
     wedocit.setTestCase({
       tcNumberStr: 'TC-1.1',
       scenarioName: 'Notifikasi Pemuatan Data Awal',
@@ -90,23 +73,6 @@ test.describe('1. Menu AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 1.2 ---
   test('[TC-1.2] Notifikasi Pencarian Manual', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Non-Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Non-Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian notifikasi umpan balik pencarian manual program audit AP Non-Kredit',
-      acceptanceCriteria: 'Muncul notifikasi sukses: "Data berhasil dimuat" tepat sebanyak 1 kali saat pencarian dieksekusi.'
-    });
-
     wedocit.setTestCase({
       tcNumberStr: 'TC-1.2',
       scenarioName: 'Notifikasi Pencarian Manual',
@@ -141,23 +107,6 @@ test.describe('1. Menu AP Non-Kredit Pelaksanaan Offline', () => {
 
   // --- Skenario 1.3 ---
   test('[TC-1.3] Tombol Pengujian AP', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - AP Non-Kredit Pelaksanaan Offline',
-      module: 'Pelaksanaan Audit Offline (AP Non-Kredit)',
-      systemName: 'AMS Fast - Pelaksanaan Audit Offline',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_OFFLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian aksi tombol info pengujian untuk navigasi ke rincian Pengujian AP',
-      acceptanceCriteria: 'Sistem berhasil mengarahkan pengguna ke halaman Pengujian AP Non-Kredit (/pengujian-ap).'
-    });
-
     wedocit.setTestCase({
       tcNumberStr: 'TC-1.3',
       scenarioName: 'Tombol Pengujian AP',
@@ -165,6 +114,7 @@ test.describe('1. Menu AP Non-Kredit Pelaksanaan Offline', () => {
       expectedResult: 'Masuk ke halaman Pengujian AP Non-Kredit (/pengujian-ap).',
       role: 'FASTIA25'
     });
+
 
     await navigateToApNonKredit(page);
 

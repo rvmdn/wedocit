@@ -13,22 +13,6 @@ test.describe('5. Menu Pelaksanaan Audit Online (Komparasi & View)', () => {
 
   // --- Skenario 5.1 ---
   test('[TC-5.1] View Pengujian (AP Kredit & AP Non-Kredit Online)', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pelaksanaan Audit Online',
-      module: 'Pelaksanaan Audit Online',
-      systemName: 'AMS Fast - Pelaksanaan Audit Online',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_ONLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian sinkronisasi dan visibilitas data kertas kerja pengujian AP Kredit & Non-Kredit pada modul Pelaksanaan Audit Online',
-      acceptanceCriteria: 'Data pengujian dan simpulan yang diinput dari Pelaksanaan Offline dapat dilihat dan diverifikasi oleh seluruh tim audit di sistem online.'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-5.1',
@@ -62,22 +46,6 @@ test.describe('5. Menu Pelaksanaan Audit Online (Komparasi & View)', () => {
 
   // --- Skenario 5.2 ---
   test('[TC-5.2] Jodit Editor Dialog Tanggapan Auditee & Auditor', async ({ page, wedocit }) => {
-    wedocit.setMetadata({
-      title: 'Unit Test Documentation - Pelaksanaan Audit Online',
-      module: 'Pelaksanaan Audit Online',
-      systemName: 'AMS Fast - Pelaksanaan Audit Online',
-      projectName: 'AMS (Audit Management System)',
-      crNo: 'CR_AMS_2026_ONLINE',
-      testedBy: 'Irvan Ramadan',
-      npp: '822117',
-      developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-      startDate: '19/08/2026',
-      endDate: '27/10/2026',
-      docDate: '27/10/2026',
-      copyrightYear: '2026',
-      scope: 'Pengujian integritas state Rich Text Jodit Editor pada dialog Tanggapan Auditee & Tanggapan Auditor di modul RHA Online',
-      acceptanceCriteria: 'Editor Jodit terisi sesuai data baris yang dipilih atau bersih jika belum ada tanggapan (tidak mempertahankan sisa data modal sebelumnya).'
-    });
 
     wedocit.setTestCase({
       tcNumberStr: 'TC-5.2',
