@@ -8,7 +8,7 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "auth": "playwright test tests/auth.setup.ts --headed",
-    "record": "playwright codegen https://amsfast-dev.bni.co.id:8081 --ignore-https-errors",
+    "record": "playwright codegen --ignore-https-errors",
     "report": "playwright show-report"
   },
   "keywords": [

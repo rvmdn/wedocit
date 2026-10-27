@@ -43,6 +43,7 @@ out/
 
 # Environment & Credentials
 .env
+.env.*
 .env.local
 .env.*.local
 *.key

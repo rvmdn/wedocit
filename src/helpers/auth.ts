@@ -9,6 +9,7 @@ export interface LoginOptions {
   password?: string;
   loginType?: string;
   resetPassword?: string;
+  loginPath?: string;
 }
 
 /**
@@ -19,6 +20,7 @@ export async function ensureAuthenticated(page: Page, options: LoginOptions = {}
   const password = options.password || process.env.FAST_PASSWORD;
   const loginType = options.loginType || process.env.FAST_LOGIN_TYPE || 'HQ';
   const resetPassword = options.resetPassword || process.env.FAST_RESET_PASSWORD || 'ResetBni';
+  const loginPath = options.loginPath || process.env.FAST_LOGIN_PATH || '/login';
 
   if (!username || !password) {
     console.log('\n[WeDocIt Auth] Menunggu sesi login...');
@@ -32,7 +34,7 @@ export async function ensureAuthenticated(page: Page, options: LoginOptions = {}
   }
 
   // Jika belum ada session file, login sekarang
-  await loginWithCredentials(page, { username, password, loginType, resetPassword });
+  await loginWithCredentials(page, { username, password, loginType, resetPassword, loginPath });
 }
 
 /**
@@ -43,12 +45,14 @@ export async function loginWithCredentials(page: Page, options: {
   password: string; 
   loginType?: string;
   resetPassword?: string;
+  loginPath?: string;
 }) {
   const resetPass = options.resetPassword || 'ResetBni';
   const typeTarget = options.loginType === '1' || !options.loginType ? 'HQ' : options.loginType;
+  const loginPath = options.loginPath || process.env.FAST_LOGIN_PATH || '/login';
 
   console.log(`[WeDocIt Auth] Mengakses halaman login AMS FAST dev... (User: ${options.username})`);
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await page.goto(loginPath, { waitUntil: 'networkidle' });
 
   // 1. Isi Username & Password
   await page.locator('input#username').fill(options.username);
@@ -85,9 +89,9 @@ export async function loginWithCredentials(page: Page, options: {
     await page.locator('button[type="submit"]:has-text("Login")').click();
   }
 
-  // 5. Tunggu redirect sukses keluar dari /login
+  // 5. Tunggu redirect sukses keluar dari loginPath
   try {
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+    await page.waitForURL((url) => !url.pathname.includes(loginPath), { timeout: 15000 });
     console.log(`🎉 [WeDocIt Auth] Berhasil masuk ke: ${page.url()}`);
 
     // 6. Simpan session state untuk run berikutnya

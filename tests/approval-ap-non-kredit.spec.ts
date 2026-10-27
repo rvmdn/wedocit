@@ -4,6 +4,9 @@ import { ensureAuthenticated } from '../src/helpers/auth';
 test.describe('Modul: Pelaksanaan Audit - Tahap 3: Kertas Kerja AP Non-Kredit', () => {
 
   test('Melakukan Persetujuan (Approval) - Approval Delete (AP Non Kredit)', async ({ page, wedocit }) => {
+    const targetUrl = process.env.FAST_BASE_URL || 'https://amsfast-dev.bni.co.id:8081';
+    const loginPath = process.env.FAST_LOGIN_PATH || '/login';
+
     // 1. Set Metadata Dokumen Resmi BNI EDV (Sesuai Standar Template Word BNI)
     wedocit.setMetadata({
       title: 'Unit Test Documentation - Pelaksanaan Audit',
@@ -18,8 +21,8 @@ test.describe('Modul: Pelaksanaan Audit - Tahap 3: Kertas Kerja AP Non-Kredit', 
       endDate: '23/10/2026',
       docDate: '23/10/2026',
       copyrightYear: '2026',
-      scope: 'Pengujian dan verifikasi alur otorisasi Approval Delete Kertas Kerja AP Non-Kredit oleh Supervisor / PKA pada server dev https://amsfast-dev.bni.co.id:8081',
-      acceptanceCriteria: 'PKA berhasil melakukan persetujuan (Approve) terhadap permohonan hapus kertas kerja AP Non-Kredit pada server dev https://amsfast-dev.bni.co.id:8081 dan notifikasi konfirmasi tampil.'
+      scope: `Pengujian dan verifikasi alur otorisasi Approval Delete Kertas Kerja AP Non-Kredit oleh Supervisor / PKA pada server environment (${targetUrl})`,
+      acceptanceCriteria: `PKA berhasil melakukan persetujuan (Approve) terhadap permohonan hapus kertas kerja AP Non-Kredit pada server environment (${targetUrl}) dan notifikasi konfirmasi tampil.`
     });
 
     // 2. Set Informasi Test Case Resmi (TC-035)
@@ -31,28 +34,28 @@ test.describe('Modul: Pelaksanaan Audit - Tahap 3: Kertas Kerja AP Non-Kredit', 
       role: 'FASTIA26'
     });
 
-    // 3. Pastikan Autentikasi / Cek Sesi ke Server AMS FAST Dev
+    // 3. Pastikan Autentikasi / Cek Sesi ke Server AMS FAST
     await ensureAuthenticated(page);
 
-    // 4. Navigasi ke Halaman Modul Pelaksanaan Audit di Server Dev Resmi
+    // 4. Navigasi ke Halaman Modul Pelaksanaan Audit
     await page.goto('/audit-reguler/manajemen-audit/pelaksanaan-audit', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000); // Tunggu rendering PrimeNG selesai
 
     // --- Langkah 1: Akses Menu dan Tampilan Halaman Pelaksanaan Audit / Approval Delete ---
     await wedocit.captureStep({
       title: 'Verifikasi Tampilan Menu Pelaksanaan Audit & Approval Delete AP Non-Kredit',
-      description: 'Pengguna (PKA) membuka antarmuka modul [Audit Reguler > Manajemen Audit > Pelaksanaan Audit] pada server https://amsfast-dev.bni.co.id:8081 dan memeriksa daftar penugasan/permohonan.',
+      description: `Pengguna (PKA) membuka antarmuka modul [Audit Reguler > Manajemen Audit > Pelaksanaan Audit] pada server ${targetUrl} dan memeriksa daftar penugasan/permohonan.`,
       expected: 'Halaman antarmuka Pelaksanaan Audit termuat dengan baik, tabel/data tersaji lengkap, dan seluruh kontrol fungsional aktif.'
     });
 
     // Cek apakah halaman berada di tabel pelaksanaan audit atau diarahkan ke login
-    const isLoginPage = page.url().includes('/login');
+    const isLoginPage = page.url().includes(loginPath);
 
     if (isLoginPage) {
       console.log('[WeDocIt] Terdeteksi halaman login AMS FAST dev server.');
       await wedocit.captureStep({
         title: 'Verifikasi Halaman Login AMS FAST Dev Server',
-        description: 'Sistem menyajikan halaman autentikasi FAST BNI pada dev server https://amsfast-dev.bni.co.id:8081.',
+        description: `Sistem menyajikan halaman autentikasi FAST BNI pada dev server ${targetUrl}.`,
         expected: 'Form login tersaji dengan field Username, Password, Type, dan tombol Login aktif.'
       });
       return;
