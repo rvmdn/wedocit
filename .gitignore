@@ -46,6 +46,7 @@ out/
 .env.local
 .env.*.local
 *.key
+.auth/
 
 # Temporary files & Logs
 *.log

@@ -368,9 +368,21 @@ export default class WeDocItWordReporter implements Reporter {
       const safeModule = (this.metadata.title || 'Modul').replace(/Unit Test Documentation\s*[-–:]\s*/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeCr = (this.metadata.crNo || 'CR').replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `EDV_Unit_Test_${safeCr}_${safeModule}_V1.0.docx`;
-      const outputPath = path.join(outputDir, filename);
+      let outputPath = path.join(outputDir, filename);
+      try {
+        fs.writeFileSync(outputPath, outputBuffer);
+      } catch (err: any) {
+        if (err.code === 'EBUSY') {
+          const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+          const fallbackFilename = `EDV_Unit_Test_${safeCr}_${safeModule}_${timestamp}.docx`;
+          outputPath = path.join(outputDir, fallbackFilename);
+          fs.writeFileSync(outputPath, outputBuffer);
+          console.log(`⚠️ File utama sedang dibuka di MS Word. Disimpan sebagai: ${fallbackFilename}`);
+        } else {
+          throw err;
+        }
+      }
 
-      fs.writeFileSync(outputPath, outputBuffer);
       console.log(`\n🎉 [WeDocIt v2.0] DOKUMEN BERHASIL DIGENERATE!\n📁 File: ${outputPath}\n`);
 
     } catch (err: any) {
