@@ -11,17 +11,17 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-top: 48px; /* Offset for fixed header */
+  padding-top: 44px; /* Offset for compact header */
 }
 
 /* ==============================================================
-   HEADER BAR (Fixed / Frozen 100%)
+   HEADER BAR (Fixed / Frozen 100% - Optimized for 1366x768 Base)
    ============================================================== */
 .app-header {
   background: #0f172a;
   border-bottom: 1px solid #1e293b;
-  padding: 0 16px;
-  height: 48px;
+  padding: 0 12px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -31,7 +31,7 @@ body {
   right: 0;
   width: 100%;
   z-index: 1000;
-  gap: 10px;
+  gap: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
@@ -441,54 +441,55 @@ textarea.form-control {
    ============================================================== */
 .content-steps .steps-header {
   position: sticky;
-  top: 54px;
+  top: 44px;
   z-index: 80;
   background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
   border: 1px solid #1e293b;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  margin-bottom: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  margin-bottom: 7px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   transition: box-shadow 0.2s ease;
 }
 
 .section-title {
-  font-size: 14.5px;
+  font-size: 13px;
   font-weight: 700;
   color: #f8fafc;
 }
 
 .filter-tip {
-  font-size: 11px;
+  font-size: 10.5px;
   color: #64748b;
 }
 
 .steps-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 6px; /* Dynamic compact gap for 1366x768 */
 }
 
-/* Test Case Container Card */
+/* Test Case Container Card (Compact Base) */
 .tc-container-card {
   background: #0f172a;
   border: 1px solid #1e293b;
-  border-radius: 10px;
-  padding: 14px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
   transition: padding 0.15s ease, background 0.15s ease;
 }
 
 .tc-container-card.is-collapsed {
-  padding: 10px 14px;
+  padding: 5px 10px;
   background: #0b1120;
+  border-radius: 6px;
 }
 
 .tc-container-card.is-collapsed .tc-header-row {
@@ -507,15 +508,15 @@ textarea.form-control {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #1e293b;
-  padding-bottom: 8px;
-  margin-bottom: 10px;
-  gap: 8px;
+  padding-bottom: 5px;
+  margin-bottom: 7px;
+  gap: 6px;
 }
 
 .tc-badge-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
   min-width: 0;
 }
@@ -524,23 +525,25 @@ textarea.form-control {
   background: #0284c7;
   color: #fff;
   font-weight: 800;
-  font-size: 11.5px;
-  padding: 3px 8px;
-  border-radius: 6px;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
   flex-shrink: 0;
+  letter-spacing: -0.2px;
 }
 
 .tc-title-input {
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 700;
   color: #38bdf8;
   background: transparent;
   border: 1px solid transparent;
-  padding: 3px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
   flex: 1;
-  max-width: 450px;
+  max-width: 480px;
   outline: none;
+  height: 25px;
 }
 
 .tc-title-input:hover,
@@ -553,19 +556,20 @@ textarea.form-control {
 .tc-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
 }
 
 .tc-status-select {
-  padding: 3px 6px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
   font-weight: 700;
   border: none;
   cursor: pointer;
   background: #1e293b;
   color: #10b981;
+  height: 23px;
 }
 
 /* Sub-step Row (Clean Responsive 3-Column Grid) */
@@ -865,73 +869,82 @@ textarea.form-control {
   }
 
   .header-actions .btn {
-    padding: 4px 6px;
+    padding: 3px 7px;
     font-size: 10.5px;
     gap: 3px;
+    height: 26px;
   }
 
   .export-format-wrapper {
-    padding: 1px 6px !important;
-    gap: 4px !important;
+    padding: 1px 4px !important;
+    gap: 3px !important;
   }
 
   #export-format-select {
-    max-width: 155px;
-    font-size: 10.5px !important;
+    max-width: 130px;
+    font-size: 10px !important;
     padding: 1px 4px !important;
+    height: 24px !important;
   }
 
   .btn-export-word-main {
-    padding: 4px 9px !important;
-    font-size: 11px !important;
+    padding: 3px 8px !important;
+    font-size: 10.5px !important;
+    height: 26px !important;
   }
 
   /* Main layout adjustments for 1366x768 */
   .main-layout {
-    grid-template-columns: 280px 1fr;
-    gap: 12px;
-    padding: 10px 12px;
+    grid-template-columns: 270px 1fr;
+    gap: 8px;
+    padding: 6px 10px;
   }
 
   .sidebar-meta .meta-card {
-    padding: 10px 12px;
-    max-height: calc(100vh - 66px);
+    padding: 8px 10px;
+    max-height: calc(100vh - 56px);
   }
 
   .sidebar-meta .form-group {
-    margin-bottom: 5px;
+    margin-bottom: 4px;
   }
 
   .sidebar-meta .form-group label {
-    font-size: 10px;
-    margin-bottom: 2px;
+    font-size: 9.5px;
+    margin-bottom: 1px;
   }
 
   .sidebar-meta .form-control {
-    padding: 4px 6px;
-    font-size: 11px;
+    padding: 3px 5px;
+    font-size: 10.5px;
   }
 
   .content-steps .steps-header {
-    padding: 8px 12px;
-    margin-bottom: 10px;
+    padding: 5px 10px;
+    margin-bottom: 6px;
   }
 
   .section-title {
-    font-size: 13.5px;
+    font-size: 12.5px;
   }
 
   .tc-container-card {
-    padding: 10px 12px;
+    padding: 6px 10px;
+  }
+
+  .tc-container-card.is-collapsed {
+    padding: 4px 8px;
   }
 
   .tc-header-row {
-    padding-bottom: 6px;
-    margin-bottom: 8px;
+    padding-bottom: 4px;
+    margin-bottom: 5px;
   }
 
   .tc-title-input {
-    font-size: 12.5px;
+    font-size: 12px;
+    height: 24px;
+    padding: 1px 4px;
   }
 }
 

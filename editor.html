@@ -58,10 +58,11 @@
 
       <!-- Dropdown Opsi File JSON & MD -->
       <div class="dropdown-wrapper">
-        <button class="btn btn-secondary btn-sm" id="btn-file-menu" title="Menu Opsi Impor / Ekspor">
+        <button class="btn btn-secondary btn-sm" id="btn-file-menu" title="Menu Opsi Impor / Ekspor / Cetak">
           ⚙️ File Opsi ▾
         </button>
         <div class="dropdown-menu" id="file-menu-dropdown">
+          <button class="dropdown-item" id="btn-print-pdf">🖨️ Cetak Browser / Print</button>
           <button class="dropdown-item" id="btn-import-json">📂 Impor JSON</button>
           <button class="dropdown-item" id="btn-export-json">💾 Simpan JSON</button>
           <button class="dropdown-item" id="btn-export-md">📑 Ekspor Markdown</button>
@@ -70,20 +71,15 @@
         </div>
       </div>
 
-      <button class="btn btn-secondary btn-sm" id="btn-print-pdf" title="Cetak Browser / PDF">
-        🖨️ Cetak
-      </button>
-
       <button class="btn btn-secondary btn-sm" id="btn-export-pdf-native" title="Ekspor PDF Native Word (COM)">
         📄 Ekspor PDF
       </button>
 
       <!-- Format Export Selector -->
-      <div class="export-format-wrapper" style="display: flex; align-items: center; gap: 6px; background: #162032; padding: 2px 8px; border-radius: 6px; border: 1px solid #23354d;">
-        <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">Format:</span>
-        <select id="export-format-select" class="form-control" style="font-size: 11px; padding: 2px 6px; height: 26px; width: auto; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-weight: 600; cursor: pointer;">
-          <option value="bni_edv" selected>🏛️ EDV - BNI (Template Resmi)</option>
-          <option value="standard">📄 Umum (Standar WeDocIt)</option>
+      <div class="export-format-wrapper" style="display: flex; align-items: center; background: #162032; padding: 1px 4px; border-radius: 6px; border: 1px solid #23354d;">
+        <select id="export-format-select" class="form-control" style="font-size: 10.5px; padding: 2px 5px; height: 26px; width: auto; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-weight: 600; cursor: pointer;">
+          <option value="bni_edv" selected>🏛️ EDV - BNI</option>
+          <option value="standard">📄 Format Umum</option>
           <option value="custom">📎 Template Kustom...</option>
         </select>
       </div>
