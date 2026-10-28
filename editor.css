@@ -267,6 +267,47 @@ body {
   box-shadow: 0 0 8px rgba(2, 132, 199, 0.4);
 }
 
+/* Segmented Control for Global Expand / Collapse */
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.segmented-btn:first-child {
+  border-right: 1px solid #1e293b;
+}
+
+.segmented-btn:hover {
+  background: #1e293b;
+  color: #38bdf8;
+}
+
+.segmented-btn:active {
+  background: #0284c7;
+  color: #fff;
+}
+
 /* Sidebar Meta Panel (Sticky / Frozen) */
 .sidebar-meta {
   position: sticky;
