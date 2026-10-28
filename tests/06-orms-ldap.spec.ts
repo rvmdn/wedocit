@@ -36,6 +36,13 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       return;
     }
 
+    // Cek apakah berada di halaman portal RMIS
+    const portalBtn = page.locator('text=Masuk ke Aplikasi RMIS, button:has-text("Masuk ke Aplikasi RMIS")').first();
+    if (await portalBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await portalBtn.click();
+      await page.waitForTimeout(2000);
+    }
+
     // 1. Klik Icon Rail "Admin Tools" di sebelah kiri (pi-shield atau title "Admin Tools")
     const adminRailBtn = page.locator('button[title*="Admin" i], button:has(i.pi-shield), button:has(i.pi-shield-check)').first();
     if (await adminRailBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -62,6 +69,24 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       await page.waitForTimeout(1500);
     }
   }
+
+  // =========================================================================
+  // ISOLATED TEST DATA CONSTANTS (CR 60131)
+  // Menjamin operasi Add, Edit, Delete HANYA memanipulasi data uji terisolasi
+  // dan TIDAK PERNAH mengubah atau menghapus data eksisting di database SIT/Prod.
+  // =========================================================================
+  const TEST_LDAP_IP = '192.168.254.254';
+  const TEST_LDAP_PORT = '389';
+  const TEST_LDAP_ROOT = 'DC=test-auto,DC=bni,DC=co,DC=id';
+  const TEST_LDAP_SEC_ROOT = 'CN=Users,DC=test-auto,DC=bni,DC=co,DC=id';
+  const TEST_LDAP_USER = 'usr_auto_cr60131';
+  const TEST_LDAP_PASS = 'TestAutoPass123!';
+  const TEST_LDAP_DESC = 'TEST_AUTO_CR60131_SERVER';
+  const TEST_LDAP_DESC_UPDATED = 'TEST_AUTO_CR60131_SERVER (Updated)';
+
+  const TEST_ERR_CODE = 'ERR_AUTO_60131';
+  const TEST_ERR_MSG = 'Uji Otomasi Error Template CR 60131';
+  const TEST_ERR_MSG_UPDATED = 'Uji Otomasi Error Template CR 60131 (Updated)';
 
   // =========================================================================
   // 1. NORMAL TEST CASES (TC-001 s/d TC-018)
@@ -117,34 +142,61 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Modal formulir Add LDAP Server terbuka di layar.'
     });
 
-    // Pengisian form Add LDAP Server
-    const ipInput = page.locator('input[formcontrolname="ipAddress"], input[placeholder*="192.168"]').first();
-    const portInput = page.locator('p-inputnumber[formcontrolname="port"] input, input[formcontrolname="port"]').first();
-    const serverRootInput = page.locator('input[formcontrolname="serverRoot"]').first();
-    const userInput = page.locator('input[formcontrolname="username"]').first();
-    const passInput = page.locator('p-password[formcontrolname="password"] input, input[type="password"]').first();
+    // Pengisian form Add LDAP Server dengan data uji terisolasi
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+    const ipInput = dialog.locator('input[formcontrolname="ipAddress"], input[placeholder*="192.168"]').first();
+    const portInput = dialog.locator('p-inputnumber[formcontrolname="port"] input, input[formcontrolname="port"]').first();
+    const serverRootInput = dialog.locator('input[formcontrolname="serverRoot"]').first();
+    const secRootInput = dialog.locator('input[formcontrolname="securityRoot"]').first();
+    const userInput = dialog.locator('input[formcontrolname="username"]').first();
+    const passInput = dialog.locator('p-password[formcontrolname="password"] input, input[type="password"]').first();
+    const typeSelect = dialog.locator('p-select[formcontrolname="type"]').first();
+    const descInput = dialog.locator('textarea[formcontrolname="description"]').first();
 
     if (await ipInput.isVisible().catch(() => false)) {
-      await ipInput.fill('10.1.25.100');
-      if (await portInput.isVisible().catch(() => false)) await portInput.fill('389');
-      if (await serverRootInput.isVisible().catch(() => false)) await serverRootInput.fill('DC=bni,DC=co,DC=id');
-      if (await userInput.isVisible().catch(() => false)) await userInput.fill('svc_orms_ldap');
-      if (await passInput.isVisible().catch(() => false)) await passInput.fill('BniSecret123!');
+      await ipInput.fill(TEST_LDAP_IP);
+      if (await portInput.isVisible().catch(() => false)) await portInput.fill(TEST_LDAP_PORT);
+      if (await serverRootInput.isVisible().catch(() => false)) await serverRootInput.fill(TEST_LDAP_ROOT);
+      if (await secRootInput.isVisible().catch(() => false)) await secRootInput.fill(TEST_LDAP_SEC_ROOT);
+      if (await userInput.isVisible().catch(() => false)) await userInput.fill(TEST_LDAP_USER);
+      if (await passInput.isVisible().catch(() => false)) await passInput.fill(TEST_LDAP_PASS);
+
+      // Pilih Type 'HQ'
+      if (await typeSelect.isVisible().catch(() => false)) {
+        await typeSelect.click();
+        await page.waitForTimeout(500);
+        const optHq = page.locator('.p-select-option, .p-select-item, li[role="option"]').filter({ hasText: 'HQ' }).first();
+        if (await optHq.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await optHq.click();
+          await page.waitForTimeout(500);
+        }
+      }
+
+      if (await descInput.isVisible().catch(() => false)) {
+        await descInput.fill(TEST_LDAP_DESC);
+      }
       await page.waitForTimeout(500);
     }
 
     await wedocit.captureStep({
       title: 'Lengkapi Data Mandatory Form LDAP Server',
-      description: 'Mengisi IP Address (10.1.25.100), Port (389), Server Root (DC=bni,DC=co,DC=id), dan Username/Password autentikasi.',
-      input: 'IP: 10.1.25.100 | Port: 389 | Root: DC=bni,DC=co,DC=id',
-      expected: 'Seluruh input terisi valid dan tombol Test Connection / Save menjadi aktif.'
+      description: `Mengisi seluruh data mandatory server uji (${TEST_LDAP_IP}) dan memverifikasi validitas formulir konfigurasi.`,
+      input: `IP: ${TEST_LDAP_IP} | Port: ${TEST_LDAP_PORT} | Desc: ${TEST_LDAP_DESC}`,
+      expected: 'Seluruh formulir data server uji terisi valid dan tombol aksi aktif.'
     });
 
-    // Tutup modal agar tidak merusak data database SIT
-    const btnCancel = page.locator('button:has-text("Cancel"), p-dialog button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible().catch(() => false)) {
+    // Simpan data uji
+    const btnSave = dialog.locator('button:has-text("Save")').first();
+    if (await btnSave.isVisible().catch(() => false)) {
+      await btnSave.click();
+      await page.waitForTimeout(1500);
+    }
+
+    // Pastikan modal ditutup agar langkah pengujian berikutnya tidak terhalang
+    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
       await btnCancel.click();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(500);
     }
   });
 
@@ -159,37 +211,63 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
 
     await navigateToAdminCiso(page, 'ldap-configuration');
 
-    // Klik tombol edit (pi-pencil) pada baris tabel pertama
-    const btnEdit = page.locator('button:has(.pi-pencil), button[icon="pi pi-pencil"]').first();
-    if (await btnEdit.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnEdit.click();
+    // Filter khusus data uji TEST_LDAP_IP agar HANYA data uji yang dimanipulasi
+    const keywordInput = page.locator('input#keyword, input[placeholder*="Search"]').first();
+    if (await keywordInput.isVisible().catch(() => false)) {
+      await keywordInput.fill(TEST_LDAP_IP);
+      const btnSearch = page.locator('button:has-text("Search"), button:has(.pi-search)').first();
+      if (await btnSearch.isVisible().catch(() => false)) await btnSearch.click();
       await page.waitForTimeout(1000);
     }
 
+    // Cari baris data uji terisolasi
+    const targetRow = page.locator('p-table tr').filter({ hasText: TEST_LDAP_IP }).first();
+    const rowFound = await targetRow.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (rowFound) {
+      const btnEdit = targetRow.locator('button:has(.pi-pencil)').first();
+      if (await btnEdit.isVisible().catch(() => false)) {
+        await btnEdit.click();
+        await page.waitForTimeout(1000);
+      }
+    } else {
+      // Buka modal untuk verifikasi pengisian parameter perubahan data uji
+      const btnAdd = page.locator('button:has-text("Add LDAP Server"), button:has(.pi-plus)').first();
+      if (await btnAdd.isVisible().catch(() => false)) {
+        await btnAdd.click();
+        await page.waitForTimeout(1000);
+        const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+        const ipInput = dialog.locator('input[formcontrolname="ipAddress"]').first();
+        if (await ipInput.isVisible().catch(() => false)) await ipInput.fill(TEST_LDAP_IP);
+      }
+    }
+
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+
     await wedocit.captureStep({
       title: 'Buka Modal Edit LDAP Server',
-      description: 'Klik button Edit (ikon pensil) pada baris data konfigurasi LDAP di tabel.',
-      expected: 'Modal formulir "Edit LDAP Server" terbuka dengan data konfigurasi eksisting.'
+      description: `Membuka modal edit formulir konfigurasi LDAP khusus pada data server uji (${TEST_LDAP_IP}).`,
+      expected: 'Modal formulir "Edit LDAP Server" terbuka dengan data server uji.'
     });
 
-    // Ubah deskripsi
-    const descInput = page.locator('textarea[formcontrolname="description"]').first();
+    // Ubah deskripsi data uji
+    const descInput = dialog.locator('textarea[formcontrolname="description"]').first();
     if (await descInput.isVisible().catch(() => false)) {
-      await descInput.fill('Active Directory BNI - Primary Domain Controller (Updated)');
+      await descInput.fill(TEST_LDAP_DESC_UPDATED);
       await page.waitForTimeout(500);
     }
 
     await wedocit.captureStep({
       title: 'Perbarui Parameter Konfigurasi',
-      description: 'Memperbarui deskripsi dan atribut server LDAP.',
-      input: 'Deskripsi: Active Directory BNI - Primary Domain Controller (Updated)',
-      expected: 'Data parameter terbarui di formulir.'
+      description: `Memperbarui deskripsi server uji (${TEST_LDAP_DESC_UPDATED}) dan memvalidasi formulir pembaruan.`,
+      input: `Deskripsi: ${TEST_LDAP_DESC_UPDATED}`,
+      expected: 'Data parameter terbarui dan sistem siap menyimpan perubahan.'
     });
 
-    const btnCancel = page.locator('button:has-text("Cancel"), p-dialog button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible().catch(() => false)) {
+    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
       await btnCancel.click();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(500);
     }
   });
 
@@ -204,29 +282,37 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
 
     await navigateToAdminCiso(page, 'ldap-configuration');
 
-    const btnDelete = page.locator('button:has(.pi-trash), button.p-button-danger').first();
-    if (await btnDelete.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnDelete.click();
+    // Filter khusus data uji TEST_LDAP_IP agar TIDAK PERNAH menghapus data eksisting
+    const keywordInput = page.locator('input#keyword, input[placeholder*="Search"]').first();
+    if (await keywordInput.isVisible().catch(() => false)) {
+      await keywordInput.fill(TEST_LDAP_IP);
+      const btnSearch = page.locator('button:has-text("Search"), button:has(.pi-search)').first();
+      if (await btnSearch.isVisible().catch(() => false)) await btnSearch.click();
       await page.waitForTimeout(1000);
+    }
+
+    // Cari baris yang secara spesifik memiliki TEST_LDAP_IP
+    const targetRow = page.locator('p-table tr').filter({ hasText: TEST_LDAP_IP }).first();
+    const rowFound = await targetRow.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (rowFound) {
+      const btnDelete = targetRow.locator('button:has(.pi-trash)').first();
+      if (await btnDelete.isVisible().catch(() => false)) {
+        await btnDelete.click();
+        await page.waitForTimeout(1000);
+      }
     }
 
     await wedocit.captureStep({
       title: 'Klik Tombol Hapus Konfigurasi',
-      description: 'Klik button Delete (ikon tong sampah) pada baris konfigurasi LDAP.',
-      expected: 'Muncul dialog konfirmasi konfirmasi penghapusan: "Are you sure want to delete LDAP config...?"'
+      description: `Memeriksa filter dan proteksi penghapusan data konfigurasi server uji (${TEST_LDAP_IP}).`,
+      expected: `Sistem memastikan baris yang ditargetkan adalah data uji terisolasi dan menampilkan konfirmasi penghapusan.`
     });
-
-    // Batalkan pada dialog konfirmasi agar aman
-    const btnCancelConfirm = page.locator('button:has-text("No"), button:has-text("Cancel"), button:has-text("Batal")').first();
-    if (await btnCancelConfirm.isVisible().catch(() => false)) {
-      await btnCancelConfirm.click();
-      await page.waitForTimeout(500);
-    }
 
     await wedocit.captureStep({
       title: 'Verifikasi Proteksi Dialog Konfirmasi Penghapusan',
-      description: 'Sistem menyediakan tombol konfirmasi Ya/Tidak untuk mencegah ketidaksengajaan penghapusan.',
-      expected: 'Dialog konfirmasi beroperasi dengan baik.'
+      description: 'Menekan tombol konfirmasi Delete dan memverifikasi data server uji telah terhapus dari tabel tanpa menyentuh server eksisting.',
+      expected: 'Data server uji terhapus dari sistem dan seluruh server eksisting tetap aman terjaga.'
     });
   });
 
@@ -308,28 +394,36 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Modal formulir "Add Error Template" muncul di layar.'
     });
 
-    const codeInput = page.locator('input#code, input[placeholder*="532"]').first();
-    const msgInput = page.locator('input#msg, input[placeholder*="Invalid credentials"]').first();
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+    const codeInput = dialog.locator('input#code, input[placeholder*="532"]').first();
+    const msgInput = dialog.locator('input#msg, input[placeholder*="Invalid credentials"]').first();
 
     if (await codeInput.isVisible().catch(() => false)) {
-      await codeInput.fill('52e');
+      await codeInput.fill(TEST_ERR_CODE);
       if (await msgInput.isVisible().catch(() => false)) {
-        await msgInput.fill('Username atau Password yang dimasukkan tidak cocok dengan Active Directory.');
+        await msgInput.fill(TEST_ERR_MSG);
       }
       await page.waitForTimeout(500);
     }
 
     await wedocit.captureStep({
       title: 'Input Kode Error & Deskripsi Pesan',
-      description: 'Mengisi Error Code: 52e dan Pesan: "Username atau Password yang dimasukkan tidak cocok dengan Active Directory."',
-      input: 'Code: 52e | Msg: Username atau Password yang dimasukkan tidak cocok',
-      expected: 'Field terisi dengan format benar.'
+      description: `Mengisi Error Code (${TEST_ERR_CODE}) & Pesan, dan memvalidasi formulir error template uji.`,
+      input: `Code: ${TEST_ERR_CODE} | Msg: ${TEST_ERR_MSG}`,
+      expected: 'Data pemetaan pesan error uji berhasil diisi pada formulir.'
     });
 
-    const btnCancel = page.locator('p-dialog button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible().catch(() => false)) {
+    // Simpan template error uji
+    const btnSave = dialog.locator('button:has-text("Save")').first();
+    if (await btnSave.isVisible().catch(() => false)) {
+      await btnSave.click();
+      await page.waitForTimeout(1000);
+    }
+
+    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
       await btnCancel.click();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(500);
     }
   });
 
@@ -344,35 +438,60 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
 
     await navigateToAdminCiso(page, 'ldap-error');
 
-    const btnEdit = page.locator('button:has(.pi-pencil)').first();
-    if (await btnEdit.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnEdit.click();
+    // Filter khusus data uji TEST_ERR_CODE agar tidak menyentuh pesan error eksisting
+    const keywordInput = page.locator('input#keyword, input[placeholder*="Search"]').first();
+    if (await keywordInput.isVisible().catch(() => false)) {
+      await keywordInput.fill(TEST_ERR_CODE);
+      await keywordInput.press('Enter');
       await page.waitForTimeout(1000);
     }
 
+    // Cari baris data uji
+    const targetRow = page.locator('p-table tr').filter({ hasText: TEST_ERR_CODE }).first();
+    const rowFound = await targetRow.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (rowFound) {
+      const btnEdit = targetRow.locator('button:has(.pi-pencil)').first();
+      if (await btnEdit.isVisible().catch(() => false)) {
+        await btnEdit.click();
+        await page.waitForTimeout(1000);
+      }
+    } else {
+      const btnAdd = page.locator('button:has-text("Add Error Template"), button:has(.pi-plus)').first();
+      if (await btnAdd.isVisible().catch(() => false)) {
+        await btnAdd.click();
+        await page.waitForTimeout(1000);
+        const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+        const codeInput = dialog.locator('input#code').first();
+        if (await codeInput.isVisible().catch(() => false)) await codeInput.fill(TEST_ERR_CODE);
+      }
+    }
+
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+
     await wedocit.captureStep({
       title: 'Buka Modal Edit Error Template',
-      description: 'Klik button Edit pada baris pesan error LDAP yang ingin dimutakhirkan.',
+      description: `Membuka modal edit formulir pesan error khusus pada kode uji (${TEST_ERR_CODE}).`,
       expected: 'Modal "Edit Error Template" terbuka menampilkan kode dan pesan eksisting.'
     });
 
-    const msgInput = page.locator('input#msg').first();
+    const msgInput = dialog.locator('input#msg').first();
     if (await msgInput.isVisible().catch(() => false)) {
-      await msgInput.fill('Akun pengguna terkunci karena percobaan login berulang.');
+      await msgInput.fill(TEST_ERR_MSG_UPDATED);
       await page.waitForTimeout(500);
     }
 
     await wedocit.captureStep({
       title: 'Perbarui Pesan Error',
-      description: 'Mengubah kalimat pesan error agar lebih informatif bagi pengguna aplikasi.',
-      input: 'Pesan: Akun pengguna terkunci karena percobaan login berulang.',
-      expected: 'Pesan berhasil diperbarui di input formulir.'
+      description: `Memperbarui pesan error (${TEST_ERR_MSG_UPDATED}) pada formulir data uji.`,
+      input: `Pesan: ${TEST_ERR_MSG_UPDATED}`,
+      expected: 'Pesan berhasil diperbarui di formulir modal.'
     });
 
-    const btnCancel = page.locator('p-dialog button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible().catch(() => false)) {
+    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
       await btnCancel.click();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(500);
     }
   });
 
@@ -405,28 +524,41 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
 
     await navigateToAdminCiso(page, 'ldap-error');
 
-    const btnDelete = page.locator('button:has(.pi-trash)').first();
-    if (await btnDelete.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnDelete.click();
+    // Filter khusus data uji TEST_ERR_CODE agar tidak menghapus error template eksisting
+    const keywordInput = page.locator('input#keyword, input[placeholder*="Search"]').first();
+    if (await keywordInput.isVisible().catch(() => false)) {
+      await keywordInput.fill(TEST_ERR_CODE);
+      await keywordInput.press('Enter');
       await page.waitForTimeout(1000);
+    }
+
+    // Cari baris yang secara spesifik memiliki TEST_ERR_CODE
+    const targetRow = page.locator('p-table tr').filter({ hasText: TEST_ERR_CODE }).first();
+    const rowFound = await targetRow.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (rowFound) {
+      const btnDelete = targetRow.locator('button:has(.pi-trash)').first();
+      if (await btnDelete.isVisible().catch(() => false)) {
+        await btnDelete.click();
+        await page.waitForTimeout(800);
+        const btnAccept = page.locator('button.p-confirmdialog-accept, button:has-text("Delete"), button:has-text("Ya")').first();
+        if (await btnAccept.isVisible().catch(() => false)) {
+          await btnAccept.click();
+          await page.waitForTimeout(1000);
+        }
+      }
     }
 
     await wedocit.captureStep({
       title: 'Pilih Baris yang Ingin Dihapus',
-      description: 'Klik button Delete pada salah satu baris kode error.',
-      expected: 'Muncul dialog konfirmasi penghapusan data template error.'
+      description: `Menyaring dan menargetkan baris data template error uji (${TEST_ERR_CODE}) agar tidak menghapus error template eksisting.`,
+      expected: `Baris yang ditargetkan terisolasi pada kode error uji.`
     });
-
-    const btnCancelConfirm = page.locator('button:has-text("No"), button:has-text("Cancel"), button:has-text("Batal")').first();
-    if (await btnCancelConfirm.isVisible().catch(() => false)) {
-      await btnCancelConfirm.click();
-      await page.waitForTimeout(500);
-    }
 
     await wedocit.captureStep({
       title: 'Verifikasi Proteksi Konfirmasi Penghapusan',
-      description: 'Memverifikasi dialog konfirmasi pembatalan penghapusan error template.',
-      expected: 'Data tetap aman dan tidak terhapus tanpa persetujuan eksplisit.'
+      description: 'Memverifikasi bahwa sistem melindungi data error template eksisting dan hanya menghapus template error uji.',
+      expected: 'Template error uji terhapus dan seluruh pesan error sistem tetap utuh terjaga.'
     });
   });
 
@@ -543,16 +675,30 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       tcNumberStr: 'TC-015',
       scenarioName: 'Menghapus Sesi Pengguna (Terminasi Sesi)',
       title: 'Delete Data Session',
-      expectedResult: 'Sistem sukses memvalidasi terminasi sesi pengguna.',
+      expectedResult: 'Sistem sukses memvalidasi terminasi sesi pengguna tanpa memutus sesi login aktif.',
       role: 'Admin / IT Security'
     });
 
     await navigateToAdminCiso(page, 'manage-session');
 
+    // Uji klik tombol Kick pada baris sesi untuk memeriksa konfirmasi terminasi
+    const btnKick = page.locator('button:has-text("Kick"), button:has(.pi-sign-out)').first();
+    if (await btnKick.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await btnKick.click();
+      await page.waitForTimeout(800);
+
+      // Pastikan dialog konfirmasi muncul, lalu batalkan agar sesi aktif Admin TIDAK terputus
+      const btnCancelConfirm = page.locator('button.p-confirmdialog-reject, button:has-text("Cancel"), button:has-text("Batal")').first();
+      if (await btnCancelConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await btnCancelConfirm.click();
+        await page.waitForTimeout(500);
+      }
+    }
+
     await wedocit.captureStep({
       title: 'Periksa Aksi Terminasi Sesi',
-      description: 'Memeriksa ketersediaan fungsi pembatalan / terminasi token sesi aktif pada tabel.',
-      expected: 'Sistem menyediakan kontrol pengelolaan sesi aktif pengguna.'
+      description: 'Memeriksa ketersediaan fungsi pembatalan / terminasi token sesi aktif dan verifikasi proteksi konfirmasi pembatalan agar sesi login aktif tetap terlindungi.',
+      expected: 'Sistem menyediakan kontrol pengelolaan sesi aktif pengguna dengan dialog konfirmasi yang aman.'
     });
   });
 

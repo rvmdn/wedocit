@@ -52,8 +52,13 @@ export async function ensureOrmsAuthenticated(page: Page, options: OrmsAuthOptio
     await signInBtn.click();
 
     // Tunggu navigasi masuk ke dashboard / modul internal
-    await page.waitForURL((url) => !url.pathname.includes('/login') && !url.pathname.includes('/portal') && !url.pathname.endsWith('/auth'), { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(2000);
+    const enterAppBtn = page.locator('text=Masuk ke Aplikasi RMIS, a:has-text("Masuk ke Aplikasi RMIS"), button:has-text("Masuk ke Aplikasi RMIS")').first();
+    if (await enterAppBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+      console.log('🌐 [RMIS Auth] Mengklik "Masuk ke Aplikasi RMIS" untuk memasuki modul internal...');
+      await enterAppBtn.click();
+      await page.waitForTimeout(2500);
+    }
 
     // Simpan storage state agar sesi tersimpan
     try {
@@ -65,6 +70,13 @@ export async function ensureOrmsAuthenticated(page: Page, options: OrmsAuthOptio
       console.warn('Gagal menyimpan storageState:', e);
     }
   } else {
-    console.log('✔ [RMIS Auth] Sesi sudah aktif atau form login tidak muncul.');
+    // Jika sudah login tapi masih di portal, klik masuk
+    const enterAppBtn = page.locator('text=Masuk ke Aplikasi RMIS, a:has-text("Masuk ke Aplikasi RMIS"), button:has-text("Masuk ke Aplikasi RMIS")').first();
+    if (await enterAppBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log('🌐 [RMIS Auth] Masih di portal, mengklik "Masuk ke Aplikasi RMIS"...');
+      await enterAppBtn.click();
+      await page.waitForTimeout(2000);
+    }
+    console.log('✔ [RMIS Auth] Sesi sudah aktif.');
   }
 }
