@@ -209,12 +209,30 @@ function handleApiRequest(req, res, pathname) {
     return;
   }
 
-  // POST /api/export-pdf
+  // POST /api/export-pdf (Konversi DOCX ke PDF via Word COM)
   if (pathname === '/api/export-pdf' && req.method === 'POST') {
     readRequestBody(req, (body) => {
       let params = {};
       try { if (body) params = JSON.parse(body); } catch {}
-      const docxPath = params.docxPath || getLatestDocxInOutput();
+      
+      let docxPath = params.docxPath;
+
+      // Jika dikirim file DOCX dalam format base64 dari browser
+      if (params.base64Docx) {
+        try {
+          const rawName = (params.filename || 'Unit_Test_Document.docx').replace(/[^a-zA-Z0-9._-]/g, '_');
+          const cleanDocxName = rawName.endsWith('.docx') ? rawName : `${rawName}.docx`;
+          docxPath = path.join(OUTPUT_DIR, cleanDocxName);
+          const buf = Buffer.from(params.base64Docx, 'base64');
+          fs.writeFileSync(docxPath, buf);
+        } catch (writeErr) {
+          return sendJson(res, 500, { error: 'Gagal menyimpan file DOCX sementara di server', details: writeErr.message });
+        }
+      }
+
+      if (!docxPath) {
+        docxPath = getLatestDocxInOutput();
+      }
 
       if (!docxPath || !fs.existsSync(docxPath)) {
         return sendJson(res, 400, { error: 'File DOCX tidak ditemukan untuk diekspor ke PDF' });
@@ -222,9 +240,15 @@ function handleApiRequest(req, res, pathname) {
 
       exportDocxToPdf(docxPath, (err, pdfPath) => {
         if (err) {
-          return sendJson(res, 500, { error: 'Gagal mengekspor PDF', details: err.message });
+          return sendJson(res, 500, { error: 'Gagal mengekspor PDF via Microsoft Word', details: err.message });
         }
-        return sendJson(res, 200, { success: true, pdfPath });
+        const pdfFileName = path.basename(pdfPath);
+        return sendJson(res, 200, {
+          success: true,
+          pdfPath,
+          pdfUrl: `/output/${pdfFileName}`,
+          filename: pdfFileName
+        });
       });
     });
     return;

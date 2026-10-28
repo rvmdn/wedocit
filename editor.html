@@ -60,13 +60,12 @@
         ➕ Tambah TC
       </button>
 
-      <!-- Dropdown Opsi File JSON & MD -->
+      <!-- Dropdown Opsi File Data (JSON/MD) -->
       <div class="dropdown-wrapper">
-        <button class="btn btn-secondary btn-sm" id="btn-file-menu" title="Menu Opsi Impor / Ekspor / Cetak">
-          ⚙️ File Opsi ▾
+        <button class="btn btn-secondary btn-sm" id="btn-file-menu" title="Menu Opsi Impor / Simpan File Data">
+          ⚙️ File Data ▾
         </button>
         <div class="dropdown-menu" id="file-menu-dropdown">
-          <button class="dropdown-item" id="btn-print-pdf">🖨️ Cetak Browser / Print</button>
           <button class="dropdown-item" id="btn-import-json">📂 Impor JSON</button>
           <button class="dropdown-item" id="btn-export-json">💾 Simpan JSON</button>
           <button class="dropdown-item" id="btn-export-md">📑 Ekspor Markdown</button>
@@ -75,22 +74,46 @@
         </div>
       </div>
 
-      <button class="btn btn-secondary btn-sm" id="btn-export-pdf-native" title="Ekspor PDF Native Word (COM)">
-        📄 Ekspor PDF
-      </button>
-
-      <!-- Format Export Selector -->
-      <div class="export-format-wrapper" style="display: flex; align-items: center; background: #162032; padding: 1px 4px; border-radius: 6px; border: 1px solid #23354d;">
-        <select id="export-format-select" class="form-control" style="font-size: 10.5px; padding: 2px 5px; height: 26px; width: auto; background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; font-weight: 600; cursor: pointer;">
-          <option value="bni_edv" selected>🏛️ EDV - BNI</option>
-          <option value="standard">📄 Format Umum</option>
-          <option value="custom">📎 Template Kustom...</option>
-        </select>
+      <!-- UNIFIED EKSPOR DOKUMEN DROPDOWN (WORD & PDF) -->
+      <div class="dropdown-wrapper export-dropdown-wrapper">
+        <button class="btn btn-primary btn-sm btn-export-main" id="btn-export-dropdown" title="Pilihan Ekspor Dokumen Unit Test" style="background: linear-gradient(135deg, #0284c7, #2563eb); font-weight: 700; border: none; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35); display: flex; align-items: center; gap: 6px;">
+          <span>📥 Ekspor Dokumen</span>
+          <span style="font-size: 10px;">▾</span>
+        </button>
+        <div class="dropdown-menu export-menu-dropdown" id="export-menu-dropdown" style="min-width: 250px; right: 0; left: auto; padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,0.7); background: #0b1324; border: 1px solid #1e293b;">
+          <button class="dropdown-item" id="btn-export-word" style="font-weight: 600; color: #38bdf8; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px;">
+            <span style="font-size: 18px;">📝</span>
+            <div style="text-align: left;">
+              <div style="font-size: 12px; font-weight: 700; color: #e0f2fe;">Ekspor sebagai Word (.docx)</div>
+              <div style="font-size: 10px; color: #94a3b8; font-weight: normal;">Format Dokumen Resmi BNI EDV</div>
+            </div>
+          </button>
+          <button class="dropdown-item" id="btn-export-pdf-native" style="font-weight: 600; color: #f87171; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; margin-top: 2px;">
+            <span style="font-size: 18px;">📄</span>
+            <div style="text-align: left;">
+              <div style="font-size: 12px; font-weight: 700; color: #fee2e2;">Ekspor sebagai PDF (.pdf)</div>
+              <div style="font-size: 10px; color: #94a3b8; font-weight: normal;">Konversi Asli Microsoft Word (COM)</div>
+            </div>
+          </button>
+          <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 6px 0;"></div>
+          <button class="dropdown-item" id="btn-print-pdf" style="font-weight: 500; color: #cbd5e1; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px;">
+            <span style="font-size: 16px;">🖨️</span>
+            <div style="text-align: left;">
+              <div style="font-size: 11px; font-weight: 600;">Cetak / Print PDF (Browser)</div>
+              <div style="font-size: 9.5px; color: #64748b; font-weight: normal;">Dialog Cetak Bawaan Google Chrome</div>
+            </div>
+          </button>
+          <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 6px 0;"></div>
+          <div style="padding: 4px 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 10px; color: #94a3b8; font-weight: 600;">Template:</span>
+            <select id="export-format-select" class="form-control" style="font-size: 10px; padding: 1px 4px; height: 22px; width: auto; background: #020617; color: #38bdf8; border: 1px solid #0284c7; font-weight: 600; cursor: pointer;">
+              <option value="bni_edv" selected>🏛️ BNI EDV</option>
+              <option value="standard">📄 Format Umum</option>
+              <option value="custom">📎 Kustom...</option>
+            </select>
+          </div>
+        </div>
       </div>
-
-      <button class="btn btn-primary btn-sm btn-export-word-main" id="btn-export-word" title="Ekspor Dokumen Word (.docx)">
-        📄 Ekspor Word (.docx)
-      </button>
     </div>
   </header>
 

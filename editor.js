@@ -95,6 +95,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnImportJson = document.getElementById('btn-import-json');
   const btnCleanDoc = document.getElementById('btn-clean-doc');
   const btnPrintPdf = document.getElementById('btn-print-pdf');
+  const btnExportPdfNative = document.getElementById('btn-export-pdf-native');
+  const btnExportDropdown = document.getElementById('btn-export-dropdown');
+  const exportMenuDropdown = document.getElementById('export-menu-dropdown');
   const fileInputJson = document.getElementById('file-input-json');
   const globalReplaceImg = document.getElementById('global-replace-img');
   let activeImgReplaceTarget = null; // { tcIdx, sIdx }
@@ -1760,7 +1763,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // EXPORT WORD: DUAL ENGINE (NATIVE DOCX TEMPLATE REPLACER + CLEAN DOC EXPORT)
   // =========================================================================
-  btnExportWord?.addEventListener('click', async () => {
+  // EXPORT ENGINE: DUAL ENGINE (NATIVE DOCX TEMPLATE REPLACER + CLEAN DOC EXPORT)
+  // =========================================================================
+  async function generateCurrentDocxBlob() {
     saveActiveDocState();
     const doc = getActiveDoc();
     const meta = doc.metadata || {};
@@ -1780,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (isUsingTemplate && !templateBufferToUse) {
       showMissingTemplateModal();
-      return;
+      return null;
     }
 
     // =========================================================================
@@ -2080,20 +2085,16 @@ document.addEventListener('DOMContentLoaded', () => {
           zip.file('word/document.xml', docXml);
         }
 
-        // 3. Generate dan Unduh Dokumen .docx
+        // 3. Return Blob Dokumen .docx
         const newDocxBlob = await zip.generateAsync({
           type: 'blob',
           mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         });
-        const url = URL.createObjectURL(newDocxBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = getFormattedDocFilename('docx');
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        return;
+        return {
+          blob: newDocxBlob,
+          filename: getFormattedDocFilename('docx'),
+          isDocx: true
+        };
       } catch (err) {
         console.error('Error modifying docx template:', err);
         alert('Gagal memproses file template .docx. Beralih ke ekspor format umum.');
@@ -2363,14 +2364,124 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     const blob = new Blob(['\ufeff' + docContent], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = getFormattedDocFilename('doc');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    return {
+      blob,
+      filename: getFormattedDocFilename('doc'),
+      isDocx: false
+    };
+  }
+
+  // Helper konversi Blob ke Base64
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = reader.result ? reader.result.split(',')[1] : '';
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Toggle Dropdown Ekspor Dokumen
+  btnExportDropdown?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportMenuDropdown?.classList.toggle('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (exportMenuDropdown && !exportMenuDropdown.contains(e.target) && e.target !== btnExportDropdown) {
+      exportMenuDropdown.classList.remove('show');
+    }
+  });
+
+  // Action: Ekspor sebagai Word (.docx / .doc)
+  btnExportWord?.addEventListener('click', async () => {
+    exportMenuDropdown?.classList.remove('show');
+    try {
+      btnExportWord.disabled = true;
+      const res = await generateCurrentDocxBlob();
+      if (res && res.blob) {
+        const url = URL.createObjectURL(res.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Gagal mengekspor Word:', err);
+      alert('Gagal mengekspor dokumen Word: ' + err.message);
+    } finally {
+      btnExportWord.disabled = false;
+    }
+  });
+
+  // Action: Ekspor sebagai PDF (.pdf) via Microsoft Word COM
+  btnExportPdfNative?.addEventListener('click', async () => {
+    exportMenuDropdown?.classList.remove('show');
+    try {
+      btnExportPdfNative.disabled = true;
+      btnExportPdfNative.innerHTML = `
+        <span style="font-size: 18px;">⏳</span>
+        <div style="text-align: left;">
+          <div style="font-size: 12px; font-weight: 700; color: #fee2e2;">Mengonversi ke PDF...</div>
+          <div style="font-size: 10px; color: #94a3b8; font-weight: normal;">Proses Microsoft Word COM</div>
+        </div>
+      `;
+
+      const docxRes = await generateCurrentDocxBlob();
+      if (!docxRes || !docxRes.blob) {
+        throw new Error('Gagal menghasilkan file dokumen sumber.');
+      }
+
+      if (!docxRes.isDocx) {
+        // Fallback untuk HTML doc: browser print dialog
+        alert('Format Umum diekspor melalui dialog cetak browser.');
+        window.print();
+        return;
+      }
+
+      const base64Docx = await blobToBase64(docxRes.blob);
+      const resp = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Docx,
+          filename: docxRes.filename
+        })
+      });
+
+      const data = await resp.json();
+      if (resp.ok && data.success && data.pdfUrl) {
+        // Otomatis download file PDF hasil konversi Word
+        const a = document.createElement('a');
+        a.href = data.pdfUrl;
+        a.download = data.filename || docxRes.filename.replace(/\.docx$/i, '.pdf');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        throw new Error(data.error || data.details || 'Gagal konversi ke PDF');
+      }
+    } catch (err) {
+      console.error('Gagal ekspor PDF native:', err);
+      if (confirm(`Gagal konversi PDF via Microsoft Word (${err.message}).\n\nApakah ingin mencetak / unduh PDF melalui dialog cetak browser sekarang?`)) {
+        window.print();
+      }
+    } finally {
+      btnExportPdfNative.disabled = false;
+      btnExportPdfNative.innerHTML = `
+        <span style="font-size: 18px;">📄</span>
+        <div style="text-align: left;">
+          <div style="font-size: 12px; font-weight: 700; color: #fee2e2;">Ekspor sebagai PDF (.pdf)</div>
+          <div style="font-size: 10px; color: #94a3b8; font-weight: normal;">Konversi Asli Microsoft Word (COM)</div>
+        </div>
+      `;
+    }
   });
 
   btnPrintPdf?.addEventListener('click', () => {
@@ -2532,7 +2643,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const runnerResultSummary = document.getElementById('runner-result-summary');
   const btnRunnerExportPdf = document.getElementById('btn-runner-export-pdf');
   const btnSyncTestResults = document.getElementById('btn-sync-test-results');
-  const btnExportPdfNative = document.getElementById('btn-export-pdf-native');
 
   let runnerPollInterval = null;
 
@@ -2770,10 +2880,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnRunnerExportPdf?.addEventListener('click', () => {
     triggerExportPdf(btnRunnerExportPdf.dataset.docx);
-  });
-
-  btnExportPdfNative?.addEventListener('click', () => {
-    triggerExportPdf();
   });
 
   // =========================================================================
