@@ -44,10 +44,6 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="btn btn-outline btn-sm" id="btn-toggle-sidebar" title="Sembunyikan / Tampilkan Panel Metadata (Full Width Mode)">
-        ◀ Sembunyikan Metadata
-      </button>
-
       <button class="btn btn-success btn-sm" id="btn-run-automation" title="Jalankan Otomasi Pengujian Playwright" style="background: linear-gradient(135deg, #059669, #10b981); color: #fff; font-weight: 700; border: none; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
         ▶ Jalankan Otomasi
       </button>
@@ -297,7 +293,10 @@
     <!-- Right Column: Step by Step List (Test Cases) -->
     <section class="content-steps">
       <div class="steps-header">
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-outline btn-xs btn-toggle-sidebar-compact" id="btn-toggle-sidebar" title="Sembunyikan Panel Metadata (Hemat Ruang / Full Width)" aria-label="Toggle Panel Metadata">
+            ◀
+          </button>
           <h2 class="section-title" style="margin: 0;">
             Daftar Test Case (<span id="total-step-count">0</span> Test Case)
           </h2>

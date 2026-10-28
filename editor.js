@@ -290,12 +290,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnToggleSidebar?.addEventListener('click', () => {
-    if (mainLayout.classList.contains('sidebar-collapsed')) {
-      mainLayout.classList.remove('sidebar-collapsed');
-      btnToggleSidebar.textContent = '◀ Sembunyikan Metadata';
+    const isCollapsed = mainLayout.classList.toggle('sidebar-collapsed');
+    if (isCollapsed) {
+      btnToggleSidebar.innerHTML = '▶';
+      btnToggleSidebar.title = 'Tampilkan Panel Metadata (Buka Panel Kiri)';
+      btnToggleSidebar.classList.add('collapsed-active');
     } else {
-      mainLayout.classList.add('sidebar-collapsed');
-      btnToggleSidebar.textContent = '▶ Tampilkan Metadata';
+      btnToggleSidebar.innerHTML = '◀';
+      btnToggleSidebar.title = 'Sembunyikan Panel Metadata (Hemat Ruang / Full Width)';
+      btnToggleSidebar.classList.remove('collapsed-active');
     }
   });
 
