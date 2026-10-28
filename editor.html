@@ -320,18 +320,22 @@
         <button class="modal-close" id="btn-close-runner">&times;</button>
       </div>
 
-      <div style="margin-bottom:14px; display:flex; gap:10px; align-items:center;">
+      <div style="margin-bottom:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <label style="font-size:12px; color:#94a3b8; font-weight:600; white-space:nowrap;">Pilih Suite Uji:</label>
-        <select id="runner-spec-select" class="form-control" style="flex:1; background:#1e293b; color:#fff; border:1px solid #334155; height:34px; font-size:12px;">
-          <option value="">Semua Modul (18 Test Cases: AP Non-Kredit, Pengujian AP, Kredit, RHA, Online)</option>
+        <select id="runner-spec-select" class="form-control" style="flex:1; min-width:300px; background:#1e293b; color:#fff; border:1px solid #334155; height:34px; font-size:12px;">
+          <option value="tests/06-orms-ldap.spec.ts">🎯 [ORMS] Integrasi LDAP Active Directory (CR 60131 - 20 TC)</option>
+          <option value="">Semua Modul (All Specs)</option>
           <option value="tests/01-ap-non-kredit-offline.spec.ts">Modul 1: AP Non-Kredit Offline (TC-1.1 - 1.3)</option>
           <option value="tests/02-pengujian-ap-non-kredit-offline.spec.ts">Modul 2: Pengujian AP Non-Kredit Offline (TC-2.1 - 2.5)</option>
           <option value="tests/03-ap-kredit-offline.spec.ts">Modul 3: AP Kredit Offline (TC-3.1 - 3.5)</option>
           <option value="tests/04-rha-offline.spec.ts">Modul 4: RHA Offline (TC-4.1 - 4.3)</option>
           <option value="tests/05-pelaksanaan-audit-online.spec.ts">Modul 5: Pelaksanaan Audit Online (TC-5.1 - 5.2)</option>
         </select>
+        <label style="font-size:11.5px; color:#38bdf8; display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:600; margin:0 4px;" title="Tampilkan browser saat pengujian berjalan">
+          <input type="checkbox" id="chk-runner-headed" checked style="accent-color:#0284c7;"> 🖥️ Tampilkan Browser
+        </label>
         <button class="btn btn-primary btn-sm" id="btn-trigger-run" style="padding: 7px 16px; font-weight: 700; background:#0284c7;">
-          Mulai Eksekusi
+          ▶ Mulai Eksekusi
         </button>
       </div>
 

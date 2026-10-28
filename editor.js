@@ -2545,8 +2545,47 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch {}
   }
 
+  async function loadAvailableSpecs() {
+    if (!runnerSpecSelect) return;
+    try {
+      const resp = await fetch('/api/specs');
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.specs && data.specs.length > 0) {
+          const currentVal = runnerSpecSelect.value;
+          runnerSpecSelect.innerHTML = '';
+          
+          const doc = getActiveDoc();
+          const docId = doc.id || '';
+          const isOrms = docId.includes('orms') || (doc.metadata?.title || '').toLowerCase().includes('orms') || (doc.metadata?.systemName || '').toLowerCase().includes('orms');
+
+          data.specs.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.path;
+            opt.textContent = s.label;
+            if (isOrms && s.path.includes('orms')) {
+              opt.selected = true;
+            } else if (!isOrms && currentVal === s.path) {
+              opt.selected = true;
+            }
+            runnerSpecSelect.appendChild(opt);
+          });
+
+          // Opsi Semua Suite
+          const optAll = document.createElement('option');
+          optAll.value = '';
+          optAll.textContent = 'Semua Modul (All Specs)';
+          runnerSpecSelect.appendChild(optAll);
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat daftar specs:', e);
+    }
+  }
+
   btnRunAutomation?.addEventListener('click', () => {
     if (modalRunner) modalRunner.style.display = 'flex';
+    loadAvailableSpecs();
     checkLatestResultsAvailability();
   });
 
@@ -2625,6 +2664,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnTriggerRun?.addEventListener('click', async () => {
     const spec = runnerSpecSelect ? runnerSpecSelect.value : '';
+    const chkHeaded = document.getElementById('chk-runner-headed');
+    const headed = chkHeaded ? chkHeaded.checked : true;
+
     if (btnTriggerRun) btnTriggerRun.disabled = true;
     if (runnerStatusBadge) {
       runnerStatusBadge.textContent = 'RUNNING';
@@ -2632,7 +2674,7 @@ document.addEventListener('DOMContentLoaded', () => {
       runnerStatusBadge.style.color = '#fff';
     }
     if (runnerTerminalLogs) {
-      runnerTerminalLogs.innerHTML = '<div style="color:#38bdf8;">[WeDocIt] Memulai eksekusi Playwright...</div>';
+      runnerTerminalLogs.innerHTML = `<div style="color:#38bdf8;">[WeDocIt] Memulai eksekusi Playwright (${spec || 'All Specs'})... Mode: ${headed ? '🖥️ Headed (Tampilkan Browser)' : 'Headless'}</div>`;
     }
     if (runnerResultSummary) runnerResultSummary.textContent = 'Status: Sedang mengeksekusi tes...';
     if (btnRunnerExportPdf) btnRunnerExportPdf.style.display = 'none';
@@ -2641,7 +2683,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const resp = await fetch('/api/run-tests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spec })
+        body: JSON.stringify({ spec, headed })
       });
       const data = await resp.json();
 

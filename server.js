@@ -156,6 +156,34 @@ function handleApiRequest(req, res, pathname) {
     return;
   }
 
+  // GET /api/specs (Mendaftarkan daftar file spec Playwright secara dinamis)
+  if (pathname === '/api/specs' && req.method === 'GET') {
+    try {
+      const testsDir = path.join(ROOT_DIR, 'tests');
+      let specs = [];
+      if (fs.existsSync(testsDir)) {
+        const files = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+        specs = files.map(f => {
+          let label = f;
+          if (f.includes('06-orms-ldap')) label = '🎯 [ORMS] Integrasi LDAP Active Directory (CR 60131 - 20 TC)';
+          else if (f.includes('01-ap-non-kredit')) label = 'Modul 1: AP Non-Kredit Offline (TC-1.1 - 1.3)';
+          else if (f.includes('02-pengujian')) label = 'Modul 2: Pengujian AP Non-Kredit Offline (TC-2.1 - 2.5)';
+          else if (f.includes('03-ap-kredit')) label = 'Modul 3: AP Kredit Offline (TC-3.1 - 3.5)';
+          else if (f.includes('04-rha')) label = 'Modul 4: RHA Offline (TC-4.1 - 4.3)';
+          else if (f.includes('05-pelaksanaan-audit')) label = 'Modul 5: Pelaksanaan Audit Online (TC-5.1 - 5.2)';
+          return {
+            path: `tests/${f}`,
+            name: f,
+            label
+          };
+        });
+      }
+      return sendJson(res, 200, { specs });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Gagal membaca direktori tests', details: err.message });
+    }
+  }
+
   // GET /api/test-status
   if (pathname === '/api/test-status' && req.method === 'GET') {
     return sendJson(res, 200, testRunnerState);
@@ -172,7 +200,7 @@ function handleApiRequest(req, res, pathname) {
       }
 
       const specFile = params.spec || '';
-      startPlaywrightTest(specFile);
+      startPlaywrightTest(specFile, { headed: !!params.headed });
       return sendJson(res, 202, {
         message: 'Pengujian Playwright berhasil dimulai di latar belakang',
         state: testRunnerState
@@ -260,7 +288,7 @@ function handleApiRequest(req, res, pathname) {
   sendJson(res, 404, { error: 'Endpoint API tidak ditemukan' });
 }
 
-function startPlaywrightTest(specFile = '') {
+function startPlaywrightTest(specFile = '', options = {}) {
   testRunnerState = {
     running: true,
     startTime: new Date().toISOString(),
@@ -274,11 +302,14 @@ function startPlaywrightTest(specFile = '') {
   if (specFile) {
     args.push(specFile);
   }
+  if (options.headed) {
+    args.push('--headed');
+  }
 
   const child = spawn('npx.cmd', args, {
     cwd: ROOT_DIR,
     shell: true,
-    env: { ...process.env, CI: '1' }
+    env: { ...process.env, CI: options.headed ? '' : '1' }
   });
 
   const appendLog = (chunk) => {
