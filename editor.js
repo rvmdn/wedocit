@@ -343,25 +343,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (detectedModule) break;
       }
 
-      if (!detectedModule) detectedModule = 'Pelaksanaan Audit';
-
-      // Perbaiki judul dokumen agar tidak terkontaminasi nama skenario terakhir
-      if (doc.metadata.title && /[-–|:]\s*(RHA|Export|View|Save)\s*$/i.test(doc.metadata.title)) {
-        doc.metadata.title = `Unit Test Documentation - ${detectedModule}`;
-        modified = true;
-      } else if (!doc.metadata.title || doc.metadata.title === 'Unit Test Documentation') {
-        doc.metadata.title = `Unit Test Documentation - ${detectedModule}`;
-        modified = true;
-      }
-
-      // Set metadata pendukung jika belum ada
-      if (!doc.metadata.systemName || doc.metadata.systemName === 'Sistem Informasi / Web Application') {
-        doc.metadata.systemName = 'AMS Fast - Pelaksanaan Audit';
-        modified = true;
-      }
-      if (!doc.metadata.projectName) {
-        doc.metadata.projectName = 'AMS (Audit Management System)';
-        modified = true;
+      // Hanya migrasi nama jika dokumen ini memang dokumen awal Pelaksanaan Audit
+      if (doc.id === 'doc_pelaksanaan_audit_final' || detectedModule) {
+        if (!detectedModule) detectedModule = 'Pelaksanaan Audit';
+        if (doc.metadata.title && /[-–|:]\s*(RHA|Export|View|Save)\s*$/i.test(doc.metadata.title)) {
+          doc.metadata.title = `Unit Test Documentation - ${detectedModule}`;
+          modified = true;
+        } else if (!doc.metadata.title || doc.metadata.title === 'Unit Test Documentation') {
+          doc.metadata.title = `Unit Test Documentation - ${detectedModule}`;
+          modified = true;
+        }
+        if (!doc.metadata.systemName || doc.metadata.systemName === 'Sistem Informasi / Web Application') {
+          doc.metadata.systemName = 'AMS Fast - Pelaksanaan Audit';
+          modified = true;
+        }
+        if (!doc.metadata.projectName) {
+          doc.metadata.projectName = 'AMS (Audit Management System)';
+          modified = true;
+        }
       }
 
       // 3. Bersihkan teks field, HTML, dummy concatenation, dan screenshot berlebih
@@ -544,14 +543,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function createDefaultDocument(scenarioName = 'Pengujian Alur Modul', crNumber = 'CR: Unit Test') {
+  function createDefaultDocument(scenarioName = 'Pengujian Modul Baru', crNumber = 'CR_2026_001', systemName = 'Sistem Informasi / Web Application') {
     const today = new Date().toLocaleDateString('id-ID');
     const docId = 'doc_' + Date.now();
-    const tcId = 'tc_' + Date.now();
-    const cleanSc = scenarioName.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim() || 'Akses Halaman Modul';
-    const tc1Scenario = `Skenario 1: ${cleanSc}`;
-    const tc1Title = predictTestCaseFromScenario(tc1Scenario, 1);
-    const tc1Expected = predictExpectedFromTestCase(tc1Title);
+    const cleanSc = scenarioName.replace(/^(TC\s*\d+[:.-]?|Skenario\s*\d*[:.-]?)\s*/i, '').trim() || 'Modul Baru';
     return {
       id: docId,
       createdAt: new Date().toISOString(),
@@ -559,37 +554,30 @@ document.addEventListener('DOMContentLoaded', () => {
         templateType: 'BNI_EDV',
         scenarioName: cleanSc,
         title: 'Unit Test Documentation - ' + cleanSc,
-        systemName: 'Sistem Informasi / Web Application',
-        testCaseId: crNumber,
-        projectNo: crNumber.replace(/[^0-9]/g, '') || '10001',
+        systemName: systemName || 'Sistem Informasi / Web Application',
+        testCaseId: crNumber || 'CR_2026_001',
+        projectNo: (crNumber || '').replace(/[^0-9]/g, '') || '10001',
         projectType: 'CR',
-        shortDescription: 'Pengujian dan verifikasi fitur ' + cleanSc,
-        developers: [],
-        author: 'Prepared by EDV Team',
+        shortDescription: 'Pengujian dan verifikasi modul ' + cleanSc,
+        developers: [
+          { name: 'Irvan Ramadan', npp: '822117' }
+        ],
+        author: 'Irvan Ramadan / 822117',
+        testedBy: 'Irvan Ramadan',
+        npp: '822117',
         startDate: today,
         endDate: today,
         docDate: today,
         copyrightYear: String(new Date().getFullYear()),
         environment: 'Development / SIT',
         screenResolution: '1366x768',
+        docVersion: 'V1.0',
         objective: 'Requirement pengembangan pada modul ini adalah verifikasi alur proses pengujian fitur terkait.',
         precondition: '1. User telah login ke aplikasi web menggunakan role yang memiliki akses ke modul terkait.\n2. Browser: Google Chrome / Microsoft Edge.',
         customFields: []
       },
-      activeTcId: tcId,
-      testCases: [
-        {
-          id: tcId,
-          tcNumber: 1,
-          tcNumberStr: 'TC 1',
-          role: '',
-          title: tc1Title,
-          scenarioName: tc1Scenario,
-          expectedResult: tc1Expected,
-          status: 'OK',
-          steps: []
-        }
-      ]
+      activeTcId: '',
+      testCases: [] // KOSONGAN: Bersih tanpa Test Case atau screenshot lama
     };
   }
 
@@ -623,12 +611,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (d.id === sessionData.activeDocId) opt.selected = true;
       docSelector.appendChild(opt);
     });
+    if (sessionData.activeDocId) {
+      docSelector.value = sessionData.activeDocId;
+    }
   }
 
   // SWITCH DOCUMENT EVENT
   docSelector?.addEventListener('change', () => {
     const targetDocId = docSelector.value;
+    if (!targetDocId) return;
     sessionData.activeDocId = targetDocId;
+    suppressFocusReloadUntil = Date.now() + 8000;
     appStorage.set({ sessionData: sessionData }, () => {
       populateActiveDoc();
     });
@@ -637,31 +630,62 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // CREATE NEW DOCUMENT EVENT
-  btnCreateNewDoc?.addEventListener('click', () => {
-    const scenario = prompt('Masukkan Nama Skenario Unit Test Baru:', 'Pengujian Modul Baru');
-    if (!scenario) return;
-    const crNumber = prompt('Masukkan Nomor CR / Defect:', 'CR_2026_NEW');
+  // CREATE NEW DOCUMENT MODAL & EVENT (KOSONGAN & AUTO-SWITCH)
+  const modalCreateDoc = document.getElementById('modal-create-doc');
+  const btnCloseCreateDoc = document.getElementById('btn-close-create-doc');
+  const btnCancelCreateDoc = document.getElementById('btn-cancel-create-doc');
+  const btnSubmitCreateDoc = document.getElementById('btn-submit-create-doc');
+  const inpNewdocScenario = document.getElementById('inp-newdoc-scenario');
+  const inpNewdocSystem = document.getElementById('inp-newdoc-system');
+  const inpNewdocCr = document.getElementById('inp-newdoc-cr');
 
-    const newDoc = createDefaultDocument(scenario, crNumber || 'CR_2026_NEW');
+  btnCreateNewDoc?.addEventListener('click', () => {
+    if (modalCreateDoc) modalCreateDoc.style.display = 'flex';
+    if (inpNewdocScenario) {
+      inpNewdocScenario.value = 'Pengujian Modul Baru';
+      inpNewdocScenario.focus();
+      inpNewdocScenario.select();
+    }
+  });
+
+  const closeCreateDocModal = () => {
+    if (modalCreateDoc) modalCreateDoc.style.display = 'none';
+  };
+  btnCloseCreateDoc?.addEventListener('click', closeCreateDocModal);
+  btnCancelCreateDoc?.addEventListener('click', closeCreateDocModal);
+
+  btnSubmitCreateDoc?.addEventListener('click', () => {
+    const sc = (inpNewdocScenario && inpNewdocScenario.value.trim()) || 'Pengujian Modul Baru';
+    const sys = (inpNewdocSystem && inpNewdocSystem.value.trim()) || 'Sistem Informasi / Web Application';
+    const cr = (inpNewdocCr && inpNewdocCr.value.trim()) || 'CR_2026_001';
+
+    const newDoc = createDefaultDocument(sc, cr, sys);
     if (!sessionData.documents) sessionData.documents = [];
     sessionData.documents.push(newDoc);
     sessionData.activeDocId = newDoc.id;
 
+    isSavingLocally = true;
+    suppressFocusReloadUntil = Date.now() + 10000;
+
+    renderDocSelector();
+    if (docSelector) docSelector.value = newDoc.id;
+    populateActiveDoc();
+
     appStorage.set({ sessionData: sessionData }, () => {
-      renderDocSelector();
-      populateActiveDoc();
-      alert('Dokumen Unit Test baru berhasil dibuat dan siap diedit!');
+      isSavingLocally = false;
+      closeCreateDocModal();
     });
 
     if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
       chrome.runtime.sendMessage({
         type: 'CREATE_NEW_DOC',
-        scenarioName: scenario,
-        crNumber: crNumber || 'CR_2026_NEW'
+        scenarioName: sc,
+        crNumber: cr,
+        docTitle: newDoc.metadata.title
       });
     }
   });
+
 
   // DELETE DOCUMENT EVENT
   btnDeleteCurrentDoc?.addEventListener('click', () => {
