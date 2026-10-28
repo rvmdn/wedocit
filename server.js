@@ -202,6 +202,26 @@ function handleApiRequest(req, res, pathname) {
     return;
   }
 
+  // POST /api/save-prompt (Menyimpan prompt terisi ke output/prompt_for_ai.txt)
+  if (pathname === '/api/save-prompt' && req.method === 'POST') {
+    readRequestBody(req, (body) => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const promptText = payload.prompt || '';
+        const targetPath = path.join(OUTPUT_DIR, 'prompt_for_ai.txt');
+        fs.writeFileSync(targetPath, promptText, 'utf8');
+        return sendJson(res, 200, {
+          success: true,
+          filePath: targetPath,
+          message: 'Prompt berhasil disimpan ke output/prompt_for_ai.txt'
+        });
+      } catch (err) {
+        return sendJson(res, 500, { error: 'Gagal menyimpan prompt', details: err.message });
+      }
+    });
+    return;
+  }
+
   // GET /api/latest-results (Mengambil hasil test cases & bukti screenshot dari run terakhir)
   if (pathname === '/api/latest-results' && req.method === 'GET') {
     const resultsJsonPath = path.join(OUTPUT_DIR, 'latest_run_results.json');

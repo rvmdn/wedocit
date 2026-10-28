@@ -52,6 +52,10 @@
         ▶ Jalankan Otomasi
       </button>
 
+      <button class="btn btn-primary btn-sm" id="btn-ai-prompt" title="Hasilkan Prompt AI untuk Antigravity / Playwright Generator" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-weight: 700; border: none; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);">
+        🤖 Prompt AI
+      </button>
+
       <button class="btn btn-outline btn-sm" id="btn-add-step" title="Tambah Test Case Baru">
         ➕ Tambah TC
       </button>
@@ -346,6 +350,73 @@
             🖨️ Ekspor PDF Dokumen Hasil
           </button>
           <button class="btn btn-secondary btn-sm" id="btn-runner-close">Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal AI Prompt Generator (Antigravity & AI Copilot Integrator) -->
+  <div id="modal-ai-prompt" class="modal-overlay" style="display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="max-width: 900px; width: 92%; background: #0b1324; border: 1px solid #312e81; border-radius: 12px; padding: 22px; color: #f8fafc; box-shadow: 0 20px 50px rgba(0,0,0,0.7);">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">🤖</span>
+          <div>
+            <h3 style="margin:0; font-size:16px; font-weight:700; color:#a5b4fc;">WeDocIt AI Prompt Generator</h3>
+            <span style="font-size:11px; color:#94a3b8;">Menghubungkan data skenario &amp; metadata dokumen ke AI (Antigravity / Claude / ChatGPT)</span>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-ai-prompt">&times;</button>
+      </div>
+
+      <!-- Konfigurasi Singkat & Pilihan Preset -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div>
+          <label style="font-size: 11px; color: #a5b4fc; font-weight: 600; margin-bottom: 4px; display: block;">🎯 Template Target Prompt:</label>
+          <select id="sel-prompt-preset" class="form-control" style="background: #1e1b4b; border: 1px solid #4338ca; color: #e0e7ff; font-size: 12px; height: 32px;">
+            <option value="playwright_full" selected>🚀 1. Buatkan Script Playwright (spec.ts) &amp; Runner (run.ps1)</option>
+            <option value="source_code_explore">🔍 2. Bedah Source Code FE/BE &amp; Susun Selector/Langkah</option>
+            <option value="scenario_refine">📋 3. Format Ulang Skenario Bisnis &amp; Acceptance Criteria</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 11px; color: #a5b4fc; font-weight: 600; margin-bottom: 4px; display: block;">🌐 URL Lingkungan Pengujian (Base URL):</label>
+          <input type="text" id="inp-prompt-baseurl" class="form-control" style="background: #1e1b4b; border: 1px solid #4338ca; color: #e0e7ff; font-size: 12px; height: 32px;" placeholder="Contoh: http://localhost:4200 atau URL SIT" value="http://localhost:4200">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div>
+          <label style="font-size: 11px; color: #a5b4fc; font-weight: 600; margin-bottom: 4px; display: block;">📂 Path Source Code Frontend / Backend (Opsional):</label>
+          <input type="text" id="inp-prompt-codepath" class="form-control" style="background: #1e1b4b; border: 1px solid #4338ca; color: #e0e7ff; font-size: 12px; height: 32px;" placeholder="Contoh: e:\BNI\Application\ams-fast-fe-3-fase" value="e:\BNI\Application\ams-fast-fe-3-fase">
+        </div>
+        <div>
+          <label style="font-size: 11px; color: #a5b4fc; font-weight: 600; margin-bottom: 4px; display: block;">👤 Akun Testing / Role yang Digunakan:</label>
+          <input type="text" id="inp-prompt-userrole" class="form-control" style="background: #1e1b4b; border: 1px solid #4338ca; color: #e0e7ff; font-size: 12px; height: 32px;" placeholder="Contoh: User testing FASTIA26 / PKA" value="FASTIA26">
+        </div>
+      </div>
+
+      <!-- Preview Prompt Terisi Placeholder -->
+      <div style="margin-bottom: 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <label style="font-size: 11px; color: #94a3b8; font-weight: 600;">📝 Prompt Siap Kirim (Placeholder Otomatis Diganti):</label>
+          <span id="prompt-char-count" style="font-size: 11px; color: #64748b;">0 karakter</span>
+        </div>
+        <textarea id="txt-ai-prompt-output" class="form-control" style="height: 240px; background: #020617; border: 1px solid #312e81; font-family: Consolas, monospace; font-size: 11.5px; color: #c7d2fe; line-height: 1.5; resize: vertical;" readonly></textarea>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="prompt-status-msg" style="font-size: 12px; color: #10b981; font-weight: 600;"></span>
+        <div style="display:flex; gap: 8px;">
+          <button class="btn btn-primary btn-sm" id="btn-copy-ai-prompt" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; font-weight: 700; padding: 6px 16px;">
+            📋 Salin Prompt ke Clipboard
+          </button>
+          <button class="btn btn-outline btn-sm" id="btn-save-ai-prompt-file" style="color: #38bdf8; border-color: #0284c7; font-weight: 600;">
+            💾 Simpan ke output/prompt_for_ai.txt
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btn-close-ai-prompt-btn">Tutup</button>
         </div>
       </div>
     </div>
