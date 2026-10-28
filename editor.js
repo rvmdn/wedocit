@@ -1216,8 +1216,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const isActiveTarget = (doc.activeTcId === tc.id || (!doc.activeTcId && tcIndex === 0));
 
       tcCard.innerHTML = `
-        <div class="tc-header-row">
+        <div class="tc-header-row" title="Klik area baris untuk bentangkan / ciutkan Test Case ini">
           <div class="tc-badge-wrap">
+            <button type="button" class="btn-toggle-tc-chevron" title="${isCollapsed ? 'Bentangkan Test Case ini' : 'Ciutkan Test Case ini'}" aria-label="${isCollapsed ? 'Bentangkan' : 'Ciutkan'}">
+              ${isCollapsed ? '▶' : '▼'}
+            </button>
             <div class="tc-num-badge ${isActiveTarget ? 'is-active-target' : ''} btn-set-active-tc" data-tc-id="${tc.id}" title="${isActiveTarget ? '🎯 Target Rekam Aktif (Perekaman Otomatis/Manual Masuk ke TC Ini)' : 'Klik untuk jadikan Target Rekam Aktif'}" style="cursor: pointer;">
               <span>${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))}</span>
               ${isActiveTarget ? '<span class="tc-target-icon" style="font-size: 11px;">🎯</span>' : ''}
@@ -1234,9 +1237,6 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="NOK" ${tc.status === 'NOK' ? 'selected' : ''}>❌ NOK</option>
               <option value="Pending" ${tc.status === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
             </select>
-            <button type="button" class="btn btn-outline btn-xs btn-toggle-tc btn-icon-only" title="${isCollapsed ? 'Bentangkan Test Case ini' : 'Ciutkan Test Case ini'}" style="border-color: #38bdf8; color: #38bdf8; font-weight: 700;">
-              ${isCollapsed ? '▶' : '▼'}
-            </button>
             <button type="button" class="btn btn-danger btn-xs btn-del-tc btn-icon-only" title="Hapus Test Case ini">🗑</button>
           </div>
         </div>
@@ -1298,7 +1298,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const expectedInput = tcCard.querySelector('.tc-expected-input');
       const delTcBtn = tcCard.querySelector('.btn-del-tc');
       const addSubstepBtn = tcCard.querySelector('.btn-add-substep');
-      const toggleTcBtn = tcCard.querySelector('.btn-toggle-tc');
+      const headerRow = tcCard.querySelector('.tc-header-row');
+      const toggleChevronBtn = tcCard.querySelector('.btn-toggle-tc-chevron');
       const tcBodyContent = tcCard.querySelector('.tc-body-content');
       const toggleStepsOnlyBtn = tcCard.querySelector('.btn-toggle-steps-only');
       const tcStepsList = tcCard.querySelector('.tc-steps-list');
@@ -1314,20 +1315,38 @@ document.addEventListener('DOMContentLoaded', () => {
         saveActiveDocState();
       });
 
-      toggleTcBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        tc.__isCollapsed = !tc.__isCollapsed;
+      function updateCardCollapse() {
         if (tc.__isCollapsed) {
           tcBodyContent.style.display = 'none';
           tcCard.classList.add('is-collapsed');
-          toggleTcBtn.innerHTML = '▶';
-          toggleTcBtn.title = 'Bentangkan Test Case ini';
+          if (toggleChevronBtn) {
+            toggleChevronBtn.innerHTML = '▶';
+            toggleChevronBtn.title = 'Bentangkan Test Case ini';
+          }
         } else {
           tcBodyContent.style.display = 'block';
           tcCard.classList.remove('is-collapsed');
-          toggleTcBtn.innerHTML = '▼';
-          toggleTcBtn.title = 'Ciutkan Test Case ini';
+          if (toggleChevronBtn) {
+            toggleChevronBtn.innerHTML = '▼';
+            toggleChevronBtn.title = 'Ciutkan Test Case ini';
+          }
         }
+      }
+
+      // 1. Klik langsung pada icon chevron kiri
+      toggleChevronBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tc.__isCollapsed = !tc.__isCollapsed;
+        updateCardCollapse();
+      });
+
+      // 2. Klik pada area kosong baris header (kecuali input teks, select status, badge target, atau tombol hapus)
+      headerRow?.addEventListener('click', (e) => {
+        if (e.target.closest('input, select, .tc-num-badge, .btn-del-tc, .btn-toggle-tc-chevron')) {
+          return;
+        }
+        tc.__isCollapsed = !tc.__isCollapsed;
+        updateCardCollapse();
       });
 
       toggleStepsOnlyBtn?.addEventListener('click', (e) => {

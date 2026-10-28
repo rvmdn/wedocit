@@ -569,12 +569,6 @@ textarea.form-control {
 .tc-container-card.is-collapsed .tc-header-row {
   border-bottom: none;
   margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.tc-global-collapse-actions button:hover {
-  border-color: #38bdf8 !important;
-  color: #38bdf8 !important;
 }
 
 .tc-header-row {
@@ -582,9 +576,42 @@ textarea.form-control {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #1e293b;
-  padding-bottom: 5px;
+  padding: 5px 8px;
   margin-bottom: 7px;
-  gap: 6px;
+  gap: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.tc-header-row:hover {
+  background: rgba(30, 41, 59, 0.45);
+}
+
+/* Chevron indicator on the far left */
+.btn-toggle-tc-chevron {
+  background: transparent;
+  border: none;
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 4px;
+  transition: transform 0.15s ease, color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-toggle-tc-chevron:hover {
+  color: #fff;
+  background: rgba(56, 189, 248, 0.2);
+  transform: scale(1.15);
 }
 
 .tc-badge-wrap {
