@@ -16,7 +16,7 @@ if (Test-Path ".env") {
     Write-Host "⚠️ File .env belum ditemukan, membuat file default..." -ForegroundColor Yellow
     @"
 FAST_BASE_URL=https://amsfast-dev.bni.co.id:8081
-ORMS_BASE_URL=http://localhost:4200
+ORMS_BASE_URL=http://localhost:4300
 ORMS_USERNAME=Admin
 ORMS_PASSWORD=AdminBni1234/
 "@ | Out-File -Encoding utf8 .env

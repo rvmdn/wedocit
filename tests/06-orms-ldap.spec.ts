@@ -2,7 +2,7 @@ import { test, expect } from '../src/fixtures/wedocit';
 import { ensureOrmsAuthenticated } from '../src/helpers/orms-auth';
 
 test.use({
-  baseURL: process.env.ORMS_BASE_URL || 'http://localhost:4200',
+  baseURL: process.env.ORMS_BASE_URL || 'http://localhost:4300',
   viewport: { width: 1366, height: 768 }
 });
 

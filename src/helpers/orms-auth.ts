@@ -20,10 +20,14 @@ export async function ensureOrmsAuthenticated(page: Page, options: OrmsAuthOptio
   const username = options.username || process.env.ORMS_USERNAME || 'Admin';
   const password = options.password || process.env.ORMS_PASSWORD || 'AdminBni1234/';
 
-  // 1. Kunjungi halaman awal
+  // 1. Kunjungi halaman awal (/login langsung atau portal /)
   const currentUrl = page.url();
   if (currentUrl === 'about:blank' || !currentUrl.includes('localhost') && !currentUrl.includes('http')) {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    } catch {
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+    }
     await page.waitForTimeout(1000);
   }
 
