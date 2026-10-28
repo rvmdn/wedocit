@@ -2757,9 +2757,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const tcs = doc.testCases || [];
 
     const preset = selPromptPreset ? selPromptPreset.value : 'playwright_full';
-    const baseUrl = (inpPromptBaseUrl && inpPromptBaseUrl.value.trim()) || 'http://localhost:4200';
-    const codePath = (inpPromptCodePath && inpPromptCodePath.value.trim()) || 'e:\\BNI\\Application\\ams-fast-fe-3-fase';
-    const userRole = (inpPromptUserRole && inpPromptUserRole.value.trim()) || 'FASTIA26';
+    const baseUrl = (inpPromptBaseUrl && inpPromptBaseUrl.value.trim()) || meta.testUrl || 'http://localhost:4200';
+    const codePath = (inpPromptCodePath && inpPromptCodePath.value.trim()) || meta.codePath || '';
+    
+    // Deteksi role secara cerdas dari test cases dokumen jika belum ada
+    let detectedRole = meta.testRole;
+    if (!detectedRole && tcs.length > 0) {
+      const tcRole = tcs.find(t => t.role && t.role.trim() && t.role.trim() !== '-');
+      if (tcRole) detectedRole = tcRole.role.trim();
+    }
+    if (!detectedRole) detectedRole = getDefaultTesterRole() || 'Admin / User';
+    const userRole = (inpPromptUserRole && inpPromptUserRole.value.trim()) || detectedRole;
 
     const projectName = meta.systemName || meta.projectName || 'Aplikasi BNI';
     const moduleName = meta.scenarioName || meta.title || 'Modul Aplikasi';
@@ -2795,7 +2803,7 @@ document.addEventListener('DOMContentLoaded', () => {
 - Nomor CR / Tiket: ${crNo}
 - Penguji: ${testerName} (NPP: ${npp})
 - Lingkungan Target: ${baseUrl}
-- Lokasi Kode Sumber: ${codePath}
+- Lokasi Kode Sumber: ${codePath || '(Disesuaikan dengan folder frontend proyek)'}
 - Role / Akun Pengujian: ${userRole}
 - Resolusi Viewport: ${resolution} (Standar BNI)
 
@@ -2805,7 +2813,7 @@ ${tcListStr || 'Belum ada Test Case. Buatkan 3 skenario standar (Akses Menu, Pen
 ## 3. Ketentuan Pembuatan Script:
 1. File Spec Playwright: Simpan ke folder 'tests/' (misal: tests/test_${moduleName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.spec.ts).
 2. Setiap langkah penting harus mengambil screenshot HD (${resolution}) tanpa toast error yang tidak relevan.
-3. Gunakan locator yang tangguh (data-testid, role, atau selector CSS PrimeNG/Bootstrap yang sesuai dengan source code di ${codePath}).
+3. Gunakan locator yang tangguh (data-testid, role, atau selector CSS komponen ${codePath ? 'yang sesuai dengan source code di ' + codePath : 'yang stabil'}).
 4. File Runner PowerShell (run.ps1):
    - Menjalankan Playwright test dengan opsi headed/headless.
    - Mengompilasi bukti pengujian ke dokumen Word & PDF via endpoint WeDocIt Studio (http://127.0.0.1:4400/api/export-pdf).
@@ -2816,7 +2824,7 @@ Tolong berikan kode lengkap 'spec.ts' dan 'run.ps1' siap pakai.`;
       prompt = `Halo AI, tolong telusuri source code berikut dan rancang selector Playwright serta skenario pengujian untuk WeDocIt:
 
 ## 1. Lokasi & Konteks:
-- Path Source Code: ${codePath}
+- Path Source Code: ${codePath || '(Isi path folder proyek Anda)'}
 - Modul / Komponen: ${moduleName}
 - Target URL: ${baseUrl}
 - Role Pengguna: ${userRole}
@@ -2850,6 +2858,22 @@ ${tcListStr}
   }
 
   btnOpenAiPrompt?.addEventListener('click', () => {
+    const doc = getActiveDoc();
+    const meta = doc.metadata || {};
+    const tcs = doc.testCases || [];
+
+    // Deteksi role otomatis
+    let initialRole = meta.testRole;
+    if (!initialRole && tcs.length > 0) {
+      const tcRole = tcs.find(t => t.role && t.role.trim() && t.role.trim() !== '-');
+      if (tcRole) initialRole = tcRole.role.trim();
+    }
+    if (!initialRole) initialRole = getDefaultTesterRole() || 'Admin / User';
+
+    if (inpPromptUserRole) inpPromptUserRole.value = initialRole;
+    if (inpPromptCodePath) inpPromptCodePath.value = meta.codePath || '';
+    if (inpPromptBaseUrl) inpPromptBaseUrl.value = meta.testUrl || 'http://localhost:4200';
+
     if (modalAiPrompt) modalAiPrompt.style.display = 'flex';
     generateCompiledAiPrompt();
   });
@@ -2863,9 +2887,27 @@ ${tcListStr}
   btnCloseAiPromptBtn?.addEventListener('click', closeAiModal);
 
   selPromptPreset?.addEventListener('change', generateCompiledAiPrompt);
-  inpPromptBaseUrl?.addEventListener('input', generateCompiledAiPrompt);
-  inpPromptCodePath?.addEventListener('input', generateCompiledAiPrompt);
-  inpPromptUserRole?.addEventListener('input', generateCompiledAiPrompt);
+  
+  inpPromptBaseUrl?.addEventListener('input', () => {
+    const doc = getActiveDoc();
+    if (doc.metadata) doc.metadata.testUrl = inpPromptBaseUrl.value.trim();
+    saveActiveDocState();
+    generateCompiledAiPrompt();
+  });
+  
+  inpPromptCodePath?.addEventListener('input', () => {
+    const doc = getActiveDoc();
+    if (doc.metadata) doc.metadata.codePath = inpPromptCodePath.value.trim();
+    saveActiveDocState();
+    generateCompiledAiPrompt();
+  });
+  
+  inpPromptUserRole?.addEventListener('input', () => {
+    const doc = getActiveDoc();
+    if (doc.metadata) doc.metadata.testRole = inpPromptUserRole.value.trim();
+    saveActiveDocState();
+    generateCompiledAiPrompt();
+  });
 
   btnCopyAiPrompt?.addEventListener('click', async () => {
     if (!txtAiPromptOutput) return;
