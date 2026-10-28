@@ -1213,18 +1213,20 @@ document.addEventListener('DOMContentLoaded', () => {
         tcCard.classList.add('is-collapsed');
       }
 
+      const isActiveTarget = (doc.activeTcId === tc.id || (!doc.activeTcId && tcIndex === 0));
+
       tcCard.innerHTML = `
         <div class="tc-header-row">
           <div class="tc-badge-wrap">
-            <div class="tc-num-badge">
-              ${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))}
+            <div class="tc-num-badge ${isActiveTarget ? 'is-active-target' : ''} btn-set-active-tc" data-tc-id="${tc.id}" title="${isActiveTarget ? '🎯 Target Rekam Aktif (Perekaman Otomatis/Manual Masuk ke TC Ini)' : 'Klik untuk jadikan Target Rekam Aktif'}" style="cursor: pointer;">
+              <span>${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))}</span>
+              ${isActiveTarget ? '<span class="tc-target-icon" style="font-size: 11px;">🎯</span>' : ''}
             </div>
             <input type="text" class="tc-title-input" value="${escapeHtml(tc.title || 'Test Case ' + (tcIndex + 1))}" placeholder="Nama Test Case" />
             <span class="tc-steps-pill" style="font-size:10.5px; color:#94a3b8; background:#1e293b; border:1px solid #334155; padding:2px 7px; border-radius:12px; white-space:nowrap; user-select:none;">
               ${steps.length} Langkah
             </span>
             ${tc.role ? `<span class="tc-role-pill" style="font-size:10.5px; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid rgba(2,132,199,0.3); padding:2px 7px; border-radius:12px; white-space:nowrap;">👤 ${escapeHtml(tc.role)}</span>` : ''}
-            ${(doc.activeTcId === tc.id || (!doc.activeTcId && tcIndex === 0)) ? `<span class="tc-active-pill" style="font-size:10.5px; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:2px 7px; border-radius:12px; white-space:nowrap; font-weight:600;" title="Test Case ini merupakan target aktif perekaman di layar">🎯 Target Rekam</span>` : `<button type="button" class="btn btn-outline btn-xs btn-set-active-tc" data-tc-id="${tc.id}" style="font-size:10px; padding:1px 6px; color:#94a3b8; border-color:#475569;" title="Jadikan Test Case ini target rekaman aktif di layar">Jadikan Target</button>`}
           </div>
           <div class="tc-controls">
             <select class="tc-status-select ${(tc.status || 'OK').toLowerCase()}">
@@ -1232,10 +1234,10 @@ document.addEventListener('DOMContentLoaded', () => {
               <option value="NOK" ${tc.status === 'NOK' ? 'selected' : ''}>❌ NOK</option>
               <option value="Pending" ${tc.status === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
             </select>
-            <button type="button" class="btn btn-outline btn-xs btn-toggle-tc" title="Ciutkan / Bentangkan Test Case ini" style="font-size: 11px; padding: 2px 8px; border-color: #38bdf8; color: #38bdf8; font-weight: 600;">
-              ${isCollapsed ? '▶ Bentangkan' : '▼ Ciutkan'}
+            <button type="button" class="btn btn-outline btn-xs btn-toggle-tc btn-icon-only" title="${isCollapsed ? 'Bentangkan Test Case ini' : 'Ciutkan Test Case ini'}" style="border-color: #38bdf8; color: #38bdf8; font-weight: 700;">
+              ${isCollapsed ? '▶' : '▼'}
             </button>
-            <button class="btn btn-danger btn-xs btn-del-tc" title="Hapus Test Case ini">🗑 Hapus TC</button>
+            <button type="button" class="btn btn-danger btn-xs btn-del-tc btn-icon-only" title="Hapus Test Case ini">🗑</button>
           </div>
         </div>
 
@@ -1318,11 +1320,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tc.__isCollapsed) {
           tcBodyContent.style.display = 'none';
           tcCard.classList.add('is-collapsed');
-          toggleTcBtn.textContent = '▶ Bentangkan';
+          toggleTcBtn.innerHTML = '▶';
+          toggleTcBtn.title = 'Bentangkan Test Case ini';
         } else {
           tcBodyContent.style.display = 'block';
           tcCard.classList.remove('is-collapsed');
-          toggleTcBtn.textContent = '▼ Ciutkan';
+          toggleTcBtn.innerHTML = '▼';
+          toggleTcBtn.title = 'Ciutkan Test Case ini';
         }
       });
 
