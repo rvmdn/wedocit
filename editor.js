@@ -2736,23 +2736,24 @@ document.addEventListener('DOMContentLoaded', () => {
   btnCloseRunner?.addEventListener('click', closeRunnerModal);
   btnRunnerClose?.addEventListener('click', closeRunnerModal);
 
-  btnSyncTestResults?.addEventListener('click', async () => {
+  async function syncResultsToEditor(isAuto = false) {
     try {
       const resp = await fetch('/api/latest-results');
       if (!resp.ok) {
-        alert('Tidak ditemukan data hasil run pengujian (latest_run_results.json). Silakan jalankan otomasi terlebih dahulu.');
+        if (!isAuto) alert('Tidak ditemukan data hasil run pengujian (latest_run_results.json). Silakan jalankan otomasi terlebih dahulu.');
         return;
       }
       const data = await resp.json();
       if (!data.testCases || data.testCases.length === 0) {
-        alert('Data hasil pengujian kosong.');
+        if (!isAuto) alert('Data hasil pengujian kosong.');
         return;
       }
 
       const activeDoc = getActiveDoc();
-      const currentCount = (activeDoc.testCases || []).length;
-      const confirmMsg = `Ditemukan ${data.testCases.length} Test Case dari otomasi Playwright.\n\nApakah Anda ingin mengganti/memperbarui daftar Test Case pada dokumen aktif (${activeDoc.metadata?.scenarioName || 'Dokumen Aktif'}) dengan hasil otomasi ini?`;
-      if (!confirm(confirmMsg)) return;
+      if (!isAuto) {
+        const confirmMsg = `Ditemukan ${data.testCases.length} Test Case dari otomasi Playwright.\n\nApakah Anda ingin mengganti/memperbarui daftar Test Case pada dokumen aktif (${activeDoc.metadata?.scenarioName || 'Dokumen Aktif'}) dengan hasil otomasi ini?`;
+        if (!confirm(confirmMsg)) return;
+      }
 
       if (data.metadata) {
         if (data.metadata.title) activeDoc.metadata.title = data.metadata.title;
@@ -2790,13 +2791,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       saveActiveDocState();
       populateActiveDoc();
+      renderTestCases();
       renderDocSelector();
-      closeRunnerModal();
-      alert(`🎉 Berhasil menyinkronkan ${activeDoc.testCases.length} Test Case ke Dokumen Studio!`);
+      if (!isAuto) {
+        closeRunnerModal();
+        alert(`🎉 Berhasil menyinkronkan ${activeDoc.testCases.length} Test Case ke Dokumen Studio!`);
+      }
     } catch (err) {
-      alert(`Gagal menyinkronkan hasil pengujian: ${err.message}`);
+      if (!isAuto) alert(`Gagal menyinkronkan hasil pengujian: ${err.message}`);
+      else console.warn('Auto-sync failed:', err);
     }
-  });
+  }
+
+  btnSyncTestResults?.addEventListener('click', () => syncResultsToEditor(false));
 
   btnTriggerRun?.addEventListener('click', async () => {
     const spec = runnerSpecSelect ? runnerSpecSelect.value : '';
@@ -2857,12 +2864,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 runnerStatusBadge.style.background = '#10b981';
               }
               if (runnerResultSummary) {
-                runnerResultSummary.innerHTML = `🎉 <b style="color:#10b981;">Pengujian Sukses!</b> Dokumen Word EDV ter-generate.`;
+                runnerResultSummary.innerHTML = `🎉 <b style="color:#10b981;">Pengujian Sukses!</b> Hasil & screenshot otomatis disinkronkan ke dokumen.`;
               }
               if (stData.lastOutputFile && btnRunnerExportPdf) {
                 btnRunnerExportPdf.style.display = 'inline-block';
                 btnRunnerExportPdf.dataset.docx = stData.lastOutputFile;
               }
+              // Otomatis sinkronkan hasil & screenshot ke dokumen studio
+              syncResultsToEditor(true);
             } else {
               if (runnerStatusBadge) {
                 runnerStatusBadge.textContent = 'FAILED';
