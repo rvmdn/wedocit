@@ -18,8 +18,10 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-const authFile = path.resolve(__dirname, '.auth/user.json');
-const hasAuth = fs.existsSync(authFile);
+// Deteksi file auth sesi (mendukung user_default.json atau user.json)
+const authDefaultFile = path.resolve(__dirname, '.auth/user_default.json');
+const authLegacyFile = path.resolve(__dirname, '.auth/user.json');
+const authFile = fs.existsSync(authDefaultFile) ? authDefaultFile : (fs.existsSync(authLegacyFile) ? authLegacyFile : undefined);
 
 export default defineConfig({
   testDir: './tests',
@@ -33,12 +35,12 @@ export default defineConfig({
     [path.resolve(__dirname, 'src/reporters/wedocit-word-reporter.ts')]
   ],
   use: {
-    baseURL: process.env.FAST_BASE_URL || 'https://amsfast-dev.bni.co.id:8081',
+    baseURL: process.env.APP_BASE_URL || process.env.FAST_BASE_URL || 'https://amsfast-dev.bni.co.id:8081',
     ignoreHTTPSErrors: true,
     headless: true,
     viewport: { width: 1366, height: 768 },
     actionTimeout: 20000,
-    storageState: hasAuth ? authFile : undefined,
+    storageState: authFile,
     trace: 'off',
     video: 'off'
   },

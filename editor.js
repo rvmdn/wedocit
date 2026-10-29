@@ -566,11 +566,11 @@ document.addEventListener('DOMContentLoaded', () => {
         projectType: 'CR',
         shortDescription: 'Pengujian dan verifikasi modul ' + cleanSc,
         developers: [
-          { name: 'Irvan Ramadan', npp: '822117' }
+          { name: 'QA Engineer', npp: '-' }
         ],
-        author: 'Irvan Ramadan / 822117',
-        testedBy: 'Irvan Ramadan',
-        npp: '822117',
+        author: 'QA Engineer',
+        testedBy: 'QA Engineer',
+        npp: '-',
         startDate: today,
         endDate: today,
         docDate: today,
@@ -2669,14 +2669,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const runnerResultSummary = document.getElementById('runner-result-summary');
   const btnRunnerExportPdf = document.getElementById('btn-runner-export-pdf');
   const btnSyncTestResults = document.getElementById('btn-sync-test-results');
+  const btnRunnerAuditSs = document.getElementById('btn-runner-audit-ss');
 
   let runnerPollInterval = null;
 
   async function checkLatestResultsAvailability() {
     try {
       const resp = await fetch('/api/latest-results');
-      if (resp.ok && btnSyncTestResults) {
-        btnSyncTestResults.style.display = 'inline-block';
+      if (resp.ok) {
+        if (btnSyncTestResults) btnSyncTestResults.style.display = 'inline-block';
+        if (btnRunnerAuditSs) btnRunnerAuditSs.style.display = 'inline-block';
       }
     } catch {}
   }
@@ -2870,6 +2872,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnRunnerExportPdf.style.display = 'inline-block';
                 btnRunnerExportPdf.dataset.docx = stData.lastOutputFile;
               }
+              if (btnRunnerAuditSs) {
+                btnRunnerAuditSs.style.display = 'inline-block';
+              }
               // Otomatis sinkronkan hasil & screenshot ke dokumen studio
               syncResultsToEditor(true);
             } else {
@@ -2955,7 +2960,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const projectName = meta.systemName || meta.projectName || 'Aplikasi BNI';
     const moduleName = meta.scenarioName || meta.title || 'Modul Aplikasi';
     const crNo = meta.testCaseId || meta.projectNo || 'CR_2026';
-    const testerName = meta.testedBy || 'Irvan Ramadan';
+    const testerName = meta.testedBy || 'QA Engineer';
     const npp = meta.npp || '822117';
     const resolution = meta.screenResolution || '1366x768';
 
@@ -3127,5 +3132,286 @@ ${tcListStr}
     } catch (e) {
       alert('Gagal menghubungi server: ' + e.message);
     }
+  });
+
+  // =========================================================================
+  // VISUAL SCREENSHOT AUDIT & VERIFICATION CONTROLLER (WeDocIt Studio)
+  // =========================================================================
+  const btnAuditScreenshots = document.getElementById('btn-audit-screenshots');
+  const modalAuditScreenshots = document.getElementById('modal-audit-screenshots');
+  const btnCloseAuditModal = document.getElementById('btn-close-audit-modal');
+  const btnCloseAuditModalBtn = document.getElementById('btn-close-audit-modal-btn');
+  const auditOverallBadge = document.getElementById('audit-overall-badge');
+  const statTotalSteps = document.getElementById('stat-total-steps');
+  const statValidSteps = document.getElementById('stat-valid-steps');
+  const statMismatchSteps = document.getElementById('stat-mismatch-steps');
+  const statMissingSteps = document.getElementById('stat-missing-steps');
+  const statDupSteps = document.getElementById('stat-dup-steps');
+  const auditItemsContainer = document.getElementById('audit-items-container');
+  const modalImgLightbox = document.getElementById('modal-img-lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  const auditFilterBtns = document.querySelectorAll('.audit-filter-btn');
+
+  let currentAuditItems = [];
+  let currentAuditFilter = 'all';
+
+  function renderAuditCards(filter = 'all') {
+    if (!auditItemsContainer) return;
+    currentAuditFilter = filter;
+
+    auditFilterBtns.forEach(btn => {
+      if (btn.dataset.filter === filter) {
+        btn.classList.add('active');
+        btn.style.background = '#0284c7';
+        btn.style.color = '#fff';
+      } else {
+        btn.classList.remove('active');
+        btn.style.background = '#1e293b';
+        btn.style.color = btn.dataset.filter === 'issues' ? '#f87171' : (btn.dataset.filter === 'ok' ? '#34d399' : '#cbd5e1');
+      }
+    });
+
+    const filtered = currentAuditItems.filter(item => {
+      if (filter === 'all') return true;
+      if (filter === 'issues') return item.issueType !== 'ok';
+      if (filter === 'ok') return item.issueType === 'ok';
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      auditItemsContainer.innerHTML = `
+        <div style="text-align:center; padding:35px 16px; color:#94a3b8; background:#020617; border-radius:8px; border:1px dashed #334155;">
+          <span style="font-size:26px;">✨</span>
+          <div style="margin-top:8px; font-weight:700; font-size:13px; color:#f1f5f9;">Tidak ada langkah dalam filter ini.</div>
+          <div style="font-size:11.5px; color:#64748b; margin-top:2px;">Semua screenshot langkah uji berada dalam kondisi valid.</div>
+        </div>
+      `;
+      return;
+    }
+
+    auditItemsContainer.innerHTML = filtered.map(item => `
+      <div class="audit-row-card ${item.cardClass}" data-issue="${item.issueType}">
+        <!-- Col 1: TC & Step Badge -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+          <span style="background:#0284c7; color:#fff; font-weight:800; font-size:11px; padding:3px 7px; border-radius:5px; text-align:center; width:100%;">
+            ${escapeHtml(item.tcNo)}
+          </span>
+          <span style="background:#1e293b; color:#94a3b8; font-weight:700; font-size:10.5px; padding:2px 6px; border-radius:4px; text-align:center; width:100%;">
+            Step ${item.stepNo}
+          </span>
+        </div>
+
+        <!-- Col 2: Step Details & URL -->
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:0;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">${escapeHtml(item.title)}</span>
+          </div>
+          <div style="font-size:11.5px; color:#cbd5e1; line-height:1.35;">
+            <b style="color:#94a3b8;">Aksi:</b> ${escapeHtml(item.action)}
+          </div>
+          <div style="font-size:11.5px; color:#94a3b8; line-height:1.35;">
+            <b style="color:#64748b;">Ekspektasi:</b> ${escapeHtml(item.expected)}
+          </div>
+          <div style="font-size:10.5px; color:#38bdf8; font-family:monospace; margin-top:2px; word-break:break-all;">
+            🌐 <span style="color:#64748b;">URL:</span> ${escapeHtml(item.pageUrl || '(URL belum terekam)')}
+          </div>
+          ${item.issueDesc ? `
+            <div style="margin-top:4px; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; ${item.issueStyle}">
+              ${item.issueDesc}
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Col 3: Thumbnail -->
+        <div style="display:flex; justify-content:center; align-items:center;">
+          ${item.img ? `
+            <img src="${item.img}" class="audit-img-thumb" data-tc="${escapeHtml(item.tcNo)}" data-step="Step ${item.stepNo}: ${escapeHtml(item.title)}" title="Klik untuk memperbesar gambar" alt="Step ${item.stepNo}">
+          ` : `
+            <div class="audit-img-empty">
+              <span style="font-size:20px;">📷</span>
+              <span style="margin-top:4px;">Tidak ada SS</span>
+            </div>
+          `}
+        </div>
+
+        <!-- Col 4: Status Diagnosis -->
+        <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;">
+          <span style="padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; ${item.badgeStyle}">
+            ${item.badgeText}
+          </span>
+          <span style="font-size:11px; color:#94a3b8; line-height:1.35;">
+            ${item.diagnosisNote}
+          </span>
+        </div>
+      </div>
+    `).join('');
+
+    // Attach lightbox click listener
+    auditItemsContainer.querySelectorAll('.audit-img-thumb').forEach(imgEl => {
+      imgEl.addEventListener('click', () => {
+        if (modalImgLightbox && lightboxImg) {
+          lightboxImg.src = imgEl.src;
+          if (lightboxCaption) {
+            lightboxCaption.textContent = `[${imgEl.dataset.tc}] ${imgEl.dataset.step}`;
+          }
+          modalImgLightbox.style.display = 'flex';
+        }
+      });
+    });
+  }
+
+  function openScreenshotAuditModal() {
+    const doc = getActiveDoc();
+    if (!doc) {
+      alert('Tidak ada dokumen aktif untuk diaudit.');
+      return;
+    }
+    const tcs = doc.testCases || [];
+
+    let totalSteps = 0;
+    let validSteps = 0;
+    let mismatchSteps = 0;
+    let missingSteps = 0;
+    let dupSteps = 0;
+
+    currentAuditItems = [];
+    const seenImageSignatures = new Map();
+
+    tcs.forEach((tc, tcIdx) => {
+      const tcNo = tc.tcNumberStr || `TC-${tcIdx + 1}`;
+      const tcTitle = tc.title || `Test Case ${tcIdx + 1}`;
+      const steps = tc.steps || [];
+
+      steps.forEach((st, sIdx) => {
+        totalSteps++;
+        const stepNo = st.stepNumber || (sIdx + 1);
+        const title = st.title || `Langkah ${stepNo}`;
+        const action = st.actionDescription || title || '';
+        const expected = st.expectedResult || '';
+        const pageUrl = st.pageUrl || '';
+        const img = st.screenshot || st.image || '';
+
+        let issueType = 'ok';
+        let cardClass = 'status-ok';
+        let badgeStyle = 'background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3);';
+        let badgeText = 'Sesuai ✅';
+        let issueDesc = '';
+        let issueStyle = '';
+        let diagnosisNote = 'Tangkapan layar valid dan sesuai konteks pengujian.';
+
+        // Heuristik 1: Screenshot Tidak Ada / Kosong
+        if (!img || img.length < 50) {
+          issueType = 'missing';
+          cardClass = 'issue-missing';
+          badgeStyle = 'background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3);';
+          badgeText = 'Kosong 🟡';
+          issueDesc = '⚠️ Screenshot belum ada atau belum diambil oleh script pengujian.';
+          issueStyle = 'background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.25);';
+          diagnosisNote = 'Step membutuhkan screenshot bukti uji sebelum dokumen diekspor.';
+          missingSteps++;
+        }
+        // Heuristik 2: Sesi Mental / Halaman Keliru (Portal RMIS / Login Screen)
+        else if (
+          pageUrl &&
+          (pageUrl.includes('/portal') || pageUrl.includes('/login')) &&
+          !action.toLowerCase().includes('portal') &&
+          !action.toLowerCase().includes('login') &&
+          !tcTitle.toLowerCase().includes('portal') &&
+          !tcTitle.toLowerCase().includes('login')
+        ) {
+          issueType = 'mismatch';
+          cardClass = 'issue-mismatch';
+          badgeStyle = 'background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3);';
+          badgeText = 'Suspect Mismatch 🔴';
+          issueDesc = `🔴 <b>Suspect Sesi Mental / Halaman Keliru:</b> Terdeteksi screenshot berada di <code>${pageUrl}</code>, padahal aksi pengujian adalah <i>"${action}"</i>. Kemungkinan form/modal belum selesai terbuka saat screenshot diambil.`;
+          issueStyle = 'background:rgba(239,68,68,0.12); color:#fca5a5; border:1px solid rgba(239,68,68,0.25);';
+          diagnosisNote = 'Periksa locator tombol dan pastikan modal/halaman target sudah terlihat (waitFor visible) sebelum captureStep.';
+          mismatchSteps++;
+        }
+        // Heuristik 3: Screenshot Duplikat Persis pada Test Case yang Sama
+        else {
+          const imgLen = img.length;
+          const key = `${tcIdx}_${imgLen}`;
+          if (sIdx > 0 && seenImageSignatures.has(key)) {
+            issueType = 'duplicate';
+            cardClass = 'issue-duplicate';
+            badgeStyle = 'background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3);';
+            badgeText = 'Duplikat 🟣';
+            const prevStep = seenImageSignatures.get(key);
+            issueDesc = `🟣 <b>Duplikat Persis:</b> Ukuran gambar identik (${imgLen.toLocaleString()} bytes) dengan Langkah ${prevStep}. Kemungkinan layar belum berubah atau aksi belum dieksekusi sebelum capture.`;
+            issueStyle = 'background:rgba(168,85,247,0.12); color:#d8b4fe; border:1px solid rgba(168,85,247,0.25);';
+            diagnosisNote = 'Pastikan ada interaksi UI (input/klik) yang terlihat sebelum mengambil screenshot langkah selanjutnya.';
+            dupSteps++;
+          } else {
+            seenImageSignatures.set(key, stepNo);
+            validSteps++;
+          }
+        }
+
+        currentAuditItems.push({
+          tcNo,
+          tcTitle,
+          stepNo,
+          title,
+          action,
+          expected,
+          pageUrl,
+          img,
+          issueType,
+          cardClass,
+          badgeStyle,
+          badgeText,
+          issueDesc,
+          issueStyle,
+          diagnosisNote
+        });
+      });
+    });
+
+    // Update Pill Statistics
+    if (statTotalSteps) statTotalSteps.textContent = totalSteps;
+    if (statValidSteps) statValidSteps.textContent = validSteps;
+    if (statMismatchSteps) statMismatchSteps.textContent = mismatchSteps;
+    if (statMissingSteps) statMissingSteps.textContent = missingSteps;
+    if (statDupSteps) statDupSteps.textContent = dupSteps;
+
+    // Update Overall Badge in Modal Header
+    if (auditOverallBadge) {
+      if (mismatchSteps > 0) {
+        auditOverallBadge.textContent = `${mismatchSteps} Langkah Suspect 🔴`;
+        auditOverallBadge.style.background = '#ef4444';
+      } else if (missingSteps > 0) {
+        auditOverallBadge.textContent = `${missingSteps} SS Kosong 🟡`;
+        auditOverallBadge.style.background = '#f59e0b';
+      } else if (dupSteps > 0) {
+        auditOverallBadge.textContent = `${dupSteps} Duplikat 🟣`;
+        auditOverallBadge.style.background = '#a855f7';
+      } else {
+        auditOverallBadge.textContent = '100% Sesuai & Valid 🟢';
+        auditOverallBadge.style.background = '#10b981';
+      }
+    }
+
+    renderAuditCards('all');
+
+    if (modalAuditScreenshots) {
+      modalAuditScreenshots.style.display = 'flex';
+    }
+  }
+
+  btnAuditScreenshots?.addEventListener('click', openScreenshotAuditModal);
+  btnRunnerAuditSs?.addEventListener('click', openScreenshotAuditModal);
+
+  const closeAuditModal = () => {
+    if (modalAuditScreenshots) modalAuditScreenshots.style.display = 'none';
+  };
+  btnCloseAuditModal?.addEventListener('click', closeAuditModal);
+  btnCloseAuditModalBtn?.addEventListener('click', closeAuditModal);
+
+  auditFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      renderAuditCards(btn.dataset.filter);
+    });
   });
 });

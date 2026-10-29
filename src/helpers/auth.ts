@@ -70,25 +70,15 @@ export async function loginWithRole(page: Page, params: {
 
   // 2. Pilih Type jika ada selector type
   if (selectors.typeSelect && params.loginType) {
-    const trigger = page.locator(selectors.typeSelect);
-    if (await trigger.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await trigger.click();
-      await page.waitForTimeout(300);
-      const opt = page.locator(`.p-select-option:has-text("${params.loginType}"), li:has-text("${params.loginType}")`).first();
-      if (await opt.isVisible().catch(() => false)) {
-        await opt.click();
-      } else {
-        await page.locator('.p-select-option, li').first().click();
-      }
-    }
+    await selectLoginType(page, selectors.typeSelect, params.loginType);
   }
 
   // 3. Submit Login
   await page.locator(selectors.submitButton).first().click();
   await page.waitForTimeout(2500);
 
-  // 4. Deteksi Auto-Reset Session jika dikonfigurasi
-  if (app.autoResetSession) {
+  // 4. Deteksi Auto-Reset Session jika dikonfigurasi dan aktif
+  if (app.autoResetSession && app.autoResetSession.enabled) {
     const toastTexts = await getToastMessages(page);
     const hasConflict = toastTexts.some(t => t.toLowerCase().includes(app.autoResetSession!.detectKeyword.toLowerCase()));
 
@@ -109,12 +99,7 @@ export async function loginWithRole(page: Page, params: {
       await page.locator(selectors.usernameInput).fill(params.username);
       await page.locator(selectors.passwordInput).fill(params.password);
       if (selectors.typeSelect && params.loginType) {
-        const trigger = page.locator(selectors.typeSelect);
-        if (await trigger.isVisible().catch(() => false)) {
-          await trigger.click();
-          await page.waitForTimeout(300);
-          await page.locator(`.p-select-option:has-text("${params.loginType}"), li:has-text("${params.loginType}")`).first().click();
-        }
+        await selectLoginType(page, selectors.typeSelect, params.loginType);
       }
       await page.locator(selectors.submitButton).first().click();
     }
@@ -136,6 +121,29 @@ export async function loginWithRole(page: Page, params: {
     const errorToasts = await getToastMessages(page);
     console.error(`❌ [WeDocIt Auth] Gagal login role [${params.role}]: ${errorToasts.join(' | ') || 'Timeout'}`);
     throw err;
+  }
+}
+
+async function selectLoginType(page: Page, triggerSelector: string, loginType: string) {
+  const trigger = page.locator(triggerSelector).first();
+  if (!await trigger.isVisible({ timeout: 1500 }).catch(() => false)) return;
+
+  const tagName = await trigger.evaluate(el => el.tagName.toLowerCase()).catch(() => '');
+  if (tagName === 'select') {
+    await trigger.selectOption({ label: loginType }).catch(async () => {
+      await trigger.selectOption({ value: loginType }).catch(() => {});
+    });
+    return;
+  }
+
+  // Custom UI dropdown (PrimeNG, Bootstrap, custom div/li, dll.)
+  await trigger.click();
+  await page.waitForTimeout(300);
+  const opt = page.locator(`.p-select-option:has-text("${loginType}"), .dropdown-item:has-text("${loginType}"), li:has-text("${loginType}"), [role="option"]:has-text("${loginType}")`).first();
+  if (await opt.isVisible().catch(() => false)) {
+    await opt.click();
+  } else {
+    await page.locator('.p-select-option, .dropdown-item, li, [role="option"]').first().click().catch(() => {});
   }
 }
 

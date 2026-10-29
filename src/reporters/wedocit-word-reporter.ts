@@ -66,7 +66,7 @@ export default class WeDocItWordReporter implements Reporter {
   }
 
   async onEnd(result: FullResult) {
-    console.log(`\n📄 [WeDocIt v2.0] Mengenerate Dokumen Word EDV BNI dari ${this.testCases.length} Test Case...`);
+    console.log(`\n📄 [WeDocIt v3.0] Mengenerate Dokumen Word EDV BNI dari ${this.testCases.length} Test Case...`);
     
     const templatePath = path.resolve(process.cwd(), wedocitConfig.document?.templatePath || 'templates/template-bni-edv.docx');
     if (!fs.existsSync(templatePath)) {
@@ -79,12 +79,12 @@ export default class WeDocItWordReporter implements Reporter {
       const zip = await JSZip.loadAsync(templateBuffer);
 
       // Pastikan fallback nilai metadata terisi dari konfigurasi dan environment
+      if (process.env.DOC_COMPANY) this.metadata.companyName = process.env.DOC_COMPANY;
       if (process.env.DOC_TITLE) this.metadata.title = process.env.DOC_TITLE;
       if (process.env.DOC_MODULE) this.metadata.module = process.env.DOC_MODULE;
       if (process.env.DOC_SCOPE) this.metadata.scope = process.env.DOC_SCOPE;
       if (process.env.DOC_CR_NO) this.metadata.crNo = process.env.DOC_CR_NO;
       if (process.env.DOC_CRITERIA) this.metadata.acceptanceCriteria = process.env.DOC_CRITERIA;
-
 
       const devs = this.metadata.developers || [];
       let devHeaderFormatted = '';
@@ -130,15 +130,12 @@ export default class WeDocItWordReporter implements Reporter {
       };
 
       const formatScenarioWithTc = (tc: CollectedTestCase, idx: number) => {
-        const tcTag = tc.tcNumberStr || `TC ${idx + 1}`;
-        let baseScenario = (tc.scenarioName || tc.title || 'Skenario Pengujian').trim();
+        const tcTag = (tc.tcNumberStr || `TC ${idx + 1}`).replace(/^\[|\]$/g, '').trim();
+        const baseScenario = (tc.scenarioName || tc.title || 'Skenario Pengujian').trim();
 
-        if (/^\[TC[-0-9\s]+\]/i.test(baseScenario)) return baseScenario;
-        if (/^TC[-0-9\s]+[:.-]?\s*/i.test(baseScenario)) {
-          const withoutPrefix = baseScenario.replace(/^TC[-0-9\s]+[:.-]?\s*/i, '').trim();
-          return `[${tcTag}] ${withoutPrefix}`;
-        }
-        return `[${tcTag}] ${baseScenario}`;
+        // Bersihkan prefix tag TC yang sudah ada (misal: [TC-1.1], TC-1.1:, TC 007 - )
+        const cleanedScenario = baseScenario.replace(/^\[?TC[-0-9.\s]+\]?[:.-]?\s*/i, '').trim();
+        return `[${tcTag}] ${cleanedScenario || baseScenario}`;
       };
 
       const replaceDocxPlaceholders = (xmlStr: string, replacements: Record<string, string>) => {
@@ -174,11 +171,12 @@ export default class WeDocItWordReporter implements Reporter {
         });
       };
 
-      // Table 2.1 Repeater
+      // Table 2.1 Repeater (Robust terhadap Word XML run-splitting)
       const expandTableRowRepeater = (xmlStr: string) => {
         if (!xmlStr) return xmlStr;
         return xmlStr.replace(/<w:tr\b[^>]*>[\s\S]*?<\/w:tr>/g, (trXml) => {
-          if (!trXml.includes('{no}') && !trXml.includes('{test_case}') && !trXml.includes('{ekspektasi}')) {
+          const plainTrText = trXml.replace(/<[^>]+>/g, '');
+          if (!plainTrText.includes('{no}') && !plainTrText.includes('{test_case}') && !plainTrText.includes('{ekspektasi}')) {
             return trXml;
           }
 
@@ -370,10 +368,11 @@ export default class WeDocItWordReporter implements Reporter {
       // Sanitasi metadata identitas dokumen (Privacy & Audit Security)
       const cleanIdentity = (xmlStr: string) => {
         const authorName = escapeXml(this.metadata.testedBy || 'WeDocIt Enterprise Studio');
+        const companyName = escapeXml(this.metadata.companyName || process.env.DOC_COMPANY || 'PT Bank Negara Indonesia (Persero) Tbk');
         return xmlStr
           .replace(/<dc:creator>[\s\S]*?<\/dc:creator>/g, `<dc:creator>${authorName}</dc:creator>`)
           .replace(/<cp:lastModifiedBy>[\s\S]*?<\/cp:lastModifiedBy>/g, `<cp:lastModifiedBy>${authorName}</cp:lastModifiedBy>`)
-          .replace(/<Company>[\s\S]*?<\/Company>/g, `<Company>PT Bank Negara Indonesia (Persero) Tbk</Company>`)
+          .replace(/<Company>[\s\S]*?<\/Company>/g, `<Company>${companyName}</Company>`)
           .replace(/<Manager>[\s\S]*?<\/Manager>/g, `<Manager></Manager>`)
           .replace(/<HyperlinkBase>[\s\S]*?<\/HyperlinkBase>/g, `<HyperlinkBase></HyperlinkBase>`);
       };
@@ -434,7 +433,7 @@ export default class WeDocItWordReporter implements Reporter {
         }
       }
 
-      console.log(`\n🎉 [WeDocIt v2.0] DOKUMEN BERHASIL DIGENERATE!\n📁 File: ${outputPath}\n`);
+      console.log(`\n🎉 [WeDocIt v3.0] DOKUMEN BERHASIL DIGENERATE!\n📁 File: ${outputPath}\n`);
 
     } catch (err: any) {
       console.error('❌ Gagal mengenerate dokumen Word:', err);

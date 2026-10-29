@@ -42,7 +42,7 @@ export interface WeDocItConfiguration {
 }
 
 /**
- * Konfigurasi Generik WeDocIt v2.0
+ * Konfigurasi Generik WeDocIt v3.0
  * Jika digunakan untuk aplikasi lain, cukup sesuaikan parameter di bawah ini atau melalui file .env
  */
 export const wedocitConfig: WeDocItConfiguration = {
@@ -67,69 +67,70 @@ export const wedocitConfig: WeDocItConfiguration = {
     // Definisi Multi-Role (Anggota, Katim, PKA, Admin, dll.)
     roles: {
       DEFAULT: {
-        usernameEnv: 'FAST_USERNAME',
-        passwordEnv: 'FAST_PASSWORD',
-        loginTypeEnv: 'FAST_LOGIN_TYPE',
-        defaultUsername: '900097',
-        defaultPassword: 'bni1234/',
-        defaultType: 'HQ'
+        usernameEnv: 'APP_USERNAME',
+        passwordEnv: 'APP_PASSWORD',
+        loginTypeEnv: 'APP_LOGIN_TYPE',
+        defaultUsername: process.env.FAST_USERNAME || process.env.APP_USERNAME || 'admin',
+        defaultPassword: process.env.FAST_PASSWORD || process.env.APP_PASSWORD || '',
+        defaultType: process.env.FAST_LOGIN_TYPE || ''
       },
       ANGGOTA: {
         usernameEnv: 'FAST_USER_ANGGOTA',
         passwordEnv: 'FAST_PASS_ANGGOTA',
         loginTypeEnv: 'FAST_LOGIN_TYPE',
-        defaultUsername: '900097',
-        defaultPassword: 'bni1234/',
-        defaultType: 'HQ'
+        defaultUsername: process.env.FAST_USER_ANGGOTA || process.env.FAST_USERNAME || '900097',
+        defaultPassword: process.env.FAST_PASS_ANGGOTA || process.env.FAST_PASSWORD || 'bni1234/',
+        defaultType: process.env.FAST_LOGIN_TYPE || 'HQ'
       },
       KATIM: {
         usernameEnv: 'FAST_USER_KATIM',
         passwordEnv: 'FAST_PASS_KATIM',
         loginTypeEnv: 'FAST_LOGIN_TYPE',
-        defaultUsername: '900097',
-        defaultPassword: 'bni1234/',
-        defaultType: 'HQ'
+        defaultUsername: process.env.FAST_USER_KATIM || '900097',
+        defaultPassword: process.env.FAST_PASS_KATIM || 'bni1234/',
+        defaultType: process.env.FAST_LOGIN_TYPE || 'HQ'
       },
       PKA: {
         usernameEnv: 'FAST_USER_PKA',
         passwordEnv: 'FAST_PASS_PKA',
         loginTypeEnv: 'FAST_LOGIN_TYPE',
-        defaultUsername: '900097',
-        defaultPassword: 'bni1234/',
-        defaultType: 'HQ'
+        defaultUsername: process.env.FAST_USER_PKA || '900097',
+        defaultPassword: process.env.FAST_PASS_PKA || 'bni1234/',
+        defaultType: process.env.FAST_LOGIN_TYPE || 'HQ'
       }
     },
     // Mekanisme pemulihan sesi aktif bentrok (Single-Session Enforcement)
     autoResetSession: {
-      enabled: true,
+      enabled: Boolean(process.env.SESSION_RESET_ENABLED !== 'false'),
       detectKeyword: process.env.SESSION_RESET_KEYWORD || 'already login',
       resetPasswordEnv: 'FAST_RESET_PASSWORD',
-      defaultResetPassword: 'ResetBni'
+      defaultResetPassword: process.env.FAST_RESET_PASSWORD || 'ResetBni'
     }
   },
 
   // 3. Metadata Resmi Dokumen BNI EDV (Cover, Header, Tabel 2.1, Bab 3)
   metadata: {
+    companyName: process.env.DOC_COMPANY || 'PT Bank Negara Indonesia (Persero) Tbk',
     systemName: process.env.DOC_SYSTEM_NAME || 'AMS Fast',
     projectName: process.env.DOC_PROJECT_NAME || 'AMS (Audit Management System)',
-    crNo: process.env.DOC_CR_NO || 'CR_AMS_2026_OFFLINE',
-    title: process.env.DOC_TITLE || 'Unit Test Documentation - Pelaksanaan Audit (Offline & Online)',
-    module: process.env.DOC_MODULE || 'Pelaksanaan Audit',
-    shortDescription: process.env.DOC_SHORT_DESC || 'Modul Pelaksanaan Audit mencakup AP Non-Kredit, Pengujian AP, AP Kredit, RHA, dan Pelaksanaan Audit Online.',
-    scope: process.env.DOC_SCOPE || 'Pengujian menyeluruh modul Pelaksanaan Audit Offline (AP Non-Kredit, Pengujian AP, AP Kredit, RHA) dan Pelaksanaan Audit Online',
-    acceptanceCriteria: process.env.DOC_CRITERIA || 'Seluruh skenario pengujian (Rich Text Jodit Editor, Notifikasi, Validasi Upload Lampiran, dan Hak Akses Role) berjalan sukses dan data tersimpan di sistem.',
-    testedBy: process.env.DOC_TESTED_BY || 'Irvan Ramadan',
-    npp: process.env.DOC_NPP || '822117',
+    crNo: process.env.DOC_CR_NO || 'CR_UNIT_TEST',
+    title: process.env.DOC_TITLE || 'Unit Test Documentation',
+    module: process.env.DOC_MODULE || 'Modul Aplikasi',
+    shortDescription: process.env.DOC_SHORT_DESC || 'Pengujian dan verifikasi modul aplikasi.',
+    scope: process.env.DOC_SCOPE || 'Verifikasi alur proses pengujian fitur terkait.',
+    acceptanceCriteria: process.env.DOC_CRITERIA || 'Seluruh skenario pengujian berhasil dieksekusi sesuai spesifikasi.',
+    testedBy: process.env.DOC_TESTED_BY || 'QA Engineer',
+    npp: process.env.DOC_NPP || '-',
     developers: [
       {
-        name: process.env.DOC_TESTED_BY || 'Irvan Ramadan',
-        npp: process.env.DOC_NPP || '822117'
+        name: process.env.DOC_TESTED_BY || 'QA Engineer',
+        npp: process.env.DOC_NPP || '-'
       }
     ],
-    startDate: process.env.DOC_START_DATE || '19/08/2026',
-    endDate: process.env.DOC_END_DATE || '27/10/2026',
-    docDate: process.env.DOC_DATE || '27/10/2026',
-    copyrightYear: process.env.DOC_YEAR || '2026'
+    startDate: process.env.DOC_START_DATE || new Date().toLocaleDateString('id-ID'),
+    endDate: process.env.DOC_END_DATE || new Date().toLocaleDateString('id-ID'),
+    docDate: process.env.DOC_DATE || new Date().toLocaleDateString('id-ID'),
+    copyrightYear: process.env.DOC_YEAR || String(new Date().getFullYear())
   }
 };
 

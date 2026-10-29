@@ -52,12 +52,14 @@ export async function ensureOrmsAuthenticated(page: Page, options: OrmsAuthOptio
     await signInBtn.click();
 
     // Tunggu navigasi masuk ke dashboard / modul internal
-    await page.waitForTimeout(2000);
+    await page.waitForURL(url => !url.toString().includes('login'), { timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(1000);
     const enterAppBtn = page.locator('text=Masuk ke Aplikasi RMIS, a:has-text("Masuk ke Aplikasi RMIS"), button:has-text("Masuk ke Aplikasi RMIS")').first();
-    if (await enterAppBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+    if (await enterAppBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       console.log('🌐 [RMIS Auth] Mengklik "Masuk ke Aplikasi RMIS" untuk memasuki modul internal...');
       await enterAppBtn.click();
-      await page.waitForTimeout(2500);
+      await page.waitForURL(url => !url.toString().includes('portal'), { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(1500);
     }
 
     // Simpan storage state agar sesi tersimpan

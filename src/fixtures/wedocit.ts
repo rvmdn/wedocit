@@ -5,6 +5,7 @@ export interface WeDocItMetadata {
   module?: string;
   systemName?: string;
   projectName?: string;
+  companyName?: string;
   docNo?: string;
   crNo?: string;
   projectType?: string;
@@ -27,6 +28,7 @@ export interface WeDocItStep {
   inputData?: string;
   expectedResult?: string;
   screenshot?: string; // base64
+  pageUrl?: string;
   status?: 'READY' | 'MANUAL';
   note?: string;
 }
@@ -99,10 +101,11 @@ export class WeDocItContext {
         await options.verify(response);
       }
 
-      this.attemptedMutation = false;
       return response;
     } catch (err: any) {
       throw new Error(`[WeDocIt Safety] Mutasi gagal diverifikasi: ${err.message}`);
+    } finally {
+      this.attemptedMutation = false;
     }
   }
 
@@ -135,6 +138,7 @@ export class WeDocItContext {
       inputData: options.input || '-',
       expectedResult: options.expected || 'Sistem merespons proses dengan benar.',
       screenshot: screenshotBase64,
+      pageUrl: this.page.url(),
       status: isManual ? 'MANUAL' : 'READY',
       note: options.note || ''
     };

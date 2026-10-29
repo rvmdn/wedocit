@@ -47,23 +47,26 @@ const MIME_TYPES = {
 
 // Helper untuk default workspace jika file belum ada
 function getDefaultWorkspace() {
+  const testedBy = process.env.DOC_TESTED_BY || 'QA Engineer';
+  const npp = process.env.DOC_NPP || '-';
+  const today = new Date().toLocaleDateString('id-ID');
   const initialDoc = {
     id: 'doc_' + Date.now(),
-    title: 'Unit Test Documentation - Pelaksanaan Audit (Offline & Online)',
-    systemName: 'AMS Fast',
-    projectName: 'AMS (Audit Management System)',
-    crNo: 'CR_AMS_2026_OFFLINE',
-    module: 'Pelaksanaan Audit',
-    shortDescription: 'Modul Pelaksanaan Audit mencakup AP Non-Kredit, Pengujian AP, AP Kredit, RHA, dan Pelaksanaan Audit Online.',
-    scope: 'Pengujian menyeluruh modul Pelaksanaan Audit Offline dan Online',
-    acceptanceCriteria: 'Seluruh skenario pengujian berjalan sukses dan data tersimpan di sistem.',
-    testedBy: 'Irvan Ramadan',
-    npp: '822117',
-    developers: [{ name: 'Irvan Ramadan', npp: '822117' }],
-    startDate: '19/08/2026',
-    endDate: '27/10/2026',
-    docDate: '27/10/2026',
-    copyrightYear: '2026',
+    title: process.env.DOC_TITLE || 'Unit Test Documentation',
+    systemName: process.env.DOC_SYSTEM_NAME || 'Web Application',
+    projectName: process.env.DOC_PROJECT_NAME || 'Application System',
+    crNo: process.env.DOC_CR_NO || 'CR_UNIT_TEST',
+    module: process.env.DOC_MODULE || 'Modul Aplikasi',
+    shortDescription: process.env.DOC_SHORT_DESC || 'Pengujian dan verifikasi modul aplikasi.',
+    scope: process.env.DOC_SCOPE || 'Verifikasi alur proses pengujian fitur terkait.',
+    acceptanceCriteria: process.env.DOC_CRITERIA || 'Seluruh skenario pengujian berjalan sukses dan data tersimpan di sistem.',
+    testedBy: testedBy,
+    npp: npp,
+    developers: [{ name: testedBy, npp: npp }],
+    startDate: process.env.DOC_START_DATE || today,
+    endDate: process.env.DOC_END_DATE || today,
+    docDate: process.env.DOC_DATE || today,
+    copyrightYear: process.env.DOC_YEAR || String(new Date().getFullYear()),
     version: 'V1.0',
     env: 'Development / SIT',
     screenResolution: '1366x768',

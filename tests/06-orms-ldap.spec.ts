@@ -1,9 +1,14 @@
 import { test, expect, Page } from '../src/fixtures/wedocit';
 import { ensureOrmsAuthenticated } from '../src/helpers/orms-auth';
+import * as path from 'path';
+import * as fs from 'fs';
+
+const ormsAuthFile = path.resolve(process.cwd(), '.auth/user_orms_admin.json');
 
 test.use({
   baseURL: process.env.ORMS_BASE_URL || 'http://localhost:4300',
-  viewport: { width: 1366, height: 768 }
+  viewport: { width: 1366, height: 768 },
+  storageState: fs.existsSync(ormsAuthFile) ? ormsAuthFile : undefined
 });
 
 test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (CR 60131)', () => {
@@ -30,43 +35,39 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
   async function navigateToAdminCiso(page: Page, target: 'ldap-configuration' | 'ldap-error' | 'manage-session' | 'audit-trail') {
     const targetUrl = `/admin-ciso/${target}`;
     
-    // Cek apakah sudah di halaman target
-    if (page.url().includes(targetUrl)) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      // 1. Cek jika berada di Halaman Portal RMIS -> Klik untuk masuk ke login
+      const portalBtn = page.locator('text=Masuk ke Aplikasi RMIS, button:has-text("Masuk ke Aplikasi RMIS")').first();
+      if (await portalBtn.isVisible({ timeout: 800 }).catch(() => false)) {
+        await portalBtn.click();
+        await page.waitForTimeout(1500);
+      }
+
+      // 2. Cek jika berada di Form Login -> Login sebagai Admin
+      const passInput = page.locator('input[placeholder*="Password" i], input#password, input[type="password"]').first();
+      const userInput = page.locator('input[placeholder*="Username" i], input#username, input[type="text"]').first();
+      if (await passInput.isVisible({ timeout: 800 }).catch(() => false)) {
+        if (await userInput.isEditable({ timeout: 1500 }).catch(() => false)) {
+          await userInput.fill('Admin');
+          await passInput.fill('AdminBni1234/');
+          await page.locator('button:has-text("SIGN IN"), button[type="submit"]').first().click();
+          await page.waitForURL(url => !url.toString().includes('login'), { timeout: 10000 }).catch(() => {});
+          await page.waitForTimeout(1500);
+        }
+      }
+
+      // 3. Navigasi langsung ke URL target jika belum di halaman target
+      if (!page.url().includes(targetUrl)) {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
+        await page.waitForTimeout(2000);
+      }
+
+      // 4. Pastikan tabel atau tombol Add telah ter-render dan tidak terpental ke portal/login
+      const isReady = await page.locator('p-table, table, .p-datatable, button:has-text("Add")').first().isVisible({ timeout: 4000 }).catch(() => false);
+      if (isReady && !page.url().includes('portal') && !page.url().includes('login')) {
+        return;
+      }
       await page.waitForTimeout(1000);
-      return;
-    }
-
-    // Cek apakah berada di halaman portal RMIS
-    const portalBtn = page.locator('text=Masuk ke Aplikasi RMIS, button:has-text("Masuk ke Aplikasi RMIS")').first();
-    if (await portalBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await portalBtn.click();
-      await page.waitForTimeout(2000);
-    }
-
-    // 1. Klik Icon Rail "Admin Tools" di sebelah kiri (pi-shield atau title "Admin Tools")
-    const adminRailBtn = page.locator('button[title*="Admin" i], button:has(i.pi-shield), button:has(i.pi-shield-check)').first();
-    if (await adminRailBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await adminRailBtn.click();
-      await page.waitForTimeout(600);
-    }
-
-    // 2. Klik submenu link di panel samping kanan
-    const linkMap: Record<string, string> = {
-      'ldap-configuration': 'LDAP Configuration',
-      'ldap-error': 'LDAP Errors',
-      'manage-session': 'Manage Sessions',
-      'audit-trail': 'Audit Trail'
-    };
-    const menuLabel = linkMap[target];
-    const subMenuLink = page.locator(`a[href*="${targetUrl}"], a:has-text("${menuLabel}"), span:has-text("${menuLabel}")`).first();
-    
-    if (await subMenuLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await subMenuLink.click();
-      await page.waitForTimeout(1500);
-    } else {
-      // Direct router navigation jika menu sidebar sedang collapsed
-      await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(1500);
     }
   }
 
@@ -131,10 +132,12 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     await navigateToAdminCiso(page, 'ldap-configuration');
 
     const btnAdd = page.locator('button:has-text("Add LDAP Server"), button:has(.pi-plus)').first();
-    if (await btnAdd.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnAdd.click();
-      await page.waitForTimeout(1000);
-    }
+    await btnAdd.waitFor({ state: 'visible', timeout: 8000 });
+    await btnAdd.click();
+
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+    await dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(500);
 
     await wedocit.captureStep({
       title: 'Buka Modal Add LDAP Server',
@@ -143,7 +146,6 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     });
 
     // Pengisian form Add LDAP Server dengan data uji terisolasi
-    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
     const ipInput = dialog.locator('input[formcontrolname="ipAddress"], input[placeholder*="192.168"]').first();
     const portInput = dialog.locator('p-inputnumber[formcontrolname="port"] input, input[formcontrolname="port"]').first();
     const serverRootInput = dialog.locator('input[formcontrolname="serverRoot"]').first();
@@ -383,10 +385,12 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     await navigateToAdminCiso(page, 'ldap-error');
 
     const btnAdd = page.locator('button:has-text("Add Error Template"), button:has(.pi-plus)').first();
-    if (await btnAdd.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnAdd.click();
-      await page.waitForTimeout(1000);
-    }
+    await btnAdd.waitFor({ state: 'visible', timeout: 8000 });
+    await btnAdd.click();
+
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+    await dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(500);
 
     await wedocit.captureStep({
       title: 'Buka Modal Add Error Template',
@@ -394,7 +398,6 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Modal formulir "Add Error Template" muncul di layar.'
     });
 
-    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
     const codeInput = dialog.locator('input#code, input[placeholder*="532"]').first();
     const msgInput = dialog.locator('input#msg, input[placeholder*="Invalid credentials"]').first();
 
@@ -804,10 +807,12 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     await navigateToAdminCiso(page, 'ldap-configuration');
 
     const btnAdd = page.locator('button:has-text("Add LDAP Server"), button:has(.pi-plus)').first();
-    if (await btnAdd.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnAdd.click();
-      await page.waitForTimeout(1000);
-    }
+    await btnAdd.waitFor({ state: 'visible', timeout: 8000 });
+    await btnAdd.click();
+
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+    await dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(500);
 
     await wedocit.captureStep({
       title: 'Buka Modal Form Add LDAP Server Kosong',
@@ -816,7 +821,7 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     });
 
     // Coba klik tombol Save saat form kosong
-    const btnSave = page.locator('p-dialog button:has-text("Save")').first();
+    const btnSave = dialog.locator('button:has-text("Save")').first();
     if (await btnSave.isVisible().catch(() => false)) {
       await btnSave.click();
       await page.waitForTimeout(800);
@@ -828,10 +833,10 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Formulir menandai field mandatory dengan border merah dan sistem mencegah pengiriman data kosong.'
     });
 
-    const btnCancel = page.locator('p-dialog button:has-text("Cancel")').first();
+    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
     if (await btnCancel.isVisible().catch(() => false)) {
       await btnCancel.click();
-      await page.waitForTimeout(500);
+      await dialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     }
   });
 
@@ -847,10 +852,12 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     await navigateToAdminCiso(page, 'ldap-error');
 
     const btnAdd = page.locator('button:has-text("Add Error Template"), button:has(.pi-plus)').first();
-    if (await btnAdd.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnAdd.click();
-      await page.waitForTimeout(1000);
-    }
+    await btnAdd.waitFor({ state: 'visible', timeout: 8000 });
+    await btnAdd.click();
+
+    const dialog = page.locator('div[role="dialog"], .p-dialog').first();
+    await dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(500);
 
     await wedocit.captureStep({
       title: 'Buka Modal Form Add Error Template Kosong',
@@ -858,7 +865,7 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Modal formulir terbuka dengan kolom input kosong.'
     });
 
-    const btnSave = page.locator('p-dialog button:has-text("Save")').first();
+    const btnSave = dialog.locator('button:has-text("Save")').first();
     if (await btnSave.isVisible().catch(() => false)) {
       await btnSave.click();
       await page.waitForTimeout(800);
@@ -870,10 +877,10 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Sistem memvalidasi form dan mencegah penyimpanan data template error yang tidak lengkap.'
     });
 
-    const btnCancel = page.locator('p-dialog button:has-text("Cancel")').first();
+    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
     if (await btnCancel.isVisible().catch(() => false)) {
       await btnCancel.click();
-      await page.waitForTimeout(500);
+      await dialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     }
   });
 

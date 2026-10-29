@@ -1105,3 +1105,67 @@ textarea.form-control {
   .tc-container-card { border: 1px solid #ccc !important; background: #fff !important; color: #000 !important; }
   .tc-substep-row { border: 1px solid #ddd !important; background: #fff !important; color: #000 !important; }
 }
+
+/* ==========================================================================
+   VISUAL SCREENSHOT AUDIT & VERIFICATION SYSTEM (WeDocIt Studio)
+   ========================================================================== */
+.audit-row-card {
+  display: grid;
+  grid-template-columns: 85px 1fr 180px 220px;
+  gap: 12px;
+  align-items: center;
+  background: #131d33;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+}
+.audit-row-card:hover {
+  background: #1a2744;
+  border-color: #38bdf8;
+}
+.audit-row-card.status-ok {
+  border-left: 4px solid #10b981;
+}
+.audit-row-card.issue-mismatch {
+  border-left: 4px solid #ef4444;
+  background: rgba(239, 68, 68, 0.06);
+}
+.audit-row-card.issue-missing {
+  border-left: 4px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.06);
+}
+.audit-row-card.issue-duplicate {
+  border-left: 4px solid #a855f7;
+  background: rgba(168, 85, 247, 0.06);
+}
+
+.audit-img-thumb {
+  width: 170px;
+  height: 95px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #020617;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.audit-img-thumb:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+  border-color: #38bdf8;
+}
+.audit-img-empty {
+  width: 170px;
+  height: 95px;
+  border-radius: 6px;
+  border: 1px dashed #475569;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 11px;
+}
+
