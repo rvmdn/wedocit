@@ -1,4 +1,4 @@
-# 🚀 WeDocIt Enterprise Studio v3.0 - Unit Test Documentation & Automation Suite
+# 🚀 WeDocIt Enterprise Studio v3.1 - Unit Test Documentation & Automation Suite
 
 **WeDocIt** adalah perangkat lunak desktop mandiri (*standalone desktop tool*) dan mesin otomasi pengujian sistem yang dirancang khusus untuk memproduksi dokumen pengujian (**Unit Test, SIT, UAT, EDV**) berstandar resmi **PT Bank Negara Indonesia (Persero) Tbk** secara otomatis, rapi, dan aman.
 
@@ -113,6 +113,6 @@ wedocit/
 Dokumentasi riwayat pembaruan dicatat secara berkala di file [**`CHANGELOG.md`**](CHANGELOG.md).
 
 Aturan penomoran versi:
-> **Format:** `v1.x.y`
-> - **`x` (Perubahan Major):** Naik `+1` setiap ada fitur utama baru, perombakan modul besar, atau perubahan arsitektur signifikan.
-> - **`y` (Perubahan Minor):** Naik `+1` setiap ada perbaikan bug, penyesuaian skenario test case, atau pembaruan minor lainnya.
+> **Format:** `v3.x.y`
+> - **`x` (Perubahan Major):** Naik `+1` (`v3.(x+1).0`) setiap ada modul/fitur pengujian utama baru, integrasi sistem baru, atau perombakan arsitektur besar.
+> - **`y` (Perubahan Minor):** Naik `+1` (`v3.x.(y+1)`) setiap ada perbaikan bug, penyesuaian skenario test case, atau pembaruan minor lainnya.
