@@ -106,3 +106,13 @@ wedocit/
 ## 📜 Kepatuhan Keamanan & Privasi
 - File kredensial `.env` dan autentikasi sesi `.auth/` otomatis diabaikan dari pelacakan git (`.gitignore`).
 - Tangkapan layar dan metadata dokumen dibersihkan dari informasi privat akun OS lokal sebelum dipublikasikan.
+
+---
+
+## 📌 Standar Versi & Changelog
+Dokumentasi riwayat pembaruan dicatat secara berkala di file [**`CHANGELOG.md`**](CHANGELOG.md).
+
+Aturan penomoran versi:
+> **Format:** `v1.x.y`
+> - **`x` (Perubahan Major):** Naik `+1` setiap ada fitur utama baru, perombakan modul besar, atau perubahan arsitektur signifikan.
+> - **`y` (Perubahan Minor):** Naik `+1` setiap ada perbaikan bug, penyesuaian skenario test case, atau pembaruan minor lainnya.
