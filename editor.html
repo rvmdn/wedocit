@@ -52,6 +52,18 @@
         <span>🔍 Audit SS</span>
       </button>
 
+      <button class="btn btn-outline btn-sm" id="btn-sync-header" title="Sinkronkan Bukti Screenshot Hasil Otomasi Terbaru" style="border-color: #10b981; color: #34d399; font-weight: 700; display: flex; align-items: center; gap: 5px;">
+        <span>📥 Sinkronkan Hasil Run</span>
+      </button>
+
+      <button class="btn btn-outline btn-sm" id="btn-quick-generate-tcs" title="Otomatis Buat Skenario Baku Sesuai Modul Aktif" style="border-color: #f59e0b; color: #fbbf24; font-weight: 700; display: flex; align-items: center; gap: 5px;">
+        ⚡ Buat Skenario Standar
+      </button>
+
+      <button class="btn btn-primary btn-sm" id="btn-ai-bridge-chat" title="Kirim Konteks Modul ke Chat Antigravity" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-weight: 700; border: none; box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35); display: flex; align-items: center; gap: 5px;">
+        ✨ Rancang via AI
+      </button>
+
       <button class="btn btn-primary btn-sm" id="btn-ai-prompt" title="Hasilkan Prompt AI untuk Antigravity / Playwright Generator" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-weight: 700; border: none; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);">
         🤖 Prompt AI
       </button>
@@ -360,6 +372,9 @@
         <label style="font-size:11.5px; color:#38bdf8; display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:600; margin:0 4px;" title="Tampilkan browser saat pengujian berjalan">
           <input type="checkbox" id="chk-runner-headed" checked style="accent-color:#0284c7;"> 🖥️ Tampilkan Browser
         </label>
+        <button class="btn btn-sm" id="btn-generate-spec-from-doc" title="Otomatis kompilasi seluruh Test Case dokumen aktif menjadi file script Playwright baru" style="padding: 7px 14px; font-weight: 700; background: linear-gradient(135deg, #7c3aed, #9333ea); color: #fff; border: none; box-shadow: 0 2px 8px rgba(147, 51, 234, 0.3); display: flex; align-items: center; gap: 6px;">
+          <span>⚡ Buat Spec dari Dokumen Ini</span>
+        </button>
         <button class="btn btn-primary btn-sm" id="btn-trigger-run" style="padding: 7px 16px; font-weight: 700; background:#0284c7;">
           ▶ Mulai Eksekusi
         </button>
@@ -553,6 +568,40 @@
     <div style="max-width: 90vw; max-height: 90vh; position: relative;">
       <img id="lightbox-img" src="" style="max-width: 100%; max-height: 85vh; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); border: 1px solid #334155;">
       <div id="lightbox-caption" style="margin-top: 8px; text-align: center; color: #e2e8f0; font-size: 12px; font-weight: 600;"></div>
+    </div>
+  </div>
+
+  <!-- Modal Loading Progress Sinkronisasi -->
+  <div id="modal-sync-progress" class="modal-overlay" style="display:none; align-items:center; justify-content:center; z-index: 10001; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);">
+    <div class="modal-content" style="max-width: 500px; width: 92%; background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; padding: 26px; color: #f8fafc; box-shadow: 0 25px 60px rgba(0,0,0,0.8); text-align: center;">
+      <style>
+        @keyframes spinSync { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+      
+      <!-- Icon & Spinner -->
+      <div style="margin-bottom: 16px;">
+        <div id="sync-spinner" style="width: 50px; height: 50px; border: 4px solid rgba(16, 185, 129, 0.2); border-top-color: #10b981; border-radius: 50%; animation: spinSync 0.85s linear infinite; margin: 0 auto;"></div>
+        <div id="sync-done-icon" style="display: none; font-size: 42px; line-height: 1; margin: 0 auto;">🎉</div>
+      </div>
+
+      <h3 id="sync-modal-title" style="margin: 0 0 8px 0; font-size: 17px; font-weight: 700; color: #f1f5f9;">Menyinkronkan Hasil Otomasi...</h3>
+      <p id="sync-modal-subtitle" style="margin: 0 0 18px 0; font-size: 13px; color: #94a3b8;">Menghubungkan ke backend dan memproses bukti tangkapan layar.</p>
+
+      <!-- Progress Bar Container -->
+      <div style="background: #1e293b; border-radius: 999px; height: 10px; width: 100%; overflow: hidden; margin-bottom: 14px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);">
+        <div id="sync-progress-bar" style="background: linear-gradient(90deg, #10b981, #06b6d4); height: 100%; width: 0%; border-radius: 999px; transition: width 0.35s ease;"></div>
+      </div>
+
+      <!-- Step Status Log -->
+      <div id="sync-step-text" style="font-size: 12px; font-family: monospace; color: #38bdf8; min-height: 20px; margin-bottom: 20px;">
+        Membaca output Playwright...
+      </div>
+
+      <!-- Action Button (Hidden during progress, shown on complete) -->
+      <div id="sync-modal-actions" style="display: none; justify-content: center; gap: 10px;">
+        <button class="btn btn-success btn-sm" id="btn-sync-modal-close" style="background: #10b981; border: none; padding: 7px 24px; font-weight: 700; border-radius: 6px; cursor: pointer;">OK, Mengerti</button>
+      </div>
+
     </div>
   </div>
 

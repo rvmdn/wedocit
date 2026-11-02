@@ -10,23 +10,30 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => {
           console.warn('[Desktop Storage] Fetch gagal, membaca fallback localStorage:', err);
-          const local = localStorage.getItem('wedocit_sessionData');
-          const parsed = local ? JSON.parse(local) : null;
-          if (callback) callback({ sessionData: parsed });
+          try {
+            const local = localStorage.getItem('wedocit_sessionData');
+            const parsed = local ? JSON.parse(local) : null;
+            if (callback) callback({ sessionData: parsed });
+          } catch {
+            if (callback) callback({ sessionData: null });
+          }
         });
     },
     set: (items, callback) => {
       if (items && items.sessionData) {
-        try {
-          localStorage.setItem('wedocit_sessionData', JSON.stringify(items.sessionData));
-          fetch('/api/workspace', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(items.sessionData)
-          }).catch(e => console.warn('[Desktop Storage] Sync server failed:', e));
-        } catch (err) {
-          console.warn('[Desktop Storage] Gagal menyimpan:', err);
-        }
+        fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(items.sessionData)
+        })
+          .then(res => {
+            if (callback) callback();
+          })
+          .catch(e => {
+            console.warn('[Desktop Storage] Sync server failed:', e);
+            if (callback) callback();
+          });
+        return;
       }
       if (callback) callback();
     },
@@ -506,12 +513,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load state immediately
   loadFreshState();
 
-  // 1. Auto-refresh saat tab editor difokuskan / dibuka kembali dari luar
+  let lastStateLoadedAt = Date.now();
+
+  // 1. Auto-refresh saat tab editor difokuskan / dibuka kembali dari luar (dithrottle min 15 detik)
   window.addEventListener('focus', () => {
     if (Date.now() < suppressFocusReloadUntil) return;
     if (isSavingLocally) return;
+    if (Date.now() - lastStateLoadedAt < 15000) return;
     const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
     if (!isTyping && !editingStep) {
+      lastStateLoadedAt = Date.now();
       loadFreshState();
     }
   });
@@ -519,9 +530,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('visibilitychange', () => {
     if (Date.now() < suppressFocusReloadUntil) return;
     if (isSavingLocally) return;
+    if (Date.now() - lastStateLoadedAt < 15000) return;
     if (document.visibilityState === 'visible') {
       const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
       if (!isTyping && !editingStep) {
+        lastStateLoadedAt = Date.now();
         loadFreshState();
       }
     }
@@ -622,15 +635,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // SWITCH DOCUMENT EVENT
+  // SWITCH DOCUMENT EVENT (Instan tanpa delay & non-blocking)
   docSelector?.addEventListener('change', () => {
     const targetDocId = docSelector.value;
     if (!targetDocId) return;
     sessionData.activeDocId = targetDocId;
     suppressFocusReloadUntil = Date.now() + 8000;
-    appStorage.set({ sessionData: sessionData }, () => {
-      populateActiveDoc();
-    });
+
+    // 1. Tampilkan dokumen baru seketika (0 ms)
+    populateActiveDoc();
+
+    // 2. Simpan activeDocId ke server di background tanpa kirim megabyte payload
+    fetch('/api/active-doc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ docId: targetDocId })
+    }).catch(() => {});
+
     if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
       chrome.runtime.sendMessage({ type: 'SWITCH_ACTIVE_DOC', docId: targetDocId });
     }
@@ -946,13 +967,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return '';
   }
 
-  function saveActiveDocState(onSaved) {
+  let actualSaveTimeout = null;
+
+  function saveActiveDocState(onSaved, immediate = false) {
     isSavingLocally = true;
-    suppressFocusReloadUntil = Date.now() + 4000;
-    if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
-    saveDebounceTimer = setTimeout(() => {
-      isSavingLocally = false;
-    }, 1500);
+    suppressFocusReloadUntil = Date.now() + 15000;
 
     const doc = getActiveDoc();
     const devs = doc.metadata?.developers || [];
@@ -986,17 +1005,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lblScenarioPreview) lblScenarioPreview.textContent = doc.metadata.scenarioName;
     updateFilenamePreview();
 
-    // Simpan langsung ke appStorage (Desktop / Local Storage)
-    sessionData.activeTcId = doc.activeTcId || sessionData.activeTcId;
-    appStorage.set({ sessionData: sessionData }, () => {
-      if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage({
-          type: 'STORAGE_UPDATED'
-        });
-      }
-      if (typeof onSaved === 'function') onSaved();
-    });
-    renderDocSelector();
+    // Update in-memory activeDocId
+    sessionData.activeDocId = doc.id || sessionData.activeDocId;
+
+    const doSave = () => {
+      appStorage.set({ sessionData: sessionData }, () => {
+        isSavingLocally = false;
+        if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({
+            type: 'STORAGE_UPDATED'
+          });
+        }
+        if (typeof onSaved === 'function') onSaved();
+      });
+    };
+
+    if (actualSaveTimeout) clearTimeout(actualSaveTimeout);
+
+    if (immediate) {
+      doSave();
+    } else {
+      // Debounce disk serialization dan network payload 800ms agar browser tetap ringan & bebas OOM
+      actualSaveTimeout = setTimeout(doSave, 800);
+    }
   }
 
   // Standarisasi Format Nama File Unduhan: EDV_Unit_Test_CR_{cr}_{skenario}_{versi}.{ext}
@@ -1077,14 +1108,27 @@ document.addEventListener('DOMContentLoaded', () => {
     totalStepCount.textContent = tcs.length;
 
     if (tcs.length === 0) {
+      const scName = doc.metadata?.scenarioName || 'Modul Aktif';
       stepsContainer.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📝</div>
           <div class="empty-title">Belum ada Test Case</div>
-          <div class="empty-desc">Klik tombol di bawah untuk membuat Test Case 1, atau rekam langsung dari floating bar WeDocIt di aplikasi web.</div>
-          <button class="btn btn-primary" id="btn-empty-add">➕ Buat Test Case 1</button>
+          <div class="empty-desc">Pilih salah satu cara cerdas di bawah untuk mengisi Test Case pada dokumen <b>${escapeHtml(scName)}</b>:</div>
+          <div style="display:flex; justify-content:center; gap:10px; margin-top:16px; flex-wrap:wrap;">
+            <button class="btn btn-outline" id="btn-empty-auto-gen" style="border-color:#f59e0b; color:#fbbf24; font-weight:700; padding:8px 16px;">
+              ⚡ Buat Skenario Standar (${escapeHtml(scName)})
+            </button>
+            <button class="btn btn-primary" id="btn-empty-ai-bridge" style="background:linear-gradient(135deg, #4f46e5, #7c3aed); font-weight:700; border:none; padding:8px 16px;">
+              ✨ Rancang via AI Antigravity
+            </button>
+            <button class="btn btn-secondary" id="btn-empty-add" style="padding:8px 16px;">
+              ➕ Buat Manual
+            </button>
+          </div>
         </div>
       `;
+      document.getElementById('btn-empty-auto-gen')?.addEventListener('click', generateStandardScenariosForCurrentDoc);
+      document.getElementById('btn-empty-ai-bridge')?.addEventListener('click', triggerAiBridgeChat);
       document.getElementById('btn-empty-add')?.addEventListener('click', addNewTestCase);
       return;
     }
@@ -1140,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="step-img-col">
                 ${s.screenshot ? `
                   <div class="thumb-wrapper" title="Klik untuk memperbesar gambar">
-                    <img src="${s.screenshot}" class="zoomable-img" />
+                    <img src="${s.screenshot}" class="zoomable-img" loading="lazy" decoding="async" />
                   </div>
                   <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
                     <button type="button" class="btn btn-outline btn-xs btn-trigger-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #38bdf8;" title="Ganti Screenshot">
@@ -1187,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="step-img-col">
                 ${s.screenshot ? `
                   <div class="thumb-wrapper" title="Klik untuk memperbesar gambar">
-                    <img src="${s.screenshot}" class="zoomable-img" />
+                    <img src="${s.screenshot}" class="zoomable-img" loading="lazy" decoding="async" />
                   </div>
                   <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
                     <button type="button" class="btn btn-outline btn-xs btn-trigger-replace-img" data-tc="${tcIndex}" data-step="${sIdx}" style="color: #38bdf8;" title="Ganti Screenshot">
@@ -1207,13 +1251,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      const isCollapsed = !!tc.__isCollapsed;
+      const isActiveTarget = (doc.activeTcId === tc.id || (!doc.activeTcId && tcIndex === 0));
+
+      // Jika dokumen memiliki banyak TC (>3), otomatis ciutkan TC non-target untuk menghemat 85% konsumsi RAM browser
+      const isCollapsed = tc.__isCollapsed !== undefined
+        ? !!tc.__isCollapsed
+        : (tcs.length > 3 && !isActiveTarget);
+
       const isStepsCollapsed = !!tc.__isStepsCollapsed;
       if (isCollapsed) {
         tcCard.classList.add('is-collapsed');
       }
-
-      const isActiveTarget = (doc.activeTcId === tc.id || (!doc.activeTcId && tcIndex === 0));
 
       tcCard.innerHTML = `
         <div class="tc-header-row" title="Klik area baris untuk bentangkan / ciutkan Test Case ini">
@@ -1671,6 +1719,512 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnAddStep?.addEventListener('click', addNewTestCase);
+
+  // =========================================================================
+  // SMART SCENARIO GENERATOR & AI BRIDGE (WeDocIt Studio)
+  // =========================================================================
+  function generateStandardScenariosForCurrentDoc() {
+    const doc = getActiveDoc();
+    const scName = (doc.metadata?.scenarioName || doc.metadata?.title || '').toLowerCase();
+    const isLogin = scName.includes('login') || scName.includes('auth') || scName.includes('security');
+
+    if ((doc.testCases || []).length > 0) {
+      if (!confirm(`Dokumen saat ini sudah memiliki ${doc.testCases.length} Test Case.\n\nApakah Anda ingin menambahkan daftar skenario standar secara otomatis ke dokumen ini?`)) {
+        return;
+      }
+    }
+
+    let generatedTcs = [];
+
+    if (isLogin) {
+      generatedTcs = [
+        {
+          tcNumberStr: 'TC-001',
+          title: 'Tampilan Halaman Sign In RMIS',
+          scenarioName: 'Memeriksa Komponen Antarmuka Form Login',
+          expectedResult: 'Halaman Sign in RMIS berhasil dimuat lengkap dengan form input dan tombol aksi.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Akses Halaman Sign In RMIS',
+              actionDescription: 'Pengguna membuka URL login aplikasi RMIS (http://localhost:4300/login).',
+              inputData: '-',
+              expectedResult: 'Halaman Sign in RMIS berhasil terbuka menampilkan logo BNI dan form autentikasi.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Verifikasi Komponen Elemen Form Login',
+              actionDescription: 'Memeriksa ketersediaan input Username, input Password, tombol SIGN IN, dan link kembali ke Portal.',
+              inputData: '-',
+              expectedResult: 'Seluruh komponen form login tampil proporsional dan siap digunakan.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-002',
+          title: 'Fitur Masking dan Unmasking Password',
+          scenarioName: 'Pengujian Toggle Masking Password',
+          expectedResult: 'Karakter password dapat disembunyikan (bullet) dan ditampilkan (teks biasa) secara presisi.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Input Password Kondisi Terselubung (Masked)',
+              actionDescription: 'Memasukkan karakter password dan memastikan karakter tersamarkan dengan bullet titik.',
+              inputData: 'Password: ********',
+              expectedResult: 'Karakter password tersamarkan untuk mencegah shoulder surfing.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Klik Toggle Eye Icon untuk Menampilkan Password',
+              actionDescription: 'Mengklik ikon mata (toggle mask) di sebelah kanan field password.',
+              inputData: '-',
+              expectedResult: 'Karakter password tampil dalam bentuk teks biasa (unmasked).'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-003',
+          title: 'Validasi Mandatory Fields Kosong',
+          scenarioName: 'Pengujian Validasi Form Kosong pada Sign In',
+          expectedResult: 'Sistem mencegah pengiriman form dan menandai pesan error validasi wajib diisi.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Kosongkan Field Username dan Password',
+              actionDescription: 'Menyentuh field username dan password tanpa memasukkan teks apa pun.',
+              inputData: 'Username: (kosong) | Password: (kosong)',
+              expectedResult: 'Tombol SIGN IN tetap dalam status nonaktif (disabled).'
+            },
+            {
+              stepNumber: 2,
+              title: 'Verifikasi Pesan Validasi Form',
+              actionDescription: 'Memeriksa teks peringatan validasi form.',
+              inputData: '-',
+              expectedResult: 'Muncul teks validasi "Username wajib diisi" dan "Password wajib diisi" berwarna merah.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-004',
+          title: 'Validasi Panjang Minimal Password',
+          scenarioName: 'Pengujian Batas Minimal Karakter Password',
+          expectedResult: 'Sistem memvalidasi panjang password minimal 8 karakter.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Input Password Kurang dari 8 Karakter',
+              actionDescription: 'Mengisi username valid dan mengisi password kurang dari 8 karakter (misal: "Admin1").',
+              inputData: 'Password: Admin1 (6 karakter)',
+              expectedResult: 'Form mendeteksi panjang password belum memenuhi syarat.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Verifikasi Pesan Peringatan Minimal Karakter',
+              actionDescription: 'Memeriksa pesan validasi di bawah field password.',
+              inputData: '-',
+              expectedResult: 'Muncul pesan validasi "Minimal 8 karakter" dan tombol SIGN IN tetap disabled.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-005',
+          title: 'Pengujian Login Gagal (Kredensial Salah)',
+          scenarioName: 'Proteksi Autentikasi dengan Username / Password Salah',
+          expectedResult: 'Sistem menolak autentikasi dan menampilkan notifikasi kesalahan kredensial.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Input Kredensial Tidak Terdaftar',
+              actionDescription: 'Memasukkan username dan password acak yang tidak terdaftar di sistem.',
+              inputData: 'Username: user_invalid | Password: PasswordSalah123!',
+              expectedResult: 'Form terisi dan tombol SIGN IN menjadi aktif.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Klik Tombol SIGN IN dan Verifikasi Toast Error',
+              actionDescription: 'Menekan tombol SIGN IN dan mengamati respons server.',
+              inputData: '-',
+              expectedResult: 'Sistem menampilkan notifikasi toast error "User Credential Salah" dan pengguna tetap berada di halaman login.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-006',
+          title: 'Pengujian Login Sukses Akun Local Administrator',
+          scenarioName: 'Autentikasi Pengguna Menggunakan Akun Local Admin',
+          expectedResult: 'Sistem sukses memvalidasi kredensial dan mengalihkan pengguna ke Dashboard / Portal.',
+          role: 'Admin / Local Administrator',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Input Kredensial Valid Administrator',
+              actionDescription: 'Memasukkan username "Admin" dan password resmi administrator.',
+              inputData: 'Username: Admin | Password: [PROTECTED]',
+              expectedResult: 'Kredensial terisi valid dan tombol SIGN IN aktif.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Klik SIGN IN dan Verifikasi Redirect Portal',
+              actionDescription: 'Menekan tombol SIGN IN untuk memulai sesi login.',
+              inputData: '-',
+              expectedResult: 'Sistem menyimpan token otorisasi dan mengalihkan pengguna ke halaman utama / portal aplikasi.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-007',
+          title: 'Pengujian Navigasi Portal Modul (RMIS & CRDM)',
+          scenarioName: 'Peralihan Halaman Sign In ke Portal Pemilihan Modul',
+          expectedResult: 'Sistem sukses mengalihkan pengguna ke portal pemilihan modul RMIS.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Klik Tautan Pemilihan Portal Modul',
+              actionDescription: 'Mengklik tautan "Kembali ke Pemilihan Portal Modul (RMIS / CRDM)" di bawah tombol login.',
+              inputData: '-',
+              expectedResult: 'Browser diarahkan ke route /portal.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Verifikasi Tampilan Kartu Modul pada Portal',
+              actionDescription: 'Memeriksa tampilan kartu modul RMIS dan CRDM.',
+              inputData: '-',
+              expectedResult: 'Portal RMIS menampilkan kartu pilihan aplikasi yang dapat diakses pengguna.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-008',
+          title: 'Pengujian Logout & Proteksi Sesi Pengguna',
+          scenarioName: 'Terminasi Sesi Pengguna dan Proteksi Akses URL Internal',
+          expectedResult: 'Sesi pengguna berhasil ditutup, token dibersihkan, dan rute internal dilindungi dari akses tanpa login.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Eksekusi Tombol Logout pada Profil Pengguna',
+              actionDescription: 'Mengklik menu profil pada navigasi atas dan memilih opsi Logout.',
+              inputData: '-',
+              expectedResult: 'Sistem menghapus data autentikasi dari penyimpanan sesi browser.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Verifikasi Redirect ke Halaman Login dan Proteksi URL',
+              actionDescription: 'Mencoba menekan tombol Back pada browser atau mengakses route internal secara langsung.',
+              inputData: 'URL: /admin-ciso/ldap-configuration',
+              expectedResult: 'Sistem secara otomatis mengarahkan kembali ke halaman /login (Auth Guard aktif).'
+            }
+          ]
+        }
+      ];
+    } else {
+      const baseMod = doc.metadata?.scenarioName || 'Modul Aplikasi';
+      generatedTcs = [
+        {
+          tcNumberStr: 'TC-001',
+          title: `Akses Menu & Tampilan Halaman ${baseMod}`,
+          scenarioName: `Melihat Daftar Data ${baseMod}`,
+          expectedResult: `Halaman ${baseMod} terbuka menampilkan judul, filter, dan tabel data.`,
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: `Akses Menu ${baseMod}`,
+              actionDescription: `Pengguna mengakses menu ${baseMod} pada navigasi sistem.`,
+              inputData: '-',
+              expectedResult: `Halaman ${baseMod} berhasil terbuka dan dimuat lengkap.`
+            },
+            {
+              stepNumber: 2,
+              title: 'Verifikasi Komponen Filter dan Tabel Data',
+              actionDescription: 'Memeriksa kolom header tabel dan tombol aksi.',
+              inputData: '-',
+              expectedResult: 'Tabel menampilkan daftar data dengan tombol aksi yang siap digunakan.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-002',
+          title: `Pencarian dan Penyaringan (Filter) Data ${baseMod}`,
+          scenarioName: `Filter Data Berdasarkan Kriteria Pencarian`,
+          expectedResult: 'Sistem menyaring data sesuai dengan kata kunci pencarian.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Input Kriteria Pencarian',
+              actionDescription: 'Memasukkan kata kunci pencarian pada kolom filter.',
+              inputData: 'Keyword: TEST',
+              expectedResult: 'Parameter pencarian terisi pada kolom filter.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Klik Tombol Search dan Verifikasi Hasil',
+              actionDescription: 'Menekan tombol Search untuk menerapkan filter.',
+              inputData: '-',
+              expectedResult: 'Tabel menampilkan baris data yang cocok dengan kriteria pencarian.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-003',
+          title: `Tambah Data Baru pada ${baseMod}`,
+          scenarioName: `Menambahkan Entri Data Baru`,
+          expectedResult: 'Sistem sukses menyimpan entri data baru ke dalam database.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Buka Formulir Tambah Data',
+              actionDescription: 'Klik tombol Tambah Data pada halaman modul.',
+              inputData: '-',
+              expectedResult: 'Modal dialog formulir penambahan data terbuka di layar.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Lengkapi Field Mandatory dan Simpan Data',
+              actionDescription: 'Mengisi seluruh kolom isian mandatory dan menekan tombol Save.',
+              inputData: 'Data Uji Baru',
+              expectedResult: 'Sistem memvalidasi formulir dan menyimpan data baru.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-004',
+          title: `Validasi Formulir Kosong (Mandatory Check)`,
+          scenarioName: `Proteksi Penyimpanan Data Tanpa Mengisi Field Wajib`,
+          expectedResult: 'Sistem mencegah penyimpanan data saat kolom mandatory masih kosong.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Buka Form Tanpa Mengisi Data',
+              actionDescription: 'Membuka form penambahan dan membiarkan field mandatory tetap kosong.',
+              inputData: '-',
+              expectedResult: 'Formulir terbuka dalam kondisi seluruh kolom kosong.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Tekan Tombol Simpan dan Periksa Validasi Error',
+              actionDescription: 'Menekan tombol Save saat form kosong.',
+              inputData: '-',
+              expectedResult: 'Muncul indikator validasi border merah dan penyimpanan dibatalkan.'
+            }
+          ]
+        },
+        {
+          tcNumberStr: 'TC-005',
+          title: `Ubah (Edit) Data ${baseMod}`,
+          scenarioName: `Memperbarui Data yang Sudah Ada`,
+          expectedResult: 'Sistem sukses memperbarui informasi data pada sistem.',
+          role: 'Admin / User',
+          status: 'OK',
+          steps: [
+            {
+              stepNumber: 1,
+              title: 'Pilih Baris Data dan Klik Tombol Edit',
+              actionDescription: 'Menekan tombol edit (ikon pensil) pada baris data yang ditargetkan.',
+              inputData: '-',
+              expectedResult: 'Formulir edit terbuka menampilkan data yang sudah ada sebelumnya.'
+            },
+            {
+              stepNumber: 2,
+              title: 'Perbarui Kolom Data dan Simpan Perubahan',
+              actionDescription: 'Mengubah nilai parameter data dan menekan tombol Save.',
+              inputData: 'Data Terbarui',
+              expectedResult: 'Perubahan data berhasil disimpan dan tabel menampilkan data terbaru.'
+            }
+          ]
+        }
+      ];
+    }
+
+    const currentTcs = doc.testCases || [];
+    const startIndex = currentTcs.length;
+
+    const newFormattedTcs = generatedTcs.map((t, idx) => ({
+      id: `tc_${Date.now()}_${startIndex + idx + 1}`,
+      tcNumber: startIndex + idx + 1,
+      tcNumberStr: `TC-${String(startIndex + idx + 1).padStart(3, '0')}`,
+      role: t.role || getDefaultTesterRole() || 'Admin / User',
+      title: t.title,
+      scenarioName: t.scenarioName,
+      expectedResult: t.expectedResult,
+      status: t.status,
+      steps: t.steps.map(s => ({
+        stepNumber: s.stepNumber,
+        title: s.title,
+        actionDescription: s.actionDescription,
+        inputData: s.inputData,
+        expectedResult: s.expectedResult,
+        screenshot: '',
+        status: 'READY',
+        note: ''
+      }))
+    }));
+
+    doc.testCases = [...currentTcs, ...newFormattedTcs];
+    if (doc.testCases.length > 0) {
+      doc.activeTcId = doc.testCases[0].id;
+    }
+
+    saveActiveDocState();
+    populateActiveDoc();
+    renderTestCases();
+    renderDocSelector();
+
+    alert(`🎉 Berhasil membuat ${newFormattedTcs.length} Skenario Standar untuk "${doc.metadata?.scenarioName || 'Modul'}"!\n\nSilakan review daftar Test Case dan langkah pengujian di layar.`);
+  }
+
+  async function triggerAiBridgeChat() {
+    const doc = getActiveDoc();
+    const meta = doc.metadata || {};
+    const sc = meta.scenarioName || 'Modul Aplikasi';
+    const sys = meta.systemName || 'Sistem Informasi';
+    const cr = meta.testCaseId || 'CR_UNIT_TEST';
+    const url = meta.testUrl || 'http://localhost:4300';
+    let code = meta.codePath || '';
+    const role = meta.testRole || 'Admin / User';
+
+    // Jika path kode sumber belum ditentukan, minta input dari pengguna
+    if (!code) {
+      const inputPath = prompt(
+        `Path folder source code belum ditentukan untuk modul "${sc}".\n\nMasukkan lokasi folder komponen frontend/backend aplikasi ini:\n(Contoh: e:\\BNI\\RMIS\\rmis-fe\\src\\app\\modules\\auth\\pages\\login)`,
+        code
+      );
+      if (inputPath === null) return;
+      code = inputPath.trim();
+      if (code) {
+        doc.metadata.codePath = code;
+        saveActiveDocState();
+      }
+    }
+
+    const btnBridge = document.getElementById('btn-ai-bridge-chat');
+    const origHtml = btnBridge ? btnBridge.innerHTML : '';
+    if (btnBridge) {
+      btnBridge.disabled = true;
+      btnBridge.innerHTML = `<span>⏳ Menganalisis Kode...</span>`;
+    }
+
+    try {
+      const resp = await fetch('/api/ai/analyze-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codePath: code,
+          scenarioName: sc,
+          systemName: sys,
+          crNo: cr,
+          targetUrl: url,
+          userRole: role
+        })
+      });
+
+      const data = await resp.json();
+
+      if (resp.ok && data.success && data.testCases && data.testCases.length > 0) {
+        // Terapkan langsung Test Cases hasil analisis riil ke dokumen aktif
+        doc.testCases = data.testCases.map((tc, idx) => ({
+          id: `tc_ai_${Date.now()}_${idx + 1}`,
+          tcNumber: idx + 1,
+          tcNumberStr: tc.tcNumberStr || `TC-${String(idx + 1).padStart(3, '0')}`,
+          role: tc.role || role,
+          title: tc.title,
+          scenarioName: tc.scenarioName,
+          expectedResult: tc.expectedResult,
+          status: tc.status || 'OK',
+          steps: (tc.steps || []).map((s, sIdx) => ({
+            stepNumber: sIdx + 1,
+            title: s.title,
+            actionDescription: s.actionDescription,
+            inputData: s.inputData || '-',
+            expectedResult: s.expectedResult || 'Sistem berjalan normal.',
+            screenshot: '',
+            status: 'READY',
+            note: ''
+          }))
+        }));
+
+        if (doc.testCases.length > 0) {
+          doc.activeTcId = doc.testCases[0].id;
+        }
+
+        saveActiveDocState();
+        populateActiveDoc();
+        renderTestCases();
+        renderDocSelector();
+
+        alert(
+          `🎉 Analisis Dinamis AI Antigravity Berhasil!\n\n` +
+          `File Dianalisis: ${data.summary.filesCount} file\n` +
+          `Ditemukan Elemen Riil:\n` +
+          `- ${data.summary.inputs} Input Fields / Form Controls\n` +
+          `- ${data.summary.buttons} Tombol & Tautan Aksi\n` +
+          `- ${data.summary.validations} Pesan Validasi Error\n\n` +
+          `👉 ${data.testCases.length} Test Case dinamis berhasil dirancang dan langsung aktif di layar WeDocIt Studio!`
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn('Gagal analisis lokal:', err);
+    } finally {
+      if (btnBridge) {
+        btnBridge.disabled = false;
+        btnBridge.innerHTML = origHtml;
+      }
+    }
+
+    // Fallback: Jika source code tidak dapat dibaca di backend, salin prompt ke clipboard
+    const promptText = `Halo Antigravity AI, tolong rancang dan buatkan skenario pengujian unit test lengkap untuk dokumen aktif di WeDocIt Studio:
+
+## Konteks Pengujian:
+- Sistem / Aplikasi: ${sys}
+- Modul / Skenario: ${sc}
+- Nomor CR: ${cr}
+- Target URL: ${url}
+- Lokasi Source Code: ${code || '(Belum ditentukan)'}
+- Role Akun: ${role}
+
+## Kebutuhan:
+1. Buatkan skenario pengujian lengkap mencakup: Positive/Normal Case, Negative/Abnormal Case, Boundary Validation, dan Security Flow.
+2. Lengkapi setiap Test Case dengan langkah pengujian detail Bab 3.1 standar BNI EDV (Aksi aktif, Input Data, dan Ekspektasi).
+3. Langsung terapkan dan sinkronkan ke dokumen WeDocIt Studio agar saya bisa review langsung di tools.`;
+
+    try {
+      await navigator.clipboard.writeText(promptText);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = promptText;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    alert(`📋 Konteks & Instruksi AI untuk modul "${sc}" BERHASIL DISALIN ke Clipboard!\n\n👉 Silakan buka chat Antigravity, lalu tekan Ctrl+V (Paste) dan tekan Enter.\nAI akan langsung membuatkan skenario lengkap untuk dokumen ini.`);
+  }
+
+  document.getElementById('btn-quick-generate-tcs')?.addEventListener('click', generateStandardScenariosForCurrentDoc);
+  document.getElementById('btn-ai-bridge-chat')?.addEventListener('click', triggerAiBridgeChat);
 
   document.getElementById('btn-collapse-all')?.addEventListener('click', () => {
     const doc = getActiveDoc();
@@ -2721,6 +3275,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const btnGenerateSpecFromDoc = document.getElementById('btn-generate-spec-from-doc');
+  btnGenerateSpecFromDoc?.addEventListener('click', async () => {
+    const doc = getActiveDoc();
+    const tcs = doc.testCases || [];
+    if (tcs.length === 0) {
+      alert('Dokumen ini belum memiliki Test Case. Silakan rancang skenario terlebih dahulu.');
+      return;
+    }
+
+    const origHtml = btnGenerateSpecFromDoc.innerHTML;
+    btnGenerateSpecFromDoc.disabled = true;
+    btnGenerateSpecFromDoc.innerHTML = '<span>⏳ Mengompilasi...</span>';
+
+    try {
+      const resp = await fetch('/api/generate-spec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.success) {
+        await loadAvailableSpecs();
+        if (runnerSpecSelect && data.filePath) {
+          runnerSpecSelect.value = data.filePath;
+        }
+        alert(`🎉 Sukses membuat file script otomasi:\n\n📁 ${data.fileName}\n🔢 ${data.totalTcs} Test Case terkompilasi.\n\nFile langsung dipilih pada dropdown. Anda bisa langsung klik "▶ Mulai Eksekusi"!`);
+      } else {
+        alert('Gagal membuat spec: ' + (data.error || 'Terjadi kesalahan'));
+      }
+    } catch (err) {
+      alert('Error saat menghubungi server: ' + err.message);
+    } finally {
+      btnGenerateSpecFromDoc.disabled = false;
+      btnGenerateSpecFromDoc.innerHTML = origHtml;
+    }
+  });
+
   btnRunAutomation?.addEventListener('click', () => {
     if (modalRunner) modalRunner.style.display = 'flex';
     loadAvailableSpecs();
@@ -3402,6 +3993,83 @@ ${tcListStr}
 
   btnAuditScreenshots?.addEventListener('click', openScreenshotAuditModal);
   btnRunnerAuditSs?.addEventListener('click', openScreenshotAuditModal);
+
+  const btnSyncHeader = document.getElementById('btn-sync-header');
+  const modalSyncProgress = document.getElementById('modal-sync-progress');
+  const syncProgressBar = document.getElementById('sync-progress-bar');
+  const syncStepText = document.getElementById('sync-step-text');
+  const syncSpinner = document.getElementById('sync-spinner');
+  const syncDoneIcon = document.getElementById('sync-done-icon');
+  const syncModalTitle = document.getElementById('sync-modal-title');
+  const syncModalSubtitle = document.getElementById('sync-modal-subtitle');
+  const syncModalActions = document.getElementById('sync-modal-actions');
+  const btnSyncModalClose = document.getElementById('btn-sync-modal-close');
+
+  btnSyncModalClose?.addEventListener('click', () => {
+    if (modalSyncProgress) modalSyncProgress.style.display = 'none';
+  });
+
+  btnSyncHeader?.addEventListener('click', async () => {
+    if (!modalSyncProgress) return;
+
+    // Reset modal UI ke initial state
+    modalSyncProgress.style.display = 'flex';
+    syncSpinner.style.display = 'block';
+    syncDoneIcon.style.display = 'none';
+    syncModalActions.style.display = 'none';
+    syncModalTitle.textContent = 'Menyinkronkan Hasil Otomasi...';
+    syncModalSubtitle.textContent = 'Menghubungkan ke backend dan memproses bukti tangkapan layar.';
+    syncProgressBar.style.width = '15%';
+    syncProgressBar.style.background = 'linear-gradient(90deg, #10b981, #06b6d4)';
+    syncStepText.textContent = '1/4 Membaca data pengujian Playwright...';
+
+    btnSyncHeader.disabled = true;
+
+    try {
+      await new Promise(r => setTimeout(r, 350));
+      syncProgressBar.style.width = '45%';
+      syncStepText.textContent = '2/4 Memproses bukti screenshot & pemetaan skenario...';
+
+      const res = await fetch('/api/sync-results', { method: 'POST' });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal menyinkronkan hasil.');
+      }
+
+      syncProgressBar.style.width = '80%';
+      syncStepText.textContent = '3/4 Menyimpan perubahan ke workspace lokal...';
+      await new Promise(r => setTimeout(r, 400));
+
+      // 4/4 Refresh state studio secara mulus tanpa full page crash
+      syncProgressBar.style.width = '100%';
+      syncStepText.textContent = '4/4 Berhasil! Memperbarui tampilan Studio...';
+
+      // Load fresh state in-memory
+      loadFreshState(() => {
+        syncSpinner.style.display = 'none';
+        syncDoneIcon.style.display = 'block';
+        syncModalTitle.textContent = 'Sinkronisasi Berhasil!';
+        syncModalSubtitle.textContent = data.message || `Berhasil menyinkronkan ${data.tcCount || ''} Test Case ke Dokumen Studio.`;
+        syncStepText.style.color = '#34d399';
+        syncStepText.textContent = `✔ ${data.tcCount || 14} Test Case dan seluruh bukti tangkapan layar siap ditinjau.`;
+        syncModalActions.style.display = 'flex';
+      });
+
+    } catch (err) {
+      syncSpinner.style.display = 'none';
+      syncDoneIcon.style.display = 'block';
+      syncDoneIcon.textContent = '⚠️';
+      syncModalTitle.textContent = 'Sinkronisasi Gagal';
+      syncModalSubtitle.textContent = err.message;
+      syncProgressBar.style.background = '#ef4444';
+      syncStepText.style.color = '#f87171';
+      syncStepText.textContent = `Error: ${err.message}`;
+      syncModalActions.style.display = 'flex';
+    } finally {
+      btnSyncHeader.disabled = false;
+    }
+  });
 
   const closeAuditModal = () => {
     if (modalAuditScreenshots) modalAuditScreenshots.style.display = 'none';

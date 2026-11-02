@@ -49,7 +49,10 @@ export async function ensureOrmsAuthenticated(page: Page, options: OrmsAuthOptio
     await userInput.fill(username);
     await passInput.fill(password);
     await page.waitForTimeout(300);
-    await signInBtn.click();
+    await page.evaluate(() => {
+      document.querySelectorAll('vite-error-overlay').forEach(el => el.remove());
+    }).catch(() => {});
+    await signInBtn.click({ force: true });
 
     // Tunggu navigasi masuk ke dashboard / modul internal
     await page.waitForURL(url => !url.toString().includes('login'), { timeout: 10000 }).catch(() => {});

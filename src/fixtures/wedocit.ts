@@ -1,4 +1,4 @@
-import { test as base, Page } from '@playwright/test';
+import { test as base, Page, Locator } from '@playwright/test';
 
 export interface WeDocItMetadata {
   title?: string;
@@ -117,19 +117,75 @@ export class WeDocItContext {
     screenshot?: boolean;
     manual?: boolean;
     note?: string;
+    highlight?: Locator | string | (Locator | string)[];
+    highlightColor?: 'red' | 'blue' | 'emerald' | 'amber' | string;
   }) {
     const isManual = options.manual === true;
     const takeScreenshot = !isManual && options.screenshot !== false;
     let screenshotBase64 = '';
 
-    if (takeScreenshot) {
-      const buffer = await this.page.screenshot({ fullPage: false });
-      screenshotBase64 = `data:image/png;base64,${buffer.toString('base64')}`;
-      
-      await this.testInfo.attach(options.title, {
-        body: buffer,
-        contentType: 'image/png'
-      });
+    const cleanupFns: Array<() => Promise<void>> = [];
+
+    // Inject outline kotak tebal pada elemen target sebelum screenshot
+    if (takeScreenshot && options.highlight) {
+      const targets = Array.isArray(options.highlight) ? options.highlight : [options.highlight];
+      const colorMap: Record<string, { border: string; glow: string }> = {
+        red: { border: '#ef4444', glow: 'rgba(239, 68, 68, 0.75)' },
+        blue: { border: '#0284c7', glow: 'rgba(2, 132, 199, 0.75)' },
+        emerald: { border: '#10b981', glow: 'rgba(16, 185, 129, 0.75)' },
+        amber: { border: '#f59e0b', glow: 'rgba(245, 158, 11, 0.75)' }
+      };
+
+      const selected = colorMap[options.highlightColor || 'red'] || {
+        border: options.highlightColor || '#ef4444',
+        glow: 'rgba(239, 68, 68, 0.75)'
+      };
+
+      for (const target of targets) {
+        try {
+          const loc = typeof target === 'string' ? this.page.locator(target).first() : target;
+          if (await loc.isVisible({ timeout: 1500 }).catch(() => false)) {
+            await loc.evaluate((el: HTMLElement, styles: { border: string; glow: string }) => {
+              (el as any).__wedocit_orig_outline = el.style.outline;
+              (el as any).__wedocit_orig_offset = el.style.outlineOffset;
+              (el as any).__wedocit_orig_shadow = el.style.boxShadow;
+
+              el.style.outline = `3.5px solid ${styles.border}`;
+              el.style.outlineOffset = '3px';
+              el.style.boxShadow = `0 0 14px ${styles.glow}`;
+            }, selected);
+
+            cleanupFns.push(async () => {
+              await loc.evaluate((el: HTMLElement) => {
+                el.style.outline = (el as any).__wedocit_orig_outline || '';
+                el.style.outlineOffset = (el as any).__wedocit_orig_offset || '';
+                el.style.boxShadow = (el as any).__wedocit_orig_shadow || '';
+              }).catch(() => {});
+            });
+          }
+        } catch {}
+      }
+
+      if (cleanupFns.length > 0) {
+        await this.page.waitForTimeout(100);
+      }
+    }
+
+    try {
+      if (takeScreenshot) {
+        const buffer = await this.page.screenshot({ fullPage: false });
+        screenshotBase64 = `data:image/png;base64,${buffer.toString('base64')}`;
+        
+        await this.testInfo.attach(options.title, {
+          body: buffer,
+          contentType: 'image/png'
+        });
+      }
+    } finally {
+      // Selalu bersihkan style highlight agar UI kembali normal
+      for (const cleanup of cleanupFns) {
+        await cleanup();
+      }
     }
 
     const stepObj: WeDocItStep = {

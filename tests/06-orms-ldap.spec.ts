@@ -35,6 +35,9 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
   async function navigateToAdminCiso(page: Page, target: 'ldap-configuration' | 'ldap-error' | 'manage-session' | 'audit-trail') {
     const targetUrl = `/admin-ciso/${target}`;
     
+    // Tutup dialog atau backdrop modal yang mungkin tertinggal dari pengujian sebelumnya
+    await page.keyboard.press('Escape').catch(() => {});
+    
     for (let attempt = 0; attempt < 5; attempt++) {
       // 1. Cek jika berada di Halaman Portal RMIS -> Klik untuk masuk ke login
       const portalBtn = page.locator('text=Masuk ke Aplikasi RMIS, button:has-text("Masuk ke Aplikasi RMIS")').first();
@@ -180,24 +183,26 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       await page.waitForTimeout(500);
     }
 
+    // Simpan data uji
+    const btnSave = dialog.locator('button:has-text("Save")').first();
+
     await wedocit.captureStep({
       title: 'Lengkapi Data Mandatory Form LDAP Server',
       description: `Mengisi seluruh data mandatory server uji (${TEST_LDAP_IP}) dan memverifikasi validitas formulir konfigurasi.`,
       input: `IP: ${TEST_LDAP_IP} | Port: ${TEST_LDAP_PORT} | Desc: ${TEST_LDAP_DESC}`,
-      expected: 'Seluruh formulir data server uji terisi valid dan tombol aksi aktif.'
+      expected: 'Seluruh formulir data server uji terisi valid dan tombol aksi aktif.',
+      highlight: btnSave
     });
 
-    // Simpan data uji
-    const btnSave = dialog.locator('button:has-text("Save")').first();
     if (await btnSave.isVisible().catch(() => false)) {
       await btnSave.click();
       await page.waitForTimeout(1500);
     }
 
     // Pastikan modal ditutup agar langkah pengujian berikutnya tidak terhalang
-    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await btnCancel.click();
+    if (await dialog.isVisible().catch(() => false)) {
+      const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+      await btnCancel.click({ force: true, timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(500);
     }
   });
@@ -266,9 +271,9 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Data parameter terbarui dan sistem siap menyimpan perubahan.'
     });
 
-    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await btnCancel.click();
+    if (await dialog.isVisible().catch(() => false)) {
+      const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+      await btnCancel.click({ force: true, timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(500);
     }
   });
@@ -331,16 +336,18 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
 
     // Tombol Test Koneksi langsung di baris tabel: button label="Test" icon="pi pi-refresh"
     const btnTestRow = page.locator('button:has-text("Test"), button:has(.pi-refresh)').first();
-    if (await btnTestRow.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await btnTestRow.click();
-      await page.waitForTimeout(2000);
-    }
 
     await wedocit.captureStep({
       title: 'Klik Tombol Test Koneksi pada Baris Tabel',
       description: 'Klik button "Test" (ikon refresh) pada baris data server LDAP untuk memulai pengujian koneksi jaringan.',
-      expected: 'Sistem mengirimkan request tes koneksi socket ke endpoint backend LDAP.'
+      expected: 'Sistem mengirimkan request tes koneksi socket ke endpoint backend LDAP.',
+      highlight: btnTestRow
     });
+
+    if (await btnTestRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await btnTestRow.click();
+      await page.waitForTimeout(2000);
+    }
 
     await wedocit.captureStep({
       title: 'Verifikasi Respons Notifikasi Hasil Tes Koneksi',
@@ -409,23 +416,25 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       await page.waitForTimeout(500);
     }
 
+    // Simpan template error uji
+    const btnSave = dialog.locator('button:has-text("Save")').first();
+
     await wedocit.captureStep({
       title: 'Input Kode Error & Deskripsi Pesan',
       description: `Mengisi Error Code (${TEST_ERR_CODE}) & Pesan, dan memvalidasi formulir error template uji.`,
       input: `Code: ${TEST_ERR_CODE} | Msg: ${TEST_ERR_MSG}`,
-      expected: 'Data pemetaan pesan error uji berhasil diisi pada formulir.'
+      expected: 'Data pemetaan pesan error uji berhasil diisi pada formulir.',
+      highlight: btnSave
     });
 
-    // Simpan template error uji
-    const btnSave = dialog.locator('button:has-text("Save")').first();
     if (await btnSave.isVisible().catch(() => false)) {
-      await btnSave.click();
+      await btnSave.click().catch(() => {});
       await page.waitForTimeout(1000);
     }
 
-    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await btnCancel.click();
+    if (await dialog.isVisible().catch(() => false)) {
+      const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+      await btnCancel.click({ force: true, timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(500);
     }
   });
@@ -491,9 +500,9 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
       expected: 'Pesan berhasil diperbarui di formulir modal.'
     });
 
-    const btnCancel = dialog.locator('button:has-text("Cancel")').first();
-    if (await btnCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await btnCancel.click();
+    if (await dialog.isVisible().catch(() => false)) {
+      const btnCancel = dialog.locator('button:has-text("Cancel")').first();
+      await btnCancel.click({ force: true, timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(500);
     }
   });
@@ -688,14 +697,15 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     const btnKick = page.locator('button:has-text("Kick"), button:has(.pi-sign-out)').first();
     if (await btnKick.isVisible({ timeout: 3000 }).catch(() => false)) {
       await btnKick.click();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(600);
 
       // Pastikan dialog konfirmasi muncul, lalu batalkan agar sesi aktif Admin TIDAK terputus
-      const btnCancelConfirm = page.locator('button.p-confirmdialog-reject, button:has-text("Cancel"), button:has-text("Batal")').first();
+      const btnCancelConfirm = page.locator('.p-confirm-dialog-reject, .p-confirmdialog-reject, button:has-text("Cancel"), button:has-text("Batal"), .p-dialog-header-close').first();
       if (await btnCancelConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await btnCancelConfirm.click();
-        await page.waitForTimeout(500);
+        await btnCancelConfirm.click({ force: true }).catch(() => {});
       }
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(400);
     }
 
     await wedocit.captureStep({
@@ -830,7 +840,8 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     await wedocit.captureStep({
       title: 'Verifikasi Validasi Mandatory Fields',
       description: 'Menekan tombol Save saat field mandatory (IP Address, Port, Server Root, Username, Password) masih kosong.',
-      expected: 'Formulir menandai field mandatory dengan border merah dan sistem mencegah pengiriman data kosong.'
+      expected: 'Formulir menandai field mandatory dengan border merah dan sistem mencegah pengiriman data kosong.',
+      highlight: btnSave
     });
 
     const btnCancel = dialog.locator('button:has-text("Cancel")').first();
@@ -874,7 +885,8 @@ test.describe('Unit Test Suite: [ORMS / RMIS] Integrasi LDAP Active Directory (C
     await wedocit.captureStep({
       title: 'Verifikasi Validasi Form Error Message Kosong',
       description: 'Menekan tombol Save saat form error code kosong untuk memverifikasi proteksi validasi.',
-      expected: 'Sistem memvalidasi form dan mencegah penyimpanan data template error yang tidak lengkap.'
+      expected: 'Sistem memvalidasi form dan mencegah penyimpanan data template error yang tidak lengkap.',
+      highlight: btnSave
     });
 
     const btnCancel = dialog.locator('button:has-text("Cancel")').first();

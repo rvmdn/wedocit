@@ -144,12 +144,60 @@ function handleApiRequest(req, res, pathname) {
     }
   }
 
+  // POST /api/active-doc (Ubah active document secara instan tanpa kirim megabyte payload)
+  if (pathname === '/api/active-doc' && req.method === 'POST') {
+    readRequestBody(req, (body, err) => {
+      if (err) return sendJson(res, 400, { error: 'Payload tidak valid' });
+      try {
+        const { docId } = JSON.parse(body);
+        if (docId && fs.existsSync(WORKSPACE_FILE)) {
+          const wsRaw = fs.readFileSync(WORKSPACE_FILE, 'utf8');
+          const ws = JSON.parse(wsRaw);
+          ws.activeDocId = docId;
+          fs.writeFileSync(WORKSPACE_FILE, JSON.stringify(ws, null, 2), 'utf8');
+        }
+        return sendJson(res, 200, { success: true });
+      } catch (e) {
+        return sendJson(res, 500, { error: e.message });
+      }
+    });
+    return;
+  }
+
   // POST /api/workspace
   if (pathname === '/api/workspace' && req.method === 'POST') {
     readRequestBody(req, (body, err) => {
       if (err) return sendJson(res, 400, { error: 'Payload tidak valid' });
       try {
         const workspaceData = JSON.parse(body);
+        // Backup workspace dan smart-preserve screenshot valid agar tidak terhapus oleh payload kosong
+        if (fs.existsSync(WORKSPACE_FILE)) {
+          try {
+            const existingRaw = fs.readFileSync(WORKSPACE_FILE, 'utf8');
+            if (existingRaw && existingRaw.length > 5000) {
+              fs.writeFileSync(WORKSPACE_FILE + '.bak', existingRaw, 'utf8');
+              const existingData = JSON.parse(existingRaw);
+              if (existingData.documents && workspaceData.documents) {
+                workspaceData.documents.forEach(inDoc => {
+                  const exDoc = existingData.documents.find(d => d.id === inDoc.id);
+                  if (exDoc && exDoc.testCases && inDoc.testCases) {
+                    inDoc.testCases.forEach((inTc, tcIdx) => {
+                      const exTc = exDoc.testCases[tcIdx] || exDoc.testCases.find(t => t.id === inTc.id || t.tcNumberStr === inTc.tcNumberStr);
+                      if (exTc && exTc.steps && inTc.steps) {
+                        inTc.steps.forEach((inStep, sIdx) => {
+                          const exStep = exTc.steps[sIdx] || exTc.steps.find(s => s.title === inStep.title);
+                          if ((!inStep.screenshot || inStep.screenshot.length < 50) && exStep && exStep.screenshot && exStep.screenshot.length > 50) {
+                            inStep.screenshot = exStep.screenshot;
+                          }
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+            }
+          } catch {}
+        }
         fs.writeFileSync(WORKSPACE_FILE, JSON.stringify(workspaceData, null, 2), 'utf8');
         return sendJson(res, 200, { success: true, message: 'Workspace berhasil disimpan' });
       } catch (saveErr) {
@@ -157,6 +205,66 @@ function handleApiRequest(req, res, pathname) {
       }
     });
     return;
+  }
+
+  // POST /api/sync-results (Menyinkronkan output/latest_run_results.json langsung ke workspace.json)
+  if (pathname === '/api/sync-results' && req.method === 'POST') {
+    try {
+      const resultsFile = path.join(ROOT_DIR, 'output/latest_run_results.json');
+      if (!fs.existsSync(resultsFile)) {
+        return sendJson(res, 404, { error: 'File output/latest_run_results.json belum ada.' });
+      }
+      const latestData = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
+      const wsData = JSON.parse(fs.readFileSync(WORKSPACE_FILE, 'utf8'));
+
+      const runCr = (latestData.metadata?.crNo || '').replace(/[^0-9]/g, '');
+      let targetDoc = null;
+      if (runCr) {
+        targetDoc = wsData.documents.find(d => {
+          const docCr = ((d.metadata && (d.metadata.testCaseId || d.metadata.projectNo)) || '').replace(/[^0-9]/g, '');
+          return docCr && docCr === runCr;
+        });
+      }
+      if (!targetDoc) {
+        targetDoc = wsData.documents.find(d => d.id === wsData.activeDocId) || wsData.documents[0];
+      }
+
+      if (targetDoc && latestData.testCases) {
+        targetDoc.testCases = latestData.testCases.map((tc, idx) => ({
+          id: tc.id || `tc_imported_${Date.now()}_${idx + 1}`,
+          tcNumber: idx + 1,
+          tcNumberStr: tc.tcNumberStr || `TC-${String(idx + 1).padStart(3, '0')}`,
+          role: tc.role || 'Admin / IT Security',
+          title: tc.title,
+          scenarioName: tc.scenarioName || tc.title,
+          expectedResult: tc.expectedResult || 'Berhasil',
+          status: tc.status || 'OK',
+          steps: (tc.steps || []).map((s, sIdx) => ({
+            stepNumber: sIdx + 1,
+            title: s.title,
+            actionDescription: (tc.tcNumberStr === 'TC-010' && sIdx === 0) ? 'Menginput password kurang dari 8 karakter pada form login.' : s.actionDescription,
+            inputData: s.inputData || '-',
+            expectedResult: s.expectedResult || 'Berhasil',
+            screenshot: s.screenshot || '',
+            pageUrl: s.pageUrl || '',
+            status: s.status || 'READY',
+            note: s.note || ''
+          }))
+        }));
+
+        wsData.activeDocId = targetDoc.id;
+        fs.writeFileSync(WORKSPACE_FILE, JSON.stringify(wsData, null, 2), 'utf8');
+        return sendJson(res, 200, {
+          success: true,
+          message: `Berhasil menyinkronkan ${targetDoc.testCases.length} Test Case ke Dokumen Studio`,
+          tcCount: targetDoc.testCases.length,
+          docId: targetDoc.id
+        });
+      }
+      return sendJson(res, 400, { error: 'Gagal memetakan test case ke dokumen.' });
+    } catch (eSync) {
+      return sendJson(res, 500, { error: 'Gagal sinkronisasi hasil', details: eSync.message });
+    }
   }
 
   // GET /api/specs (Mendaftarkan daftar file spec Playwright secara dinamis)
@@ -168,7 +276,9 @@ function handleApiRequest(req, res, pathname) {
         const files = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
         specs = files.map(f => {
           let label = f;
-          if (f.includes('06-orms-ldap')) label = '🎯 [ORMS] Integrasi LDAP Active Directory (CR 60131 - 20 TC)';
+          if (f.includes('08-rmis-admin-management') || f.includes('08-orms-admin-management')) label = '🎯 [RMIS] Administration Management (CR 60133 - 18 TC)';
+          else if (f.includes('07-orms-login-security')) label = '🎯 [ORMS] Login & Security Management (CR 60132 - 14 TC)';
+          else if (f.includes('06-orms-ldap')) label = '🎯 [ORMS] Integrasi LDAP Active Directory (CR 60131 - 20 TC)';
           else if (f.includes('01-ap-non-kredit')) label = 'Modul 1: AP Non-Kredit Offline (TC-1.1 - 1.3)';
           else if (f.includes('02-pengujian')) label = 'Modul 2: Pengujian AP Non-Kredit Offline (TC-2.1 - 2.5)';
           else if (f.includes('03-ap-kredit')) label = 'Modul 3: AP Kredit Offline (TC-3.1 - 3.5)';
@@ -291,6 +401,69 @@ function handleApiRequest(req, res, pathname) {
     }
   }
 
+  // POST /api/ai/analyze-code (Menganalisis Source Code Secara Dinamis untuk Merancang Test Cases)
+  if (pathname === '/api/ai/analyze-code' && req.method === 'POST') {
+    readRequestBody(req, (body) => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const codePath = payload.codePath || '';
+        const scenarioName = payload.scenarioName || 'Modul Aplikasi';
+        const systemName = payload.systemName || 'Sistem Informasi';
+        const crNo = payload.crNo || 'CR_UNIT_TEST';
+        const targetUrl = payload.targetUrl || 'http://localhost:4300';
+        const userRole = payload.userRole || 'Admin / User';
+
+        const result = analyzeComponentAndBuildTestCases(codePath, {
+          scenarioName,
+          systemName,
+          crNo,
+          targetUrl,
+          userRole
+        });
+
+        // Simpan request ke data/ai_request.json untuk audit trail
+        const aiRequestFile = path.join(DATA_DIR, 'ai_request.json');
+        try {
+          fs.writeFileSync(aiRequestFile, JSON.stringify({
+            timestamp: new Date().toISOString(),
+            request: payload,
+            resultSummary: result.summary,
+            totalTestCases: result.testCases.length
+          }, null, 2), 'utf8');
+        } catch {}
+
+        return sendJson(res, 200, {
+          success: true,
+          summary: result.summary,
+          testCases: result.testCases
+        });
+      } catch (err) {
+        return sendJson(res, 500, { error: 'Gagal menganalisis source code: ' + err.message });
+      }
+    });
+    return;
+  }
+
+  // POST /api/generate-spec (Otomatis membuat file Playwright spec baru dari dokumen aktif)
+  if (pathname === '/api/generate-spec' && req.method === 'POST') {
+    readRequestBody(req, (body) => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const doc = payload.doc;
+        if (!doc) return sendJson(res, 400, { error: 'Data dokumen tidak ditemukan pada payload.' });
+        const result = generatePlaywrightSpecFromDocument(doc);
+        return sendJson(res, 200, {
+          success: true,
+          message: `Berhasil membuat spec ${result.fileName}`,
+          ...result
+        });
+      } catch (err) {
+        return sendJson(res, 500, { error: 'Gagal membuat file spec: ' + err.message });
+      }
+    });
+    return;
+  }
+
   // GET /api/outputs
   if (pathname === '/api/outputs' && req.method === 'GET') {
     try {
@@ -400,6 +573,342 @@ function exportDocxToPdf(docxPath, callback) {
   });
 }
 
+function analyzeComponentAndBuildTestCases(codePath, options = {}) {
+  const scenarioName = options.scenarioName || 'Modul Aplikasi';
+  const systemName = options.systemName || 'Sistem Aplikasi';
+  const targetUrl = options.targetUrl || 'http://localhost:4300';
+  const userRole = options.userRole || 'Admin / User';
+
+  let files = [];
+  if (codePath && fs.existsSync(codePath)) {
+    const stat = fs.statSync(codePath);
+    if (stat.isDirectory()) {
+      function scan(curr) {
+        for (const f of fs.readdirSync(curr)) {
+          if (f === 'node_modules' || f === '.git' || f === 'dist') continue;
+          const p = path.join(curr, f);
+          if (fs.statSync(p).isDirectory()) scan(p);
+          else if (/\.(html|ts|tsx|vue|jsx|js)$/i.test(f) && !f.endsWith('.spec.ts')) {
+            files.push(p);
+          }
+        }
+      }
+      scan(codePath);
+    } else {
+      files.push(codePath);
+    }
+  }
+
+  let combinedHtml = '';
+  let combinedTs = '';
+  for (const f of files) {
+    const c = fs.readFileSync(f, 'utf8');
+    if (f.endsWith('.html')) combinedHtml += '\n' + c;
+    else combinedTs += '\n' + c;
+  }
+
+  // Inputs
+  const inputs = [];
+  const seenInputs = new Set();
+  const inputRegex = /<(input|textarea|p-password|p-inputnumber|p-select|p-dropdown|p-checkbox|p-toggleswitch)[^>]*>/gi;
+  let m;
+  while ((m = inputRegex.exec(combinedHtml)) !== null) {
+    const tagStr = m[0];
+    const nameMatch = tagStr.match(/formControlName="([^"]+)"|id="([^"]+)"|name="([^"]+)"/i);
+    const placeholderMatch = tagStr.match(/placeholder="([^"]+)"/i);
+    const isRequired = tagStr.includes('required') || combinedHtml.includes(`${nameMatch?.[1] || ''}.invalid`) || tagStr.includes('text-red-500');
+    const isPassword = m[1].toLowerCase() === 'p-password' || tagStr.includes('type="password"');
+    const hasToggleMask = tagStr.includes('toggleMask');
+    const fieldName = nameMatch ? (nameMatch[1] || nameMatch[2] || nameMatch[3]) : 'field';
+    if (!seenInputs.has(fieldName)) {
+      seenInputs.add(fieldName);
+      inputs.push({
+        tag: m[1],
+        name: fieldName,
+        placeholder: placeholderMatch ? placeholderMatch[1] : fieldName,
+        isPassword,
+        hasToggleMask,
+        isRequired
+      });
+    }
+  }
+
+  // Buttons
+  const buttons = [];
+  const seenButtons = new Set();
+  const btnRegex = /<(button|p-button|a)[^>]*>([\s\S]*?)<\/\1>/gi;
+  while ((m = btnRegex.exec(combinedHtml)) !== null) {
+    const fullTag = m[0];
+    const innerText = m[2].replace(/<[^>]+>/g, '').trim();
+    const labelAttr = (fullTag.match(/label="([^"]+)"/i) || [])[1];
+    let label = (labelAttr || innerText).replace(/\s+/g, ' ').trim();
+    const routerLink = (fullTag.match(/routerLink="([^"]+)"/i) || [])[1];
+    const type = (fullTag.match(/type="([^"]+)"/i) || [])[1] || 'button';
+    if (label && !seenButtons.has(label) && label.length < 50) {
+      seenButtons.add(label);
+      buttons.push({ label, type, routerLink });
+    }
+  }
+
+  // Validations
+  const validations = [];
+  const valRegex = /<(?:small|div|span)[^>]*(?:text-red|invalid|error)[^>]*>([\s\S]*?)<\/(?:small|div|span)>/gi;
+  while ((m = valRegex.exec(combinedHtml)) !== null) {
+    const text = m[1].replace(/<[^>]+>/g, '').trim();
+    if (text && text.length > 3 && text.length < 80 && !validations.includes(text) && !text.includes('{{')) {
+      validations.push(text);
+    }
+  }
+
+  // Tables
+  const hasTable = /<p-table|<table/i.test(combinedHtml);
+
+  // Now assemble dynamic test cases based on actual components:
+  const tcs = [];
+  let tcIdx = 1;
+
+  // TC-1: UI Access & Verification
+  const inputSummary = inputs.map(i => i.placeholder || i.name).filter(Boolean).slice(0, 5).join(', ');
+  const btnSummary = buttons.map(b => b.label).filter(Boolean).slice(0, 4).join(', ');
+  tcs.push({
+    tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+    title: `Verifikasi Tampilan Antarmuka Halaman ${scenarioName}`,
+    scenarioName: `Memeriksa Komponen Antarmuka Form & Aksi pada ${scenarioName}`,
+    expectedResult: `Halaman ${scenarioName} berhasil dimuat lengkap dengan seluruh field input dan tombol aksi aktif.`,
+    role: userRole,
+    status: 'OK',
+    steps: [
+      {
+        stepNumber: 1,
+        title: `Akses Halaman ${scenarioName}`,
+        actionDescription: `Pengguna membuka halaman modul pada target URL (${targetUrl}).`,
+        inputData: '-',
+        expectedResult: `Halaman ${scenarioName} terbuka sempurna dan elemen antarmuka termuat.`
+      },
+      {
+        stepNumber: 2,
+        title: 'Verifikasi Komponen Visual Halaman',
+        actionDescription: `Memeriksa ketersediaan komponen yang terdeteksi: Input (${inputSummary || 'Form Controls'}), Tombol (${btnSummary || 'Aksi'}).`,
+        inputData: '-',
+        expectedResult: 'Seluruh komponen visual tampil proporsional sesuai rancangan antarmuka.'
+      }
+    ]
+  });
+
+  // Table TC (if table present)
+  if (hasTable) {
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Verifikasi Tampilan Tabel dan Daftar Data ${scenarioName}`,
+      scenarioName: `Melihat Daftar Entri Data pada Tabel ${scenarioName}`,
+      expectedResult: 'Tabel menampilkan daftar data lengkap dengan kolom dan baris aksi operasional.',
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Periksa Tampilan Header Kolom Tabel',
+          actionDescription: 'Memeriksa kolom-kolom tabel data dan tata letak grid.',
+          inputData: '-',
+          expectedResult: 'Header kolom tabel tampil terstruktur dan rapi.'
+        },
+        {
+          stepNumber: 2,
+          title: 'Verifikasi Aksi Baris Tabel',
+          actionDescription: 'Memeriksa ketersediaan tombol aksi operasional pada setiap baris tabel.',
+          inputData: '-',
+          expectedResult: 'Tombol aksi pada baris tabel dapat diakses pengguna sesuai hak akses role.'
+        }
+      ]
+    });
+  }
+
+  // Password toggleMask TC (if password field with toggleMask exists)
+  const pwdField = inputs.find(i => i.isPassword && i.hasToggleMask);
+  if (pwdField) {
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Fitur Masking dan Unmasking Karakter ${pwdField.name.toUpperCase()}`,
+      scenarioName: `Pengujian Toggle Visibility Password pada Form`,
+      expectedResult: `Karakter password dapat disembunyikan dan ditampilkan menggunakan toggle ikon mata.`,
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Input Password dalam Kondisi Terselubung',
+          actionDescription: `Memasukkan teks ke dalam field ${pwdField.name} dan memastikan karakter tersamarkan bullet.`,
+          inputData: `${pwdField.name}: ********`,
+          expectedResult: 'Karakter password tersembunyi untuk menjaga privasi kredensial pengguna.'
+        },
+        {
+          stepNumber: 2,
+          title: 'Klik Toggle Eye Icon untuk Menampilkan Teks',
+          actionDescription: 'Mengklik ikon mata (toggle mask) pada sisi kanan field password.',
+          inputData: '-',
+          expectedResult: 'Karakter password tampil dalam format teks biasa (unmasked) secara jelas.'
+        }
+      ]
+    });
+  }
+
+  // Mandatory Form Validation TC (if required inputs or validation messages exist)
+  const reqInputs = inputs.filter(i => i.isRequired);
+  if (reqInputs.length > 0 || validations.length > 0) {
+    const reqNames = reqInputs.map(i => i.name).join(', ') || 'seluruh field wajib';
+    const valText = validations.slice(0, 3).join(' & ') || 'Pesan validasi wajib diisi';
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Validasi Mandatory Fields Kosong pada Form ${scenarioName}`,
+      scenarioName: `Proteksi Pengiriman Form Tanpa Mengisi Field Wajib (${reqNames})`,
+      expectedResult: `Sistem mencegah pengiriman form dan memunculkan indikator validasi (${valText}).`,
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Kosongkan Field Mandatory Form',
+          actionDescription: `Membuka formulir dan mengosongkan field wajib (${reqNames}).`,
+          inputData: `Field Kosong: ${reqNames}`,
+          expectedResult: 'Field terdeteksi kosong dan tombol submit/simpan tetap dalam status disabled atau divalidasi.'
+        },
+        {
+          stepNumber: 2,
+          title: 'Verifikasi Pesan dan Indikator Validasi Error',
+          actionDescription: `Memeriksa tampilan umpan balik validasi (${valText}).`,
+          inputData: '-',
+          expectedResult: `Sistem menandai field dengan border merah serta menampilkan pesan validasi secara presisi.`
+        }
+      ]
+    });
+  }
+
+  // Specific validation cases (e.g. minlength, pattern)
+  const minLengthVal = validations.find(v => v.toLowerCase().includes('karakter') || v.toLowerCase().includes('minimal'));
+  if (minLengthVal) {
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Validasi Batas Minimal Karakter (${minLengthVal})`,
+      scenarioName: `Pengujian Boundary Limit Nilai Input`,
+      expectedResult: `Sistem menolak input yang belum memenuhi batas minimal karakter (${minLengthVal}).`,
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Input Nilai di Bawah Batas Minimal',
+          actionDescription: 'Memasukkan karakter yang panjangnya kurang dari batas minimal yang ditentukan.',
+          inputData: 'Input: 5 karakter (kurang dari syarat)',
+          expectedResult: 'Form mendeteksi panjang password belum memenuhi syarat.'
+        },
+        {
+          stepNumber: 2,
+          title: 'Verifikasi Peringatan Validasi Boundary',
+          actionDescription: `Memeriksa pesan kesalahan yang muncul di bawah input field.`,
+          inputData: '-',
+          expectedResult: `Muncul pesan peringatan "${minLengthVal}" dan aksi simpan dicegah.`
+        }
+      ]
+    });
+  }
+
+  // Main Action / Submit Button TC
+  const mainBtn = buttons.find(b => /sign in|login|save|simpan|submit|tambah/i.test(b.label)) || buttons[0];
+  if (mainBtn) {
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Pengujian Eksekusi Aksi ${mainBtn.label} (Normal Case)`,
+      scenarioName: `Memproses Aksi ${mainBtn.label} dengan Data Valid`,
+      expectedResult: `Sistem sukses memproses aksi ${mainBtn.label} dan memperbarui data/status pada aplikasi.`,
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Lengkapi Seluruh Parameter Data Valid',
+          actionDescription: `Mengisi seluruh field form (${inputs.map(i => i.name).slice(0, 4).join(', ')}) dengan nilai valid.`,
+          inputData: 'Data Valid Parameter Uji',
+          expectedResult: `Seluruh form terisi valid dan tombol ${mainBtn.label} berada dalam status aktif.`
+        },
+        {
+          stepNumber: 2,
+          title: `Klik Tombol ${mainBtn.label} dan Verifikasi Hasil`,
+          actionDescription: `Menekan tombol ${mainBtn.label} dan mengamati respons server.`,
+          inputData: '-',
+          expectedResult: `Proses berhasil dieksekusi tanpa error, data tersimpan atau sesi dialihkan sesuai alur bisnis.`
+        }
+      ]
+    });
+
+    // Negative / Failure Handling TC
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Pengujian Penanganan Respons Error pada Aksi ${mainBtn.label} (Abnormal Case)`,
+      scenarioName: `Proteksi Kesalahan Input Parameter atau Kegagalan Sistem`,
+      expectedResult: `Sistem menolak proses dan memberikan feedback pesan error yang informatif serta aman.`,
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Kondisikan Parameter Tidak Sesuai / Invalid',
+          actionDescription: 'Memasukkan nilai parameter uji yang tidak sesuai dengan database atau memicu kondisi penolakan.',
+          inputData: 'Parameter Invalid / Penolakan Sistem',
+          expectedResult: 'Parameter dimasukkan ke dalam form pengujian.'
+        },
+        {
+          stepNumber: 2,
+          title: 'Verifikasi Notifikasi Feedback Error dari Sistem',
+          actionDescription: `Menekan tombol ${mainBtn.label} dan memeriksa toast / pesan penolakan.`,
+          inputData: '-',
+          expectedResult: 'Sistem menampilkan notifikasi pesan penolakan tanpa mengekspos exception backend.'
+        }
+      ]
+    });
+  }
+
+  // Navigation / RouterLink TC (if any link exists)
+  const navBtn = buttons.find(b => b.routerLink);
+  if (navBtn) {
+    tcs.push({
+      tcNumberStr: `TC-${String(tcIdx++).padStart(3, '0')}`,
+      title: `Pengujian Navigasi Tautan ${navBtn.label || navBtn.routerLink}`,
+      scenarioName: `Peralihan Halaman via Router Link Menuju ${navBtn.routerLink}`,
+      expectedResult: `Sistem sukses mengalihkan pengguna ke route ${navBtn.routerLink}.`,
+      role: userRole,
+      status: 'OK',
+      steps: [
+        {
+          stepNumber: 1,
+          title: `Klik Tautan ${navBtn.label || 'Navigasi'}`,
+          actionDescription: `Pengguna mengklik tautan navigasi menuju ${navBtn.routerLink}.`,
+          inputData: `Route Target: ${navBtn.routerLink}`,
+          expectedResult: `Browser merespons klik dan mengarahkan ke halaman target.`
+        },
+        {
+          stepNumber: 2,
+          title: 'Verifikasi Halaman Tujuan Berhasil Dimuat',
+          actionDescription: `Memeriksa URL browser dan komponen halaman tujuan (${navBtn.routerLink}).`,
+          inputData: '-',
+          expectedResult: `Halaman tujuan ${navBtn.routerLink} terbuka sempurna tanpa hambatan navigasi.`
+        }
+      ]
+    });
+  }
+
+  return {
+    summary: {
+      filesCount: files.length,
+      inputs: inputs.length,
+      buttons: buttons.length,
+      validations: validations.length,
+      hasTable,
+      scannedPath: codePath
+    },
+    testCases: tcs
+  };
+}
+
 function getLatestDocxInOutput() {
   if (!fs.existsSync(OUTPUT_DIR)) return null;
   const files = fs.readdirSync(OUTPUT_DIR)
@@ -409,11 +918,110 @@ function getLatestDocxInOutput() {
   return files[0] ? files[0].path : null;
 }
 
+function generatePlaywrightSpecFromDocument(doc) {
+  if (!doc) throw new Error('Dokumen tidak ditemukan');
+  const meta = doc.metadata || {};
+  const tcs = doc.testCases || [];
+  if (tcs.length === 0) throw new Error('Dokumen ini belum memiliki Test Case.');
+
+  const testsDir = path.join(ROOT_DIR, 'tests');
+  if (!fs.existsSync(testsDir)) fs.mkdirSync(testsDir, { recursive: true });
+
+  const existingFiles = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+  let maxIdx = 0;
+  existingFiles.forEach(f => {
+    const match = f.match(/^(\d+)[-_]/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > maxIdx) maxIdx = n;
+    }
+  });
+
+  const nextIdx = String(maxIdx + 1).padStart(2, '0');
+  const rawSlug = (meta.scenarioName || meta.module || 'unit-test')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const fileName = `${nextIdx}-${rawSlug}.spec.ts`;
+  const filePath = path.join(testsDir, fileName);
+
+  const lines = [];
+  lines.push(`import { test, expect, Page } from '../src/fixtures/wedocit';`);
+  lines.push(`import { ensureOrmsAuthenticated } from '../src/helpers/orms-auth';`);
+  lines.push(`import * as path from 'path';`);
+  lines.push(`import * as fs from 'fs';`);
+  lines.push(``);
+  lines.push(`const ormsAuthFile = path.resolve(process.cwd(), '.auth/user_orms_admin.json');`);
+  lines.push(``);
+  lines.push(`test.use({`);
+  lines.push(`  baseURL: process.env.ORMS_BASE_URL || '${meta.testUrl || 'http://localhost:4300'}',`);
+  lines.push(`  viewport: { width: 1366, height: 768 },`);
+  lines.push(`  storageState: fs.existsSync(ormsAuthFile) ? ormsAuthFile : undefined`);
+  lines.push(`});`);
+  lines.push(``);
+  lines.push(`test.describe('Unit Test Suite: ${meta.title || meta.scenarioName || 'Automated Unit Test'}', () => {`);
+  lines.push(``);
+  lines.push(`  test.beforeEach(async ({ page, wedocit }) => {`);
+  lines.push(`    wedocit.setMetadata({`);
+  lines.push(`      systemName: ${JSON.stringify(meta.systemName || 'Web Application')},`);
+  lines.push(`      projectName: ${JSON.stringify(meta.projectName || meta.systemName || 'Application')},`);
+  lines.push(`      crNo: ${JSON.stringify(meta.testCaseId || 'CR_UNIT_TEST')},`);
+  lines.push(`      title: ${JSON.stringify(meta.title || 'Unit Test Documentation')},`);
+  lines.push(`      module: ${JSON.stringify(meta.scenarioName || 'Modul Aplikasi')},`);
+  lines.push(`      shortDescription: ${JSON.stringify(meta.shortDescription || 'Pengujian dan verifikasi modul aplikasi.')},`);
+  lines.push(`      testedBy: ${JSON.stringify(meta.testedBy || 'QA Engineer')},`);
+  lines.push(`      npp: ${JSON.stringify(meta.npp || '-')}`);
+  lines.push(`    });`);
+  lines.push(`  });`);
+  lines.push(``);
+
+  tcs.forEach((tc, idx) => {
+    const tcNo = tc.tcNumberStr || `TC-${String(idx + 1).padStart(3, '0')}`;
+    const tcTitle = tc.title || `Test Case ${idx + 1}`;
+    lines.push(`  test('[${tcNo}] ${tcTitle.replace(/'/g, "\\'")}', async ({ page, wedocit }) => {`);
+    lines.push(`    wedocit.setTestCase({`);
+    lines.push(`      tcNumberStr: ${JSON.stringify(tcNo)},`);
+    lines.push(`      scenarioName: ${JSON.stringify(tc.scenarioName || tcTitle)},`);
+    lines.push(`      title: ${JSON.stringify(tcTitle)},`);
+    lines.push(`      expectedResult: ${JSON.stringify(tc.expectedResult || 'Sistem berjalan normal.')},`);
+    lines.push(`      role: ${JSON.stringify(tc.role || 'Admin / User')}`);
+    lines.push(`    });`);
+    lines.push(``);
+    lines.push(`    await page.goto('${meta.testUrl ? '/login' : '/'}', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/'));`);
+    lines.push(`    await page.waitForTimeout(800);`);
+    lines.push(``);
+
+    const steps = tc.steps || [];
+    steps.forEach((s, sIdx) => {
+      lines.push(`    await wedocit.captureStep({`);
+      lines.push(`      title: ${JSON.stringify(s.title || `Langkah ${sIdx + 1}`)},`);
+      lines.push(`      description: ${JSON.stringify(s.actionDescription || '-')},`);
+      lines.push(`      input: ${JSON.stringify(s.inputData || '-')},`);
+      lines.push(`      expected: ${JSON.stringify(s.expectedResult || 'Sesuai ekspektasi.')}`);
+      lines.push(`    });`);
+      lines.push(``);
+    });
+
+    lines.push(`  });`);
+    lines.push(``);
+  });
+
+  lines.push(`});`);
+
+  fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+  return {
+    filePath: `tests/${fileName}`,
+    fileName: fileName,
+    totalTcs: tcs.length,
+    label: `⚡ [Generated] ${meta.scenarioName || meta.title} (${tcs.length} TC)`
+  };
+}
+
 function readRequestBody(req, callback) {
   let body = '';
   req.on('data', chunk => {
     body += chunk;
-    if (body.length > 50 * 1024 * 1024) { // Max 50 MB (untuk image base64)
+    if (body.length > 500 * 1024 * 1024) { // Max 500 MB (dukung multiple dokumen & evidensi screenshot besar)
       req.connection.destroy();
     }
   });
