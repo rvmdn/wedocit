@@ -276,14 +276,23 @@ function handleApiRequest(req, res, pathname) {
         const files = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
         specs = files.map(f => {
           let label = f;
-          if (f.includes('08-rmis-admin-management') || f.includes('08-orms-admin-management')) label = '🎯 [RMIS] Administration Management (CR 60133 - 18 TC)';
-          else if (f.includes('07-orms-login-security')) label = '🎯 [ORMS] Login & Security Management (CR 60132 - 14 TC)';
-          else if (f.includes('06-orms-ldap')) label = '🎯 [ORMS] Integrasi LDAP Active Directory (CR 60131 - 20 TC)';
-          else if (f.includes('01-ap-non-kredit')) label = 'Modul 1: AP Non-Kredit Offline (TC-1.1 - 1.3)';
-          else if (f.includes('02-pengujian')) label = 'Modul 2: Pengujian AP Non-Kredit Offline (TC-2.1 - 2.5)';
-          else if (f.includes('03-ap-kredit')) label = 'Modul 3: AP Kredit Offline (TC-3.1 - 3.5)';
-          else if (f.includes('04-rha')) label = 'Modul 4: RHA Offline (TC-4.1 - 4.3)';
-          else if (f.includes('05-pelaksanaan-audit')) label = 'Modul 5: Pelaksanaan Audit Online (TC-5.1 - 5.2)';
+          let count = 0;
+          try {
+            const content = fs.readFileSync(path.join(testsDir, f), 'utf8');
+            const matches = content.match(/\btest\s*\(\s*['"`]/g);
+            count = matches ? matches.length : 0;
+          } catch {}
+
+          const tcStr = count > 0 ? ` (${count} TC)` : '';
+
+          if (f.includes('08-rmis-admin-management') || f.includes('08-orms-admin-management')) label = `🎯 [RMIS] Administration Management Master Data CRUD${tcStr}`;
+          else if (f.includes('07-orms-login-security')) label = `🎯 [ORMS] Login & Security Management${tcStr}`;
+          else if (f.includes('06-orms-ldap')) label = `🎯 [ORMS] Integrasi LDAP Active Directory${tcStr}`;
+          else if (f.includes('01-ap-non-kredit')) label = `Modul 1: AP Non-Kredit Offline${tcStr}`;
+          else if (f.includes('02-pengujian')) label = `Modul 2: Pengujian AP Non-Kredit Offline${tcStr}`;
+          else if (f.includes('03-ap-kredit')) label = `Modul 3: AP Kredit Offline${tcStr}`;
+          else if (f.includes('04-rha')) label = `Modul 4: RHA Offline${tcStr}`;
+          else if (f.includes('05-pelaksanaan-audit')) label = `Modul 5: Pelaksanaan Audit Online${tcStr}`;
           return {
             path: `tests/${f}`,
             name: f,
