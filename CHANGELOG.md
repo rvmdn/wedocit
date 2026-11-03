@@ -13,6 +13,15 @@ Aturan penomoran versi mengikuti skema:
 
 ---
 
+## [v3.1.1] - 2026-11-03
+### Minor Change (`y` +1)
+- **Restrukturisasi Test Suite CRUD Master Data RMIS:**
+  - Menyusun ulang 15 Test Case pada [`tests/08-rmis-admin-management.spec.ts`](tests/08-rmis-admin-management.spec.ts) dengan alur siklus hidup berurutan: **Create Data A $\rightarrow$ Read Data A $\rightarrow$ Update Data A $\rightarrow$ Delete Data A**.
+  - Menerapkan pengujian terisolasi ber-prefix `[TEST-EDV]` dengan *self-cleaning teardown* agar database master tetap bersih dan hasil dokumentasi EDV tersaji rapi dan runtut.
+  - Menambahkan cakupan untuk S3 Helper (`TC-013`), Manage Session (`TC-014`), dan Audit Trail Export (`TC-015`).
+
+---
+
 ## [v3.1.0] - 2026-11-02
 ### Major Change (`x` +1)
 - **Otomasi Administration Management RMIS:**

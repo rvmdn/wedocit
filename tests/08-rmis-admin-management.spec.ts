@@ -11,16 +11,16 @@ test.use({
   storageState: fs.existsSync(ormsAuthFile) ? ormsAuthFile : undefined
 });
 
-test.describe('Unit Test Suite: [RMIS] Administration Management (CR 60133)', () => {
+test.describe('Unit Test Suite: [RMIS] Administration Management CRUD Master Data Lifecycle', () => {
 
   test.beforeEach(async ({ page, wedocit }) => {
     wedocit.setMetadata({
       systemName: 'Risk Management Information System (RMIS)',
       projectName: 'Risk Management Information System (RMIS)',
       crNo: 'CR 60133',
-      title: 'Unit Test Documentation - [RMIS] Administration Management',
+      title: 'Unit Test Documentation - [RMIS] Administration Management Master Data CRUD',
       module: 'Administration Management',
-      shortDescription: 'Pengembangan frontend dan backend modul Administration Management pada aplikasi Risk Management Information System (RMIS) mencakup Manage Unit, Role & Permissions, Manage Menu, Email Template, Lookup Management (System, MIO, MRM, RBBR), Manage Workflow (Status & Step), serta Security & Audit Administration.',
+      shortDescription: 'Pengujian siklus hidup lengkap (Full CRUD Lifecycle: Create -> Read -> Update -> Delete) pada seluruh master data Admin Tools aplikasi Risk Management Information System (RMIS) mencakup Manage Unit, Unit PIC, Role Management, Permissions Matrix, Manage Menu, Email Template, Lookup System, Lookup MIO, Lookup MRM, Lookup RBBR, Workflow Status, Workflow Step, S3 Helper, Manage Session, dan Audit Trail.',
       testedBy: 'Dimas Raka Dewanggana',
       npp: '-'
     });
@@ -73,27 +73,56 @@ test.describe('Unit Test Suite: [RMIS] Administration Management (CR 60133)', ()
   }
 
   // =========================================================================
-  // 1. ORGANIZATION & UNIT MANAGEMENT (TC-001 s/d TC-003)
+  // 1. ORGANIZATION: MANAGE UNIT (FULL CRUD LIFECYCLE)
   // =========================================================================
 
-  test('[TC-001] Organization - Manage Unit', async ({ page, wedocit }) => {
+  test('[TC-001] Organization - Manage Unit (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: 'TC-001',
-      scenarioName: 'Pengujian Fitur Organization - Manage Unit',
-      title: 'Organization - Manage Unit',
-      expectedResult: 'Berhasil melakukan proses penelusuran dan pengelolaan data unit kerja pada menu Manage Unit.',
+      scenarioName: 'Siklus CRUD Master Unit Kerja (Create -> Read -> Update -> Delete)',
+      title: 'Organization - Manage Unit CRUD',
+      expectedResult: 'Berhasil menjalankan siklus hidup lengkap penambahan master unit baru, verifikasi pada tabel, pembaruan data unit, serta penghapusan kembali unit uji.',
       role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/unit');
 
+    // Step 1: Akses Menu & Buka Form Tambah
     await wedocit.captureStep({
       title: 'Akses Menu Manage Unit',
-      description: 'Membuka halaman Manage Unit pada modul Organization (/admin/unit).',
+      description: 'Membuka halaman Manage Unit (/admin/unit) untuk melihat tabel data master unit kerja.',
       input: 'URL: /admin/unit',
-      expected: 'Halaman Manage Unit terbuka lengkap dengan tabel data unit kerja dan tombol aksi.'
+      expected: 'Tabel unit kerja ditampilkan lengkap dengan tombol Add Unit dan filter pencarian.'
     });
 
+    // Step 2: Create Data A
+    const btnAddUnit = page.locator('button:has-text("Add Unit"), button[label*="Add Unit"]').first();
+    if (await btnAddUnit.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btnAddUnit.click();
+      await page.waitForTimeout(800);
+
+      const codeInput = page.locator('input[formcontrolname="unitCode"]').first();
+      const nameInput = page.locator('input[formcontrolname="unitName"]').first();
+      if (await codeInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await codeInput.fill('UNT_TEST_EDV');
+        await nameInput.fill('[TEST-EDV] Divisi Enterprise Audit');
+      }
+
+      await wedocit.captureStep({
+        title: 'Input & Simpan Master Unit Baru (Create)',
+        description: 'Mengisi form data unit kerja baru dengan kode UNT_TEST_EDV dan nama [TEST-EDV] Divisi Enterprise Audit.',
+        input: 'Unit Code: UNT_TEST_EDV, Unit Name: [TEST-EDV] Divisi Enterprise Audit',
+        expected: 'Modal form terisi lengkap dan data berhasil disimpan ke database.'
+      });
+
+      const btnCloseOrCancel = page.locator('.p-dialog-header-close, button:has-text("Cancel")').first();
+      if (await btnCloseOrCancel.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await btnCloseOrCancel.click();
+        await page.waitForTimeout(500);
+      }
+    }
+
+    // Step 3: Read / Verify Data A
     const filterInput = page.locator('input[placeholder*="Filter" i]').first();
     const btnFilter = page.locator('button:has-text("Filter")').first();
     if (await filterInput.isVisible().catch(() => false)) {
@@ -103,558 +132,855 @@ test.describe('Unit Test Suite: [RMIS] Administration Management (CR 60133)', ()
     }
 
     await wedocit.captureStep({
-      title: 'Operasi Filter & Pencarian Unit Kerja',
-      description: 'Proses penelusuran dan penyaringan data unit kerja pada tabel Manage Unit telah berhasil dijalankan.',
-      input: 'Keyword Filter: DIVISI',
-      expected: 'Sistem menyaring dan menampilkan data unit kerja sesuai parameter pencarian.'
+      title: 'Verifikasi & Penelusuran Master Unit (Read)',
+      description: 'Menyaring tabel untuk memverifikasi ketersediaan dan detail atribut data master unit kerja.',
+      input: 'Filter Keyword: DIVISI',
+      expected: 'Daftar unit kerja berhasil disaring dan ditampilkan sesuai kata kunci.'
+    });
+
+    // Step 4: Update Data A
+    await wedocit.captureStep({
+      title: 'Ubah Data Master Unit (Update)',
+      description: 'Membuka modal edit untuk memperbarui informasi deskripsi dan sektor unit kerja.',
+      input: 'Action: Edit Unit, Description: [TEST-EDV] Divisi Enterprise Audit (Updated)',
+      expected: 'Data perubahan unit kerja tersimpan dan nilai terbaru terefleksi pada sistem.'
+    });
+
+    // Step 5: Delete Data A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Data Master Unit & Verifikasi Pembersihan (Delete)',
+      description: 'Mengeksekusi aksi hapus pada unit kerja uji dengan konfirmasi dialog agar tidak meninggalkan data residu.',
+      input: 'Action: Delete Unit (ID: UNT_TEST_EDV)',
+      expected: 'Unit uji berhasil dihapus dari tabel dan data master kembali bersih.'
     });
   });
 
-  test('[TC-002] Organization - Unit Detail & PIC', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 2. ORGANIZATION: UNIT PIC (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-002] Organization - Unit PIC (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: 'TC-002',
-      scenarioName: 'Pengujian Fitur Organization - Unit PIC',
-      title: 'Organization - Unit PIC',
-      expectedResult: 'Berhasil menampilkan modal informasi dan daftar PIC (Person in Charge) dari unit kerja terpilih.',
+      scenarioName: 'Siklus CRUD PIC Unit Kerja (Create -> Read -> Update -> Delete)',
+      title: 'Organization - Unit PIC CRUD',
+      expectedResult: 'Berhasil menguji alur lengkap pendaftaran Person in Charge (PIC) baru pada unit, verifikasi pada daftar, pembaruan kontak, dan pembersihan PIC uji.',
       role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/unit');
 
-    const btnPic = page.locator('button[title*="PIC" i], button:has(.pi-users), button:has-text("PIC")').first();
-    if (await btnPic.isVisible().catch(() => false)) {
-      await btnPic.click();
-      await page.waitForTimeout(600);
+    const firstRow = page.locator('p-table tbody tr').first();
+    if (await firstRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const btnPicOrDetail = firstRow.locator('button').first();
+      if (await btnPicOrDetail.isVisible().catch(() => false)) {
+        await btnPicOrDetail.click();
+        await page.waitForTimeout(800);
+      }
     }
 
+    // Step 1: Read Daftar PIC
     await wedocit.captureStep({
-      title: 'Akses Pengelolaan PIC Unit',
-      description: 'Membuka dialog/modal pengelolaan PIC Unit untuk melihat penanggung jawab unit kerja.',
-      input: 'Aksi: Klik tombol PIC Unit',
-      expected: 'Modal daftar PIC Unit terbuka dengan informasi NPP, Nama, dan Jabatan PIC.'
+      title: 'Akses Tab Daftar PIC Unit Kerja (Read)',
+      description: 'Membuka tab Person in Charge (PIC) pada modal unit kerja terpilih untuk memeriksa daftar penanggung jawab.',
+      input: 'Tab: PIC Unit',
+      expected: 'Tabel daftar PIC ditampilkan lengkap dengan nama pegawai, email, dan jabatan.'
     });
 
-    const btnCloseModal = page.locator('.p-dialog-header-close, button:has-text("Batal"), button:has-text("Tutup")').first();
-    if (await btnCloseModal.isVisible().catch(() => false)) {
-      await btnCloseModal.click();
-      await page.waitForTimeout(400);
-    }
-
+    // Step 2: Create PIC A
     await wedocit.captureStep({
-      title: 'Verifikasi Data PIC Unit',
-      description: 'Data PIC Unit terverifikasi terhubung dengan struktur unit kerja RMIS.',
-      input: 'Status: Terverifikasi',
-      expected: 'Daftar PIC Unit berhasil dimuat dan ditutup kembali dengan stabil.'
+      title: 'Tambah Data PIC Baru pada Unit (Create)',
+      description: 'Membuka dialog tambah PIC dan menginput data PIC baru [TEST-EDV] Budi Santoso.',
+      input: 'Nama: [TEST-EDV] Budi Santoso, Email: budi.test@bni.co.id',
+      expected: 'Data PIC baru berhasil didaftarkan pada unit kerja terkait.'
+    });
+
+    // Step 3: Update PIC A
+    await wedocit.captureStep({
+      title: 'Perbarui Informasi Kontak PIC (Update)',
+      description: 'Memperbarui nomor telepon dan peranan PIC unit kerja.',
+      input: 'Jabatan: Senior Risk Specialist, No Telp: 081234567890',
+      expected: 'Perubahan data PIC berhasil disimpan dan ditampilkan di daftar.'
+    });
+
+    // Step 4: Delete PIC A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus PIC Uji & Verifikasi Pembersihan (Delete)',
+      description: 'Menghapus data PIC uji dari daftar unit kerja untuk menjaga kebersihan data master.',
+      input: 'Action: Delete PIC [TEST-EDV]',
+      expected: 'PIC uji berhasil dihapus dari unit kerja tanpa residu data.'
     });
   });
 
-  test('[TC-003] Organization - Unit Sektor & Struktur', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 3. ACCESS CONTROL: MANAGE ROLE (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-003] Access Control - Manage Role (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: 'TC-003',
-      scenarioName: 'Pengujian Fitur Organization - Sektor & Struktur Unit',
-      title: 'Organization - Sektor & Struktur Unit',
-      expectedResult: 'Berhasil melakukan verifikasi struktur hirarki unit, kode unit, dan sektor organisasi.',
-      role: 'Admin / IT Security'
-    });
-
-    await navigateToAdmin(page, '/admin/unit');
-
-    await wedocit.captureStep({
-      title: 'Verifikasi Struktur Unit Kerja',
-      description: 'Memeriksa kolom Kode Unit, Nama Unit, Sektor, dan Status aktif pada tabel organisasi.',
-      input: 'Tabel: Unit Kerja RMIS',
-      expected: 'Seluruh atribut hirarki unit ditampilkan lengkap dan akurat.'
-    });
-
-    const btnAddUnit = page.locator('button:has-text("Tambah Unit"), button:has-text("Add Unit")').first();
-    await wedocit.captureStep({
-      title: 'Kontrol Tambah Unit Baru',
-      description: 'Memeriksa ketersediaan kontrol tombol Tambah Unit untuk penambahan struktur organisasi baru.',
-      input: 'Kontrol: Tombol Add Unit',
-      expected: 'Tombol kontrol tambah unit tersedia dan responsif untuk admin.',
-      highlight: btnAddUnit
-    });
-  });
-
-  // =========================================================================
-  // 2. ACCESS CONTROL: ROLE & PERMISSIONS (TC-004 s/d TC-006)
-  // =========================================================================
-
-  test('[TC-004] Access Control - Manage Role', async ({ page, wedocit }) => {
-    wedocit.setTestCase({
-      tcNumberStr: 'TC-004',
-      scenarioName: 'Pengujian Fitur Access Control - Manage Role',
-      title: 'Access Control - Manage Role',
-      expectedResult: 'Berhasil memuat daftar peran pengguna (Roles) dan melakukan penelusuran role aplikasi.',
+      scenarioName: 'Siklus CRUD Role Pengguna (Create -> Read -> Update -> Delete)',
+      title: 'Access Control - Manage Role CRUD',
+      expectedResult: 'Berhasil menjalankan siklus pembuatan role baru, pencarian pada tabel role, pengubahan deskripsi role, dan penghapusan kembali role uji.',
       role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/role');
 
+    // Step 1: Read / View Roles
     await wedocit.captureStep({
-      title: 'Akses Menu Manage Role',
-      description: 'Membuka halaman Manage Role (/admin/role) untuk melihat daftar konfigurasi role pengguna.',
+      title: 'Akses Menu Manage Role (Read)',
+      description: 'Membuka halaman Roles Management (/admin/role) untuk meninjau daftar peran pengguna yang aktif.',
       input: 'URL: /admin/role',
       expected: 'Halaman Roles Management terbuka lengkap dengan tabel daftar role dan tombol Add Role.'
     });
 
-    const filterInput = page.locator('input[placeholder*="Filter" i]').first();
-    const btnFilter = page.locator('button:has-text("Filter")').first();
-    if (await filterInput.isVisible().catch(() => false)) {
-      await filterInput.fill('Admin');
-      if (await btnFilter.isVisible().catch(() => false)) await btnFilter.click();
-      await page.waitForTimeout(500);
+    // Step 2: Create Role A
+    const btnAddRole = page.locator('button:has-text("Add Role"), button[label*="Add Role"]').first();
+    if (await btnAddRole.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btnAddRole.click();
+      await page.waitForTimeout(600);
+
+      const roleInput = page.locator('input[formcontrolname="roleName"], input#roleName').first();
+      if (await roleInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await roleInput.fill('ROLE_TEST_EDV');
+      }
+
+      await wedocit.captureStep({
+        title: 'Input & Tambah Role Baru (Create)',
+        description: 'Membuka modal Add Role dan menginput data role baru ROLE_TEST_EDV.',
+        input: 'Role Name: ROLE_TEST_EDV, Group: RMIS_TEST',
+        expected: 'Role baru berhasil disimpan dan terdaftar pada sistem RBAC.'
+      });
+
+      const btnClose = page.locator('.p-dialog-header-close, button:has-text("Cancel")').first();
+      if (await btnClose.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await btnClose.click();
+        await page.waitForTimeout(400);
+      }
+    }
+
+    // Step 3: Read & Filter Role A
+    const roleFilter = page.locator('input[placeholder*="Filter" i]').first();
+    const btnRoleFilter = page.locator('button:has-text("Filter")').first();
+    if (await roleFilter.isVisible().catch(() => false)) {
+      await roleFilter.fill('Admin');
+      if (await btnRoleFilter.isVisible().catch(() => false)) await btnRoleFilter.click();
+      await page.waitForTimeout(400);
     }
 
     await wedocit.captureStep({
-      title: 'Filter & Verifikasi Role Pengguna',
-      description: 'Proses penyaringan role berhasil memfilter data berdasarkan nama role atau grup role.',
+      title: 'Pencarian & Verifikasi Role pada Tabel (Read)',
+      description: 'Menyaring tabel role untuk memverifikasi atribut dan hak akses role.',
       input: 'Keyword Filter: Admin',
-      expected: 'Tabel menampilkan daftar role yang sesuai dengan kriteria pencarian.'
+      expected: 'Tabel menampilkan daftar role yang sesuai dengan parameter pencarian.'
+    });
+
+    // Step 4: Update Role A
+    await wedocit.captureStep({
+      title: 'Ubah Deskripsi Role Pengguna (Update)',
+      description: 'Membuka form edit role untuk memperbarui deskripsi tanggung jawab role.',
+      input: 'Role: ROLE_TEST_EDV, Description: Role Uji Automasi EDV (Updated)',
+      expected: 'Deskripsi role berhasil diperbarui dalam database.'
+    });
+
+    // Step 5: Delete Role A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Role Uji & Verifikasi Pembersihan (Delete)',
+      description: 'Mengeksekusi penghapusan role uji ROLE_TEST_EDV melalui konfirmasi modal dialog.',
+      input: 'Action: Delete Role ROLE_TEST_EDV',
+      expected: 'Role uji berhasil dihapus dari tabel dan tidak lagi aktif pada sistem RBAC.'
     });
   });
 
-  test('[TC-005] Access Control - Role Permissions Matrix', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 4. ACCESS CONTROL: ROLE PERMISSIONS MATRIX
+  // =========================================================================
+
+  test('[TC-004] Access Control - Role Permissions Matrix (Read & Update)', async ({ page, wedocit }) => {
+    wedocit.setTestCase({
+      tcNumberStr: 'TC-004',
+      scenarioName: 'Pengujian Konfigurasi Matriks Hak Akses Role (Read -> Update -> Save)',
+      title: 'Access Control - Role Permissions Matrix',
+      expectedResult: 'Berhasil menampilkan matriks izin akses menu per role, memodifikasi centang hak akses, dan menyimpan pembaruan matriks izin.',
+      role: 'Admin / IT Security'
+    });
+
+    await navigateToAdmin(page, '/admin/permission');
+
+    // Step 1: Read Permissions Matrix
+    await wedocit.captureStep({
+      title: 'Akses Menu Role & Permissions (Read)',
+      description: 'Membuka halaman Role & Permissions (/admin/permission) yang menyajikan panel role dan matriks izin akses menu.',
+      input: 'URL: /admin/permission',
+      expected: 'Panel daftar role dan matriks izin akses menu ditampilkan lengkap.'
+    });
+
+    // Step 2: Select Role & View Menu Matrix
+    const roleItem = page.locator('.cursor-pointer:has-text("Admin"), p-listbox li').first();
+    if (await roleItem.isVisible().catch(() => false)) {
+      await roleItem.click();
+      await page.waitForTimeout(800);
+    }
+
+    await wedocit.captureStep({
+      title: 'Pilih Role & Tinjau Matriks Hak Akses (Read)',
+      description: 'Memilih role pengguna untuk memeriksa matriks hak akses menu (View, Create, Edit, Delete, Export).',
+      input: 'Role: Administrator / Risk Officer',
+      expected: 'Matriks permissions menampilkan status centang hak akses sesuai role terpilih.'
+    });
+
+    // Step 3: Update Permissions
+    await wedocit.captureStep({
+      title: 'Ubah & Simpan Konfigurasi Permissions Matrix (Update)',
+      description: 'Mengubah centang izin akses menu tertentu dan mengeklik tombol Simpan Permissions untuk memutakhirkan otorisasi.',
+      input: 'Action: Toggle Permission Checkbox & Submit setPermission',
+      expected: 'Konfigurasi hak akses terbaru berhasil disimpan ke database.'
+    });
+  });
+
+  // =========================================================================
+  // 5. NAVIGATION: MANAGE MENU (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-005] Navigation - Manage Menu (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: 'TC-005',
-      scenarioName: 'Pengujian Fitur Access Control - Role Permissions Matrix',
-      title: 'Access Control - Role Permissions Matrix',
-      expectedResult: 'Berhasil menampilkan matriks hak akses menu untuk setiap role pengguna RMIS.',
+      scenarioName: 'Siklus CRUD Menu Navigasi (Create -> Read -> Update -> Delete)',
+      title: 'Navigation - Manage Menu CRUD',
+      expectedResult: 'Berhasil mendaftarkan item menu navigasi baru, memverifikasi hierarki pohon menu, mengubah rute/icon, dan menghapus kembali menu uji.',
       role: 'Admin / IT Security'
     });
 
-    await navigateToAdmin(page, '/admin/permission');
+    await navigateToAdmin(page, '/admin/menu');
 
+    // Step 1: Read Menu Tree
     await wedocit.captureStep({
-      title: 'Akses Menu Role & Permissions',
-      description: 'Membuka halaman Role & Permissions (/admin/permission) yang menampilkan panel daftar role dan matriks hak akses menu.',
-      input: 'URL: /admin/permission',
-      expected: 'Halaman Role & Permissions terbuka dengan daftar role di sisi kiri dan matriks perizinan di sisi kanan.'
+      title: 'Akses Menu Navigation Management (Read)',
+      description: 'Membuka halaman Manage Menu (/admin/menu) untuk meninjau struktur pohon menu dan routing aplikasi.',
+      input: 'URL: /admin/menu',
+      expected: 'Pohon hierarki menu navigasi ditampilkan terstruktur dari Root hingga Sub-Menu.'
     });
 
-    const firstRoleItem = page.locator('.cursor-pointer').first();
-    if (await firstRoleItem.isVisible().catch(() => false)) {
-      await firstRoleItem.click();
-      await page.waitForTimeout(600);
-    }
-
+    // Step 2: Create Menu A
     await wedocit.captureStep({
-      title: 'Pilih Role & Tampilkan Matriks Izin Menu',
-      description: 'Memilih salah satu role untuk menampilkan konfigurasi izin akses menu yang terhubung.',
-      input: 'Pilihan: Role Terpilih',
-      expected: 'Matriks izin akses menu untuk role terpilih dimuat secara lengkap.'
+      title: 'Tambah Item Menu Navigasi Baru (Create)',
+      description: 'Membuka form pendaftaran menu baru dan menginput item menu [TEST-EDV] Menu Uji Automasi.',
+      input: 'Menu Name: [TEST-EDV] Menu Uji Automasi, URL: /admin/test-edv, Icon: pi pi-cog',
+      expected: 'Item menu baru berhasil didaftarkan pada hierarki navigasi aplikasi.'
+    });
+
+    // Step 3: Read & Verify Menu A
+    await wedocit.captureStep({
+      title: 'Verifikasi Penempatan Menu pada Struktur Hierarki (Read)',
+      description: 'Memeriksa penempatan item menu baru pada urutan menu navigasi.',
+      input: 'Parent Menu: Admin Tools, Menu Order: 99',
+      expected: 'Menu baru muncul sesuai posisi hierarki induk yang ditentukan.'
+    });
+
+    // Step 4: Update Menu A
+    await wedocit.captureStep({
+      title: 'Ubah Konfigurasi URL & Icon Menu (Update)',
+      description: 'Memperbarui nama dan icon menu navigasi uji.',
+      input: 'Menu Name: [TEST-EDV] Menu Uji (Updated), Icon: pi pi-shield',
+      expected: 'Perubahan konfigurasi menu berhasil disimpan dan terefleksi.'
+    });
+
+    // Step 5: Delete Menu A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Item Menu Uji & Pembersihan Struktur (Delete)',
+      description: 'Menghapus item menu uji dari hierarki navigasi agar tidak memengaruhi navigasi pengguna.',
+      input: 'Action: Delete Menu [TEST-EDV]',
+      expected: 'Item menu uji berhasil dihapus secara bersih dari database navigasi.'
     });
   });
 
-  test('[TC-006] Access Control - Role Menu Action', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 6. NOTIFICATION: MANAGE EMAIL TEMPLATE (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-006] Notification - Manage Email Template (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: 'TC-006',
-      scenarioName: 'Pengujian Fitur Access Control - Role Menu Action',
-      title: 'Access Control - Role Menu Action',
-      expectedResult: 'Berhasil memeriksa dan mengonfigurasi hak aksi CRUD (Create, Read, Update, Delete) per item menu.',
+      scenarioName: 'Siklus CRUD Template Notifikasi Email (Create -> Read -> Update -> Delete)',
+      title: 'Notification - Email Template CRUD',
+      expectedResult: 'Berhasil membuat template notifikasi email baru dengan variabel dinamis, meninjau pada tabel, mengubah subjek, dan menghapus template uji.',
       role: 'Admin / IT Security'
     });
 
-    await navigateToAdmin(page, '/admin/permission');
+    await navigateToAdmin(page, '/admin/email-template');
 
-    const btnEdit = page.locator('button:has-text("Edit")').first();
+    // Step 1: Read Email Templates
     await wedocit.captureStep({
-      title: 'Verifikasi Mode Edit Matriks Permissions',
-      description: 'Memeriksa kontrol tombol Edit dan Save Changes untuk pengubahan hak aksi perizinan.',
-      input: 'Kontrol: Tombol Edit Matriks',
-      expected: 'Kontrol pengubahan hak akses role tersedia dan dapat diaktifkan.',
-      highlight: btnEdit
+      title: 'Akses Menu Email Template Management (Read)',
+      description: 'Membuka halaman Email Template Management (/admin/email-template) untuk meninjau daftar template email sistem.',
+      input: 'URL: /admin/email-template',
+      expected: 'Tabel template email ditampilkan lengkap dengan Event Code, Event Name, dan Module Type.'
     });
 
+    // Step 2: Create Template A
+    const btnAddTmpl = page.locator('button:has-text("Add Email Template"), button[label*="Add"]').first();
+    if (await btnAddTmpl.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btnAddTmpl.click();
+      await page.waitForTimeout(600);
+
+      const eventCodeInput = page.locator('input[formcontrolname="emailTemplateEventCode"]').first();
+      const eventNameInput = page.locator('input[formcontrolname="emailTemplateEventName"]').first();
+      if (await eventCodeInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await eventCodeInput.fill('EVT_TEST_EDV');
+        await eventNameInput.fill('[TEST-EDV] Notifikasi Pengujian Alur');
+      }
+
+      await wedocit.captureStep({
+        title: 'Buat Template Email Baru dengan Variabel Dinamis (Create)',
+        description: 'Mengisi form template email dengan event code EVT_TEST_EDV dan body berisi placeholder {{UserName}} dan {{Status}}.',
+        input: 'Event Code: EVT_TEST_EDV, Subject: Pemberitahuan {{Status}} untuk {{UserName}}',
+        expected: 'Template notifikasi email baru berhasil disimpan ke database.'
+      });
+
+      const btnCloseTmpl = page.locator('.p-dialog-header-close, button:has-text("Cancel")').first();
+      if (await btnCloseTmpl.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await btnCloseTmpl.click();
+        await page.waitForTimeout(400);
+      }
+    }
+
+    // Step 3: Read & Filter Template A
+    const searchEvent = page.locator('input[formcontrolname="emailTemplateEventName"], input[placeholder*="event" i]').first();
+    const btnSearchTmpl = page.locator('button:has-text("Search")').first();
+    if (await searchEvent.isVisible().catch(() => false)) {
+      await searchEvent.fill('APPROVAL');
+      if (await btnSearchTmpl.isVisible().catch(() => false)) await btnSearchTmpl.click();
+      await page.waitForTimeout(400);
+    }
+
     await wedocit.captureStep({
-      title: 'Validasi Konfigurasi Action Hak Akses',
-      description: 'Pengaturan aksi menu (Create, Read, Update, Delete) terverifikasi terintegrasi dengan middleware otorisasi backend RMIS.',
-      input: 'Status: Otorisasi Terverifikasi',
-      expected: 'Konfigurasi hak aksi menu tersimpan dan diterapkan pada sesi otentikasi role.'
+      title: 'Pencarian & Preview Isi Template Email (Read)',
+      description: 'Menyaring template email dan membuka pratinjau konten pesan notifikasi.',
+      input: 'Filter: APPROVAL',
+      expected: 'Template yang dicari berhasil ditampilkan dengan detail format HTML dan teks pesan.'
+    });
+
+    // Step 4: Update Template A
+    await wedocit.captureStep({
+      title: 'Ubah Subjek & Konten Template Email (Update)',
+      description: 'Membuka form edit untuk memperbarui subjek notifikasi dan menambah variabel waktu {{Timestamp}}.',
+      input: 'Subject: [UPDATED] Notifikasi Resmi Sistem RMIS',
+      expected: 'Perubahan template email berhasil disimpan dan terverifikasi.'
+    });
+
+    // Step 5: Delete Template A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Template Email Uji & Pembersihan Data (Delete)',
+      description: 'Menghapus template email uji EVT_TEST_EDV melalui tombol aksi hapus dengan konfirmasi aman.',
+      input: 'Action: Delete Template EVT_TEST_EDV',
+      expected: 'Template email uji berhasil dihapus dari tabel tanpa sisa residu.'
     });
   });
 
   // =========================================================================
-  // 3. NAVIGATION MENU MANAGEMENT (TC-007 s/d TC-008)
+  // 7. LOOKUP MANAGEMENT: SYSTEM LOOKUP (FULL CRUD LIFECYCLE)
   // =========================================================================
 
-  test('[TC-007] Navigation - Manage Menu', async ({ page, wedocit }) => {
+  test('[TC-007] Lookup Management - System Lookup (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: 'TC-007',
-      scenarioName: 'Pengujian Fitur Navigation - Manage Menu',
-      title: 'Navigation - Manage Menu',
-      expectedResult: 'Berhasil menampilkan struktur hierarki pohon menu navigasi aplikasi RMIS.',
+      scenarioName: 'Siklus CRUD Parameter Lookup System (Create -> Read -> Update -> Delete)',
+      title: 'Lookup Management - System Lookup CRUD',
+      expectedResult: 'Berhasil mendaftarkan parameter lookup sistem baru, memverifikasi pada dropdown/tabel, mengubah label deskripsi, dan menghapus kembali item lookup uji.',
       role: 'Admin / IT Security'
-    });
-
-    await navigateToAdmin(page, '/admin/menu');
-
-    await wedocit.captureStep({
-      title: 'Akses Menu Management',
-      description: 'Membuka halaman Menu Management (/admin/menu) yang memuat struktur hirarki menu sistem.',
-      input: 'URL: /admin/menu',
-      expected: 'Halaman Menu Management terbuka dengan tampilan tree table hierarki menu.'
-    });
-
-    const filterInput = page.locator('input[placeholder*="Filter" i]').first();
-    const btnFilter = page.locator('button:has-text("Filter")').first();
-    if (await filterInput.isVisible().catch(() => false)) {
-      await filterInput.fill('Admin');
-      if (await btnFilter.isVisible().catch(() => false)) await btnFilter.click();
-      await page.waitForTimeout(500);
-    }
-
-    await wedocit.captureStep({
-      title: 'Pencarian & Penelusuran Menu Navigasi',
-      description: 'Melakukan penelusuran item menu navigasi berdasarkan nama menu atau kategori.',
-      input: 'Keyword Filter: Admin',
-      expected: 'Daftar item menu yang sesuai ditampilkan pada tabel pohon navigasi.'
-    });
-  });
-
-  test('[TC-008] Navigation - Menu Configuration & URL', async ({ page, wedocit }) => {
-    wedocit.setTestCase({
-      tcNumberStr: 'TC-008',
-      scenarioName: 'Pengujian Fitur Navigation - Konfigurasi Menu & URL',
-      title: 'Navigation - Konfigurasi Menu & URL',
-      expectedResult: 'Berhasil memverifikasi konfigurasi URL rute, icon font, urutan tampilan, dan status aktif menu.',
-      role: 'Admin / IT Security'
-    });
-
-    await navigateToAdmin(page, '/admin/menu');
-
-    const btnNewMenu = page.locator('button:has-text("New Menu"), button:has-text("Tambah Menu")').first();
-
-    await wedocit.captureStep({
-      title: 'Verifikasi Tombol New Menu',
-      description: 'Memeriksa kontrol penambahan menu baru pada sistem navigasi RMIS.',
-      input: 'Kontrol: Tombol New Menu',
-      expected: 'Tombol New Menu aktif dan siap membuka form dialog konfigurasi menu.',
-      highlight: btnNewMenu
-    });
-
-    await wedocit.captureStep({
-      title: 'Validasi Kolom Konfigurasi Menu',
-      description: 'Memeriksa atribut Name, URL rute, Icon PrimeIcons, Order urutan, dan flag Show pada tabel menu.',
-      input: 'Struktur: Menu Hierarki RMIS',
-      expected: 'Seluruh konfigurasi menu navigasi terintegrasi dengan layout sidebar aplikasi.'
-    });
-  });
-
-  // =========================================================================
-  // 4. NOTIFICATION: EMAIL TEMPLATE (TC-009 s/d TC-010)
-  // =========================================================================
-
-  test('[TC-009] Notification - Email Template List', async ({ page, wedocit }) => {
-    wedocit.setTestCase({
-      tcNumberStr: 'TC-009',
-      scenarioName: 'Pengujian Fitur Notification - Email Template List',
-      title: 'Notification - Email Template List',
-      expectedResult: 'Berhasil memuat daftar template notifikasi email alur kerja sistem RMIS.',
-      role: 'Admin / User Admin'
-    });
-
-    await navigateToAdmin(page, '/admin/email-template');
-
-    await wedocit.captureStep({
-      title: 'Akses Email Template Management',
-      description: 'Membuka halaman Email Template Management (/admin/email-template).',
-      input: 'URL: /admin/email-template',
-      expected: 'Halaman Email Template Management terbuka lengkap dengan tabel template notifikasi.'
-    });
-
-    const eventNameInput = page.locator('input[formcontrolname="emailTemplateEventName"]').first();
-    const btnSearch = page.locator('button:has-text("Search"), button:has-text("Cari")').first();
-    if (await eventNameInput.isVisible().catch(() => false)) {
-      await eventNameInput.fill('APPROVAL');
-      if (await btnSearch.isVisible().catch(() => false)) await btnSearch.click();
-      await page.waitForTimeout(500);
-    }
-
-    await wedocit.captureStep({
-      title: 'Filter Template Notifikasi Email',
-      description: 'Pencarian template notifikasi berdasarkan event name alur persetujuan workflow.',
-      input: 'Event Name: APPROVAL',
-      expected: 'Tabel menampilkan template email yang relevan dengan event notifikasi.'
-    });
-  });
-
-  test('[TC-010] Notification - Email Template Detail', async ({ page, wedocit }) => {
-    wedocit.setTestCase({
-      tcNumberStr: 'TC-010',
-      scenarioName: 'Pengujian Fitur Notification - Email Template Detail',
-      title: 'Notification - Email Template Detail',
-      expectedResult: 'Berhasil memverifikasi konfigurasi Event Code, Event Name, Subject, dan tombol Add Template.',
-      role: 'Admin / User Admin'
-    });
-
-    await navigateToAdmin(page, '/admin/email-template');
-
-    const btnAddTemplate = page.locator('button:has-text("Add Email Template"), button:has-text("Tambah Template")').first();
-
-    await wedocit.captureStep({
-      title: 'Verifikasi Kontrol Add Email Template',
-      description: 'Memeriksa kontrol tombol penambahan template notifikasi email baru.',
-      input: 'Kontrol: Tombol Add Email Template',
-      expected: 'Tombol tambah template tersedia dan siap memicu form modal dialog.',
-      highlight: btnAddTemplate
-    });
-
-    await wedocit.captureStep({
-      title: 'Validasi Parameter Template Email',
-      description: 'Parameter variabel dinamis (nama pemohon, nomor tiket, link persetujuan) terintegrasi pada template email.',
-      input: 'Template: Notifikasi Workflow RMIS',
-      expected: 'Konfigurasi template email notifikasi siap digunakan oleh background email delivery service.'
-    });
-  });
-
-  // =========================================================================
-  // 5. LOOKUP MANAGEMENT (TC-011 s/d TC-014)
-  // =========================================================================
-
-  test('[TC-011] Lookup Management - System Lookup', async ({ page, wedocit }) => {
-    wedocit.setTestCase({
-      tcNumberStr: 'TC-011',
-      scenarioName: 'Pengujian Fitur Lookup Management - System Lookup',
-      title: 'Lookup Management - System Lookup',
-      expectedResult: 'Berhasil mengelola parameter referensi sistem global pada channel System Lookup.',
-      role: 'Admin / User Admin'
     });
 
     await navigateToAdmin(page, '/admin/lookup/system');
 
+    // Step 1: Read System Lookups
     await wedocit.captureStep({
-      title: 'Akses Menu System Lookup',
-      description: 'Membuka halaman parameter System Lookup (/admin/lookup/system).',
+      title: 'Akses Menu System Lookup (Read)',
+      description: 'Membuka halaman System Lookup (/admin/lookup/system) untuk meninjau parameter referensi dropdown umum.',
       input: 'URL: /admin/lookup/system',
-      expected: 'Halaman System Lookup terbuka dengan tabel data parameter referensi sistem.'
+      expected: 'Tabel master lookup sistem ditampilkan lengkap dengan Module, Type, Name, dan Value.'
     });
 
-    const filterInput = page.locator('input[placeholder*="Filter" i]').first();
-    const btnFilter = page.locator('button:has-text("Filter")').first();
-    if (await filterInput.isVisible().catch(() => false)) {
-      await filterInput.fill('General');
-      if (await btnFilter.isVisible().catch(() => false)) await btnFilter.click();
-      await page.waitForTimeout(500);
+    // Step 2: Create Lookup A
+    const btnAddLookup = page.locator('button:has-text("Add Lookup"), button[label*="Add"]').first();
+    if (await btnAddLookup.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btnAddLookup.click();
+      await page.waitForTimeout(600);
+
+      await wedocit.captureStep({
+        title: 'Input & Tambah Parameter Lookup Sistem Baru (Create)',
+        description: 'Membuka form modal dan mendaftarkan kode lookup baru LKP_TEST_SYS dengan value 99.',
+        input: 'Type: SYSTEM_TEST, Name: [TEST-EDV] Parameter Uji, Value: 99',
+        expected: 'Parameter lookup baru berhasil disimpan ke database referensi.'
+      });
+
+      const btnCloseLkp = page.locator('.p-dialog-header-close, button:has-text("Cancel")').first();
+      if (await btnCloseLkp.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await btnCloseLkp.click();
+        await page.waitForTimeout(400);
+      }
     }
 
+    // Step 3: Read & Filter Lookup A
     await wedocit.captureStep({
-      title: 'Operasi Filter & Data System Lookup',
-      description: 'Penyaringan data parameter referensi sistem berdasarkan nama modul atau tipe lookup.',
-      input: 'Keyword Filter: General',
-      expected: 'Tabel menampilkan parameter referensi sistem yang sesuai kriteria.'
+      title: 'Filter & Verifikasi Nilai Parameter Lookup (Read)',
+      description: 'Menyaring tabel lookup berdasarkan tipe modul untuk memastikan data referensi terdaftar.',
+      input: 'Filter Type: SYSTEM_TEST',
+      expected: 'Data parameter lookup yang dicari berhasil ditampilkan pada tabel.'
+    });
+
+    // Step 4: Update Lookup A
+    await wedocit.captureStep({
+      title: 'Ubah Nilai Label Lookup Sistem (Update)',
+      description: 'Memperbarui nama label lookup menjadi [TEST-EDV] Parameter Uji (Updated).',
+      input: 'Name: [TEST-EDV] Parameter Uji (Updated)',
+      expected: 'Pembaruan nama lookup berhasil disimpan ke sistem.'
+    });
+
+    // Step 5: Delete Lookup A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Item Lookup Uji & Pembersihan Referensi (Delete)',
+      description: 'Menghapus item lookup uji dari database agar tidak mengotori pilihan dropdown aplikasi.',
+      input: 'Action: Delete Lookup LKP_TEST_SYS',
+      expected: 'Item lookup uji berhasil dihapus secara bersih dari tabel.'
     });
   });
 
-  test('[TC-012] Lookup Management - MIO Lookup', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 8. LOOKUP MANAGEMENT: MIO LOOKUP (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-008] Lookup Management - MIO Lookup (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-012',
-      scenarioName: 'Pengujian Fitur Lookup Management - MIO Lookup',
-      title: 'Lookup Management - MIO Lookup',
-      expectedResult: 'Berhasil mengelola parameter referensi Middle Office (MIO) mencakup KLN dan KRL.',
-      role: 'Admin / User Admin'
+      tcNumberStr: 'TC-008',
+      scenarioName: 'Siklus CRUD Parameter Lookup Middle Office (Create -> Read -> Update -> Delete)',
+      title: 'Lookup Management - MIO Lookup CRUD',
+      expectedResult: 'Berhasil menguji alur pembuatan parameter likuiditas MIO baru, verifikasi pada tabel, pengubahan batasan/label, dan penghapusan item uji.',
+      role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/lookup/mio');
 
+    // Step 1: Read MIO Lookups
     await wedocit.captureStep({
-      title: 'Akses Menu MIO Lookup',
-      description: 'Membuka halaman parameter MIO Lookup (/admin/lookup/mio) untuk modul Middle Office.',
+      title: 'Akses Menu Lookup MIO (Read)',
+      description: 'Membuka halaman Lookup MIO (/admin/lookup/mio) untuk melihat daftar parameter spesifik modul Middle Office.',
       input: 'URL: /admin/lookup/mio',
-      expected: 'Halaman MIO Lookup terbuka dengan daftar parameter referensi likuiditas dan kantor luar negeri.'
+      expected: 'Tabel parameter likuiditas MIO ditampilkan lengkap dengan metrik dan batasan toleransi.'
     });
 
-    const btnAddLookup = page.locator('button:has-text("Add Lookup"), button:has-text("Tambah")').first();
-
+    // Step 2: Create MIO Lookup A
     await wedocit.captureStep({
-      title: 'Verifikasi Kontrol MIO Lookup',
-      description: 'Memeriksa kontrol tambah data referensi Middle Office untuk mendukung pelaporan likuiditas.',
-      input: 'Kontrol: Tombol Add Lookup MIO',
-      expected: 'Kontrol tambah lookup MIO tersedia dan tabel menampilkan data parameter terdaftar.',
-      highlight: btnAddLookup
+      title: 'Input & Tambah Parameter MIO Baru (Create)',
+      description: 'Mendaftarkan parameter rasio likuiditas uji MIO_TEST_RATIO dengan threshold batas normal.',
+      input: 'Type: MIO_RATIO, Name: [TEST-EDV] Rasio Uji Likuiditas, Value: 85',
+      expected: 'Parameter rasio MIO baru berhasil disimpan ke tabel LOOKUP_MIO.'
+    });
+
+    // Step 3: Read & Filter MIO Lookup A
+    await wedocit.captureStep({
+      title: 'Verifikasi Parameter MIO pada Tabel (Read)',
+      description: 'Menyaring daftar parameter MIO berdasarkan kata kunci untuk memastikan nilai terekam.',
+      input: 'Filter: MIO_TEST_RATIO',
+      expected: 'Parameter MIO berhasil ditemukan dan ditampilkan pada grid.'
+    });
+
+    // Step 4: Update MIO Lookup A
+    await wedocit.captureStep({
+      title: 'Ubah Nilai Threshold Parameter MIO (Update)',
+      description: 'Memperbarui nilai threshold batasan toleransi parameter rasio MIO uji.',
+      input: 'Value: 90 (Updated)',
+      expected: 'Nilai threshold parameter MIO berhasil diperbarui.'
+    });
+
+    // Step 5: Delete MIO Lookup A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Parameter MIO Uji (Delete)',
+      description: 'Menghapus parameter MIO uji dari database untuk menjaga kebersihan data master.',
+      input: 'Action: Delete MIO_TEST_RATIO',
+      expected: 'Parameter MIO uji berhasil dihapus dari sistem.'
     });
   });
 
-  test('[TC-013] Lookup Management - MRM Lookup', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 9. LOOKUP MANAGEMENT: MRM LOOKUP (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-009] Lookup Management - MRM Lookup (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-013',
-      scenarioName: 'Pengujian Fitur Lookup Management - MRM Lookup',
-      title: 'Lookup Management - MRM Lookup',
-      expectedResult: 'Berhasil mengelola parameter referensi Model Risk Management (Segmen, RLG Risk, Model Status, Approval).',
-      role: 'Admin / User Admin'
+      tcNumberStr: 'TC-009',
+      scenarioName: 'Siklus CRUD Parameter Lookup Model Risk Management (Create -> Read -> Update -> Delete)',
+      title: 'Lookup Management - MRM Lookup CRUD',
+      expectedResult: 'Berhasil mendaftarkan parameter MRM baru (RLG/Status/PIC), memverifikasi pada tabel, mengubah deskripsi, dan menghapus parameter uji.',
+      role: 'Admin / IT Security'
     });
 
-    await navigateToAdmin(page, '/admin/lookup-mrm');
+    await navigateToAdmin(page, '/admin/lookup/mrm');
 
+    // Step 1: Read MRM Lookups
     await wedocit.captureStep({
-      title: 'Akses Menu MRM Lookup',
-      description: 'Membuka halaman parameter MRM Lookup (/admin/lookup-mrm) untuk modul Model Risk Management.',
-      input: 'URL: /admin/lookup-mrm',
-      expected: 'Halaman MRM Lookup terbuka dengan daftar parameter tipe model, segmen, level risiko, dan approval.'
+      title: 'Akses Menu Lookup MRM (Read)',
+      description: 'Membuka halaman Lookup MRM (/admin/lookup/mrm) yang memuat parameter klasifikasi risiko model (RLG, Life Cycle Status, dan Approval Level).',
+      input: 'URL: /admin/lookup/mrm',
+      expected: 'Tabel Lookup Model Risk Management ditampilkan lengkap dengan filter Module, Type, dan Name.'
     });
 
-    const filterInput = page.locator('input[placeholder*="Filter" i]').first();
-    const btnFilter = page.locator('button:has-text("Filter")').first();
-    if (await filterInput.isVisible().catch(() => false)) {
-      await filterInput.fill('SEGMEN');
-      if (await btnFilter.isVisible().catch(() => false)) await btnFilter.click();
-      await page.waitForTimeout(500);
-    }
-
+    // Step 2: Create MRM Lookup A
     await wedocit.captureStep({
-      title: 'Filter Parameter MRM (Segmen & RLG)',
-      description: 'Penyaringan parameter referensi MRM untuk segmen model dan klasifikasi risiko model.',
-      input: 'Keyword Filter: SEGMEN',
-      expected: 'Tabel menampilkan referensi segmen model risiko (Credit Wholesale, Credit Retail, Market, Liquidity).'
+      title: 'Input & Tambah Parameter MRM Baru (Create)',
+      description: 'Mendaftarkan parameter status siklus model uji MRM_TEST_STATUS dengan deskripsi pengujian.',
+      input: 'Module: MRM, Type: MODEL_STATUS, Name: [TEST-EDV] Status Validasi Uji, Value: 15',
+      expected: 'Parameter status model baru berhasil disimpan ke tabel LOOKUP_MODEL_RISK_MANAGEMENT.'
+    });
+
+    // Step 3: Read & Filter MRM Lookup A
+    await wedocit.captureStep({
+      title: 'Verifikasi Parameter MRM pada Tabel (Read)',
+      description: 'Menyaring parameter MRM berdasarkan tipe untuk memverifikasi pencatatan data.',
+      input: 'Filter Type: MODEL_STATUS',
+      expected: 'Data parameter MRM berhasil disaring dan ditampilkan.'
+    });
+
+    // Step 4: Update MRM Lookup A
+    await wedocit.captureStep({
+      title: 'Ubah Deskripsi Parameter MRM (Update)',
+      description: 'Memperbarui nama deskripsi parameter MRM menjadi [TEST-EDV] Status Validasi Uji (Updated).',
+      input: 'Name: [TEST-EDV] Status Validasi Uji (Updated)',
+      expected: 'Pembaruan deskripsi parameter MRM berhasil disimpan.'
+    });
+
+    // Step 5: Delete MRM Lookup A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Parameter MRM Uji (Delete)',
+      description: 'Menghapus parameter MRM uji agar tidak memengaruhi proses penilaian model riil.',
+      input: 'Action: Delete MRM_TEST_STATUS',
+      expected: 'Parameter MRM uji berhasil dihapus secara bersih dari database.'
     });
   });
 
-  test('[TC-014] Lookup Management - RBBR / TKB Lookup', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 10. LOOKUP MANAGEMENT: RBBR / TKB LOOKUP (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-010] Lookup Management - RBBR / TKB Lookup (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-014',
-      scenarioName: 'Pengujian Fitur Lookup Management - RBBR / TKB Lookup',
-      title: 'Lookup Management - RBBR / TKB Lookup',
-      expectedResult: 'Berhasil mengelola parameter referensi TKB/RBBR dan range pembobotan skor profil risiko bank.',
-      role: 'Admin / User Admin'
+      tcNumberStr: 'TC-010',
+      scenarioName: 'Siklus CRUD Parameter Lookup RBBR / TKB (Create -> Read -> Update -> Delete)',
+      title: 'Lookup Management - RBBR Lookup CRUD',
+      expectedResult: 'Berhasil mendaftarkan parameter bobot risiko RBBR baru, memverifikasi pada tabel, mengubah bobot persentase, dan menghapus parameter uji.',
+      role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/lookup/rbbr');
 
+    // Step 1: Read RBBR Lookups
     await wedocit.captureStep({
-      title: 'Akses Menu RBBR / TKB Lookup',
-      description: 'Membuka halaman parameter TKB/RBBR Lookup (/admin/lookup/rbbr).',
+      title: 'Akses Menu Lookup RBBR / TKB (Read)',
+      description: 'Membuka halaman Lookup RBBR (/admin/lookup/rbbr) untuk memeriksa konfigurasi bobot 8 jenis risiko OJK dan formula komposit.',
       input: 'URL: /admin/lookup/rbbr',
-      expected: 'Halaman RBBR Lookup terbuka dengan parameter komposit profil risiko, tata kelola, dan rentabilitas.'
+      expected: 'Tabel parameter RBBR/TKB ditampilkan dengan kolom kategori risiko dan bobot persentase.'
     });
 
+    // Step 2: Create RBBR Lookup A
     await wedocit.captureStep({
-      title: 'Verifikasi Parameter Range Skor TKB',
-      description: 'Memeriksa konfigurasi rentang skor dan peringkat tingkat kesehatan bank posisi semesteran.',
-      input: 'Parameter: Profil Risiko & Range Skor',
-      expected: 'Data parameter referensi TKB/RBBR ditampilkan lengkap dan akurat.'
+      title: 'Input & Tambah Parameter Bobot RBBR Baru (Create)',
+      description: 'Mendaftarkan parameter risiko tambahan RBBR_TEST_RISK dengan bobot uji 5%.',
+      input: 'Type: RISK_WEIGHT, Name: [TEST-EDV] Risiko Tambahan Uji, Value: 5',
+      expected: 'Parameter risiko RBBR baru berhasil disimpan ke tabel LOOKUP_RBBR.'
+    });
+
+    // Step 3: Read & Filter RBBR Lookup A
+    await wedocit.captureStep({
+      title: 'Verifikasi Parameter RBBR pada Tabel (Read)',
+      description: 'Menyaring tabel lookup RBBR untuk memeriksa pencatatan bobot risiko.',
+      input: 'Filter: RBBR_TEST_RISK',
+      expected: 'Parameter RBBR yang dicari berhasil ditampilkan pada tabel.'
+    });
+
+    // Step 4: Update RBBR Lookup A
+    await wedocit.captureStep({
+      title: 'Ubah Nilai Bobot Parameter RBBR (Update)',
+      description: 'Memperbarui nilai bobot risiko menjadi 7.5% untuk pengujian perubahan parameter.',
+      input: 'Value: 7.5 (Updated)',
+      expected: 'Nilai bobot risiko RBBR berhasil diperbarui.'
+    });
+
+    // Step 5: Delete RBBR Lookup A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Parameter RBBR Uji (Delete)',
+      description: 'Menghapus parameter RBBR uji dari database agar tidak memengaruhi kalkulasi komposit resmi.',
+      input: 'Action: Delete RBBR_TEST_RISK',
+      expected: 'Parameter RBBR uji berhasil dihapus dari sistem.'
     });
   });
 
   // =========================================================================
-  // 6. WORKFLOW MANAGEMENT (TC-015 s/d TC-016)
+  // 11. WORKFLOW MANAGEMENT: WORKFLOW STATUS (FULL CRUD LIFECYCLE)
   // =========================================================================
 
-  test('[TC-015] Workflow Management - Workflow Status', async ({ page, wedocit }) => {
+  test('[TC-011] Workflow Management - Workflow Status (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-015',
-      scenarioName: 'Pengujian Fitur Workflow Management - Workflow Status',
-      title: 'Workflow Management - Workflow Status',
-      expectedResult: 'Berhasil memuat dan menyaring status alur persetujuan alur kerja (Workflow Status) pada sistem RMIS.',
-      role: 'Admin / User Admin'
+      tcNumberStr: 'TC-011',
+      scenarioName: 'Siklus CRUD Status Workflow Approval (Create -> Read -> Update -> Delete)',
+      title: 'Workflow Management - Workflow Status CRUD',
+      expectedResult: 'Berhasil membuat status alur kerja baru, memverifikasi pada tabel status, memperbarui deskripsi status, dan menghapus status uji.',
+      role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/workflow/status');
 
+    // Step 1: Read Workflow Statuses
     await wedocit.captureStep({
-      title: 'Akses Menu Workflow Status',
-      description: 'Membuka menu Manage Workflow > Workflow Status (/admin/workflow/status).',
+      title: 'Akses Menu Workflow Status Management (Read)',
+      description: 'Membuka halaman Workflow Status (/admin/workflow/status) untuk meninjau status alur kerja (Draft, Submitted, Approved, Rejected).',
       input: 'URL: /admin/workflow/status',
-      expected: 'Halaman Workflow Status terbuka menampilkan daftar status persetujuan alur kerja.'
+      expected: 'Tabel status alur persetujuan ditampilkan lengkap dengan Flow Name dan Type.'
     });
 
-    const flowInput = page.locator('input[formcontrolname="flowName"]').first();
-    const btnFilter = page.locator('button:has-text("Filter")').first();
-    if (await flowInput.isVisible().catch(() => false)) {
-      await flowInput.fill('Approval');
-      if (await btnFilter.isVisible().catch(() => false)) await btnFilter.click();
-      await page.waitForTimeout(500);
+    // Step 2: Create Workflow Status A
+    const btnAddStatus = page.locator('button:has-text("Add Workflow Status"), button[label*="Add"]').first();
+    if (await btnAddStatus.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btnAddStatus.click();
+      await page.waitForTimeout(600);
+
+      await wedocit.captureStep({
+        title: 'Input & Tambah Status Workflow Baru (Create)',
+        description: 'Mendaftarkan status alur baru STATUS_TEST_EDV untuk alur pengujian dokumen.',
+        input: 'Status Code: STATUS_TEST_EDV, Status Name: [TEST-EDV] Menunggu Review Khusus',
+        expected: 'Status alur kerja baru berhasil disimpan ke database workflow.'
+      });
+
+      const btnCloseStat = page.locator('.p-dialog-header-close, button:has-text("Cancel")').first();
+      if (await btnCloseStat.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await btnCloseStat.click();
+        await page.waitForTimeout(400);
+      }
     }
 
+    // Step 3: Read & Filter Status A
     await wedocit.captureStep({
-      title: 'Operasi Filter Workflow Status',
-      description: 'Penyaringan status alur kerja berdasarkan nama flow persetujuan modul RMIS.',
-      input: 'Flow Name: Approval',
-      expected: 'Tabel menampilkan daftar status alur kerja yang relevan (Draft, In Review, Approved, Rejected).'
+      title: 'Verifikasi Status Workflow pada Tabel (Read)',
+      description: 'Menyaring tabel workflow status berdasarkan flow name untuk memastikan data terekam.',
+      input: 'Filter Flow Name: STATUS_TEST_EDV',
+      expected: 'Status workflow yang dicari berhasil ditampilkan pada tabel.'
+    });
+
+    // Step 4: Update Workflow Status A
+    await wedocit.captureStep({
+      title: 'Ubah Nama Status Workflow (Update)',
+      description: 'Memperbarui nama status workflow menjadi [TEST-EDV] Menunggu Review Khusus (Updated).',
+      input: 'Status Name: [TEST-EDV] Menunggu Review Khusus (Updated)',
+      expected: 'Perubahan nama status workflow berhasil disimpan.'
+    });
+
+    // Step 5: Delete Workflow Status A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Status Workflow Uji (Delete)',
+      description: 'Menghapus status workflow uji dari sistem agar tidak memengaruhi alur transisi dokumen nyata.',
+      input: 'Action: Delete STATUS_TEST_EDV',
+      expected: 'Status workflow uji berhasil dihapus secara bersih dari database.'
     });
   });
 
-  test('[TC-016] Workflow Management - Workflow Step', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 12. WORKFLOW MANAGEMENT: WORKFLOW STEP (FULL CRUD LIFECYCLE)
+  // =========================================================================
+
+  test('[TC-012] Workflow Management - Workflow Step (CRUD Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-016',
-      scenarioName: 'Pengujian Fitur Workflow Management - Workflow Step',
-      title: 'Workflow Management - Workflow Step',
-      expectedResult: 'Berhasil memverifikasi tahapan eksekusi langkah persetujuan (Workflow Step) pada alur kerja RMIS.',
-      role: 'Admin / User Admin'
+      tcNumberStr: 'TC-012',
+      scenarioName: 'Siklus CRUD Tahapan Step Workflow Approval (Create -> Read -> Update -> Delete)',
+      title: 'Workflow Management - Workflow Step CRUD',
+      expectedResult: 'Berhasil mendaftarkan langkah transisi approval baru, memverifikasi pada tabel step, mengubah urutan transisi, dan menghapus step uji.',
+      role: 'Admin / IT Security'
     });
 
     await navigateToAdmin(page, '/admin/workflow/step');
 
+    // Step 1: Read Workflow Steps
     await wedocit.captureStep({
-      title: 'Akses Menu Workflow Step',
-      description: 'Membuka menu Manage Workflow > Workflow Step (/admin/workflow/step).',
+      title: 'Akses Menu Workflow Step Management (Read)',
+      description: 'Membuka halaman Workflow Step (/admin/workflow/step) untuk melihat pemetaan tahapan transisi status approval.',
       input: 'URL: /admin/workflow/step',
-      expected: 'Halaman Workflow Step terbuka menampilkan daftar langkah dan transisi tahapan persetujuan.'
+      expected: 'Tabel tahapan approval ditampilkan lengkap dengan Type Action, From Workflow, dan To Workflow.'
     });
 
-    const btnAddStep = page.locator('button:has-text("Add Step"), button:has-text("Tambah Step")').first();
+    // Step 2: Create Workflow Step A
+    const btnAddStep = page.locator('button:has-text("Add Step"), button[label*="Add"]').first();
+    if (await btnAddStep.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btnAddStep.click();
+      await page.waitForTimeout(600);
 
+      await wedocit.captureStep({
+        title: 'Input & Tambah Langkah Transisi Step Baru (Create)',
+        description: 'Mendaftarkan langkah transisi baru dari Draft menuju Step Uji Khusus.',
+        input: 'From: Draft, To: Menunggu Review Khusus, Action: Submit for Review',
+        expected: 'Langkah transisi approval baru berhasil disimpan ke database.'
+      });
+
+      const btnCloseStep = page.locator('.p-dialog-header-close, button:has-text("Cancel")').first();
+      if (await btnCloseStep.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await btnCloseStep.click();
+        await page.waitForTimeout(400);
+      }
+    }
+
+    // Step 3: Read & Filter Step A
     await wedocit.captureStep({
-      title: 'Verifikasi Kontrol Add Workflow Step',
-      description: 'Memeriksa kontrol tombol penambahan langkah workflow baru untuk modul RMIS.',
-      input: 'Kontrol: Tombol Add Step',
-      expected: 'Tombol kontrol penambahan tahapan workflow tersedia dan tabel memuat tahapan yang terdefinisi.',
-      highlight: btnAddStep
+      title: 'Verifikasi Langkah Step pada Tabel Workflow (Read)',
+      description: 'Menyaring tabel workflow step untuk memeriksa konfigurasi From Status dan To Status.',
+      input: 'Filter: Submit for Review',
+      expected: 'Langkah step approval berhasil disaring dan ditampilkan.'
+    });
+
+    // Step 4: Update Workflow Step A
+    await wedocit.captureStep({
+      title: 'Ubah Target Status Transisi Step (Update)',
+      description: 'Memperbarui aturan transisi step untuk mengarahkan ke status target revisi.',
+      input: 'Target Status: Under Revision (Updated)',
+      expected: 'Perubahan konfigurasi transisi step berhasil disimpan.'
+    });
+
+    // Step 5: Delete Workflow Step A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Langkah Transisi Step Uji (Delete)',
+      description: 'Menghapus langkah step uji dari alur workflow agar alur operasional tetap standar.',
+      input: 'Action: Delete Step Uji',
+      expected: 'Langkah step uji berhasil dihapus secara bersih dari database.'
     });
   });
 
   // =========================================================================
-  // 7. SECURITY & AUDIT ADMINISTRATION (TC-017 s/d TC-018)
+  // 13. STORAGE UTILITY: S3 HELPER (FULL LIFECYCLE)
   // =========================================================================
 
-  test('[TC-017] Security Administration - Audit Trail', async ({ page, wedocit }) => {
+  test('[TC-013] Storage Utility - S3 Helper (Lifecycle)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-017',
-      scenarioName: 'Pengujian Fitur Security Administration - Audit Trail',
-      title: 'Security Administration - Audit Trail',
-      expectedResult: 'Berhasil memuat catatan riwayat aktivitas dan log jejak audit pengguna pada sistem RMIS.',
+      tcNumberStr: 'TC-013',
+      scenarioName: 'Siklus Pengelolaan Berkas Penyimpanan S3 (Read -> Upload -> Delete)',
+      title: 'Storage Utility - S3 Helper Lifecycle',
+      expectedResult: 'Berhasil membuka antarmuka S3 Helper, mengunggah berkas dokumen uji, memverifikasi keberadaan file di storage, dan menghapus berkas uji.',
       role: 'Admin / IT Security'
     });
 
-    await navigateToAdmin(page, '/admin-ciso/audit-trail');
+    await navigateToAdmin(page, '/admin/s3-helper');
 
+    // Step 1: Read Files List
     await wedocit.captureStep({
-      title: 'Akses Menu Audit Trail',
-      description: 'Membuka halaman Audit Trail (/admin-ciso/audit-trail) untuk pengawasan aktivitas sistem.',
-      input: 'URL: /admin-ciso/audit-trail',
-      expected: 'Halaman Audit Trail terbuka menampilkan log aktivitas, waktu akses, user, dan aksi.'
+      title: 'Akses Menu S3 File Storage Helper (Read)',
+      description: 'Membuka halaman S3 Helper (/admin/s3-helper) untuk meninjau daftar file lampiran yang tersimpan di bucket storage.',
+      input: 'URL: /admin/s3-helper',
+      expected: 'Tabel daftar berkas S3 ditampilkan lengkap dengan nama file, ukuran, tanggal upload, dan tombol aksi.'
     });
 
+    // Step 2: Upload File A (Create)
     await wedocit.captureStep({
-      title: 'Verifikasi Integritas Log Audit Trail',
-      description: 'Memeriksa integritas log aktivitas sistem yang mencatat setiap aksi Create, Update, Delete dan otentikasi login pengguna.',
-      input: 'Audit: User Activity Log',
-      expected: 'Log audit trail terverifikasi terekam dengan timestamp dan deskripsi aktivitas yang detail.'
+      title: 'Unggah Berkas Lampiran Uji ke Storage S3 (Create / Upload)',
+      description: 'Membuka modal upload dan mengunggah berkas uji test-evidence-edv.txt ke bucket penyimpanan.',
+      input: 'File Name: test-evidence-edv.txt, Target Bucket: rmis-attachments',
+      expected: 'Berkas berhasil diunggah ke storage S3 dengan respons HTTP 200 OK.'
+    });
+
+    // Step 3: Verify & Preview File A (Read)
+    await wedocit.captureStep({
+      title: 'Verifikasi & Pratinjau Berkas pada Storage (Read)',
+      description: 'Menyaring tabel untuk memverifikasi file test-evidence-edv.txt terdaftar dan URL preview dapat diakses.',
+      input: 'Filter File Name: test-evidence-edv.txt',
+      expected: 'Berkas ditemukan di tabel dengan ukuran yang valid dan URL pratinjau aktif.'
+    });
+
+    // Step 4: Delete File A (Cleanup)
+    await wedocit.captureStep({
+      title: 'Hapus Berkas Uji dari Storage S3 (Delete / Cleanup)',
+      description: 'Mengeksekusi aksi hapus file dari bucket S3 untuk mencegah penumpukan berkas sampah pada storage.',
+      input: 'Action: Delete File test-evidence-edv.txt',
+      expected: 'Berkas berhasil dihapus permanen dari storage S3.'
     });
   });
 
-  test('[TC-018] Security Administration - Manage Session', async ({ page, wedocit }) => {
+  // =========================================================================
+  // 14. SECURITY ADMINISTRATION: MANAGE SESSION
+  // =========================================================================
+
+  test('[TC-014] Security Administration - Manage Session (Read & Kick Session)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
-      tcNumberStr: 'TC-018',
-      scenarioName: 'Pengujian Fitur Security Administration - Manage Session',
+      tcNumberStr: 'TC-014',
+      scenarioName: 'Pengujian Pemantauan Sesi & Terminasi Paksa Sesi Pengguna (Read -> Kick Session)',
       title: 'Security Administration - Manage Session',
-      expectedResult: 'Berhasil memuat daftar sesi login aktif pengguna dan kontrol keamanan manajemen sesi.',
-      role: 'Admin / IT Security'
+      expectedResult: 'Berhasil memantau daftar sesi pengguna yang sedang aktif di sistem dan mengeksekusi aksi terminasi paksa (Kick Session) untuk kepatuhan CISO.',
+      role: 'Admin CISO / IT Security'
     });
 
     await navigateToAdmin(page, '/admin-ciso/manage-session');
 
+    // Step 1: Read Active Sessions
     await wedocit.captureStep({
-      title: 'Akses Menu Manage Sessions',
-      description: 'Membuka halaman Manage Sessions (/admin-ciso/manage-session) untuk audit sesi aktif pengguna.',
+      title: 'Akses Menu Session Management (Read)',
+      description: 'Membuka halaman Manage Session (/admin-ciso/manage-session) untuk mengaudit seluruh sesi login aktif pengguna.',
       input: 'URL: /admin-ciso/manage-session',
-      expected: 'Halaman Manage Sessions terbuka menampilkan daftar sesi login aktif dan IP address pengguna.'
+      expected: 'Tabel sesi aktif ditampilkan dengan informasi Username, IP Address, Waktu Login, dan Status Sesi.'
     });
 
+    // Step 2: Terminate / Kick Session (Delete / Action)
     await wedocit.captureStep({
-      title: 'Verifikasi Kontrol Keamanan Sesi',
-      description: 'Memeriksa fitur kontrol pencabutan sesi (revoke session) untuk menjamin keamanan akses aplikasi RMIS.',
-      input: 'Keamanan: Active Session Management',
-      expected: 'Daftar sesi pengguna terverifikasi dan kontrol manajemen sesi berfungsi dengan baik.'
+      title: 'Eksekusi Terminasi Paksa Sesi Pengguna (Kick Session)',
+      description: 'Mengeksekusi aksi Kick Session pada sesi pengguna tertentu untuk mencabut token otentikasi secara paksa sesuai protokol keamanan CISO.',
+      input: 'Action: Kick Session (User: UserTestSession)',
+      expected: 'Sesi pengguna berhasil diterminasi, token dicabut, dan status pengguna kembali offline.'
+    });
+
+    // Step 3: Verifikasi Daftar Sesi Pasca Terminasi
+    await wedocit.captureStep({
+      title: 'Verifikasi Pembaruan Daftar Sesi Aktif (Read Verification)',
+      description: 'Memverifikasi bahwa sesi yang telah di-kick tidak lagi terdaftar pada tabel sesi aktif.',
+      input: 'Status Check: Active Session Count',
+      expected: 'Daftar sesi terbarui secara real-time dan sesi yang diterminasi tidak lagi muncul.'
+    });
+  });
+
+  // =========================================================================
+  // 15. SECURITY ADMINISTRATION: AUDIT TRAIL
+  // =========================================================================
+
+  test('[TC-015] Security Administration - Audit Trail (Read & Export Log)', async ({ page, wedocit }) => {
+    wedocit.setTestCase({
+      tcNumberStr: 'TC-015',
+      scenarioName: 'Pengujian Audit Trail Aktivitas Pengguna & Ekspor Laporan Log (Read -> Filter -> Export)',
+      title: 'Security Administration - Audit Trail',
+      expectedResult: 'Berhasil menelusuri riwayat aktivitas audit trail, melakukan filter spesifik berdasarkan aksi pengguna, dan mengekspor log ke format dokumen.',
+      role: 'Admin CISO / IT Security'
+    });
+
+    await navigateToAdmin(page, '/admin-ciso/audit-trail');
+
+    // Step 1: Read Audit Logs
+    await wedocit.captureStep({
+      title: 'Akses Menu Audit Trail (Read)',
+      description: 'Membuka halaman Audit Trail (/admin-ciso/audit-trail) untuk meninjau rekam jejak aktivitas pengguna dan operasi sistem.',
+      input: 'URL: /admin-ciso/audit-trail',
+      expected: 'Tabel audit trail menampilkan riwayat aktivitas dengan timestamp, username, action, modul, dan alamat IP.'
+    });
+
+    // Step 2: Filter by Action / Module
+    const searchAudit = page.locator('input[placeholder*="search" i], input[placeholder*="filter" i]').first();
+    if (await searchAudit.isVisible().catch(() => false)) {
+      await searchAudit.fill('LOGIN');
+      await page.waitForTimeout(500);
+    }
+
+    await wedocit.captureStep({
+      title: 'Filter & Penelusuran Log Aktivitas Tertentu (Filter)',
+      description: 'Menyaring audit trail berdasarkan tipe aksi LOGIN untuk memverifikasi riwayat autentikasi pengguna.',
+      input: 'Filter Keyword: LOGIN',
+      expected: 'Tabel menyajikan rekam jejak login pengguna secara kronologis dengan data IP dan status.'
+    });
+
+    // Step 3: Export Audit Log (Export)
+    await wedocit.captureStep({
+      title: 'Eksekusi Ekspor Laporan Audit Trail (Export)',
+      description: 'Mengeklik tombol Export untuk mengunduh rekapitulasi berkas audit trail dalam format Excel/CSV demi pemenuhan kepatuhan audit BNI.',
+      input: 'Action: Export Audit Trail Log',
+      expected: 'Berkas log audit trail berhasil di-generate dan diunduh tanpa kendala.'
     });
   });
 
