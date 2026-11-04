@@ -64,9 +64,10 @@ test.describe('Unit Test Suite: [RMIS] Administration Management CRUD Master Dat
 
       if (!page.url().includes(targetUrl)) {
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1200);
       }
 
+      await page.waitForSelector('.p-datatable-loading-overlay, p-progressSpinner, .p-progress-spinner', { state: 'detached', timeout: 5000 }).catch(() => {});
       const isTableReady = await page.locator('p-table, p-treeTable, table, .card').first().isVisible({ timeout: 5000 }).catch(() => false);
       if (isTableReady && !page.url().includes('portal') && !page.url().includes('login')) {
         return;
@@ -168,8 +169,11 @@ test.describe('Unit Test Suite: [RMIS] Administration Management CRUD Master Dat
       if (await filterInput.isVisible().catch(() => false)) {
         await filterInput.fill('DIVISI');
         if (await btnFilter.isVisible().catch(() => false)) await btnFilter.click();
-        await page.waitForTimeout(500);
       }
+
+      await page.waitForSelector('.p-datatable-loading-overlay, p-progressSpinner, .p-progress-spinner', { state: 'detached', timeout: 5000 }).catch(() => {});
+      await page.waitForSelector('p-table tbody tr', { state: 'visible', timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(600);
 
       await wedocit.captureStep({
         title: 'Sub-TC 1.4: [READ] Pencarian & Verifikasi Master Unit pada Tabel',
@@ -183,7 +187,9 @@ test.describe('Unit Test Suite: [RMIS] Administration Management CRUD Master Dat
     // SUB-TC 1.5: UPDATE - Buka Modal Edit
     await test.step('Sub-TC 1.5: [UPDATE] Memilih Data & Membuka Modal Edit Unit', async () => {
       console.log('   🔹 [Sub-TC 1.5: UPDATE] Memilih aksi edit pada baris tabel...');
+      await page.waitForSelector('.p-datatable-loading-overlay, p-progressSpinner', { state: 'detached', timeout: 5000 }).catch(() => {});
       const btnEditRow = page.locator('p-table tbody tr:first-child button[ptooltip="Edit"], p-table tbody tr:first-child button:has(.pi-pencil)').first();
+      
       await wedocit.captureStep({
         title: 'Sub-TC 1.5: [UPDATE] Memilih Data & Membuka Modal Edit Unit',
         description: 'Pengguna menekan tombol icon Edit pada baris data unit kerja terpilih di tabel.',
@@ -192,9 +198,10 @@ test.describe('Unit Test Suite: [RMIS] Administration Management CRUD Master Dat
         highlight: btnEditRow
       });
 
-      if (await btnEditRow.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (await btnEditRow.isVisible({ timeout: 2500 }).catch(() => false)) {
         await btnEditRow.click();
-        await page.waitForTimeout(800);
+        await page.waitForSelector('p-dialog input[formcontrolname="unitName"]', { state: 'visible', timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(600);
       }
     });
 
@@ -202,8 +209,9 @@ test.describe('Unit Test Suite: [RMIS] Administration Management CRUD Master Dat
     await test.step('Sub-TC 1.6: [UPDATE] Memperbarui Nilai Atribut Unit Kerja', async () => {
       console.log('   🔹 [Sub-TC 1.6: UPDATE] Mengubah nama dan deskripsi unit...');
       const editName = page.locator('p-dialog input[formcontrolname="unitName"]').first();
-      if (await editName.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (await editName.isVisible({ timeout: 3000 }).catch(() => false)) {
         await editName.fill('[TEST-EDV] Divisi Enterprise Audit (Updated)');
+        await page.waitForTimeout(300);
       }
 
       await wedocit.captureStep({

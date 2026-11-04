@@ -4007,6 +4007,17 @@ ${tcListStr}
           diagnosisNote = 'Periksa locator tombol dan pastikan modal/halaman target sudah terlihat (waitFor visible) sebelum captureStep.';
           mismatchSteps++;
         }
+        // Heuristik 2.5: URL Belum Terekam / Layar Transisi Loading
+        else if (!pageUrl || pageUrl === 'about:blank' || pageUrl.trim() === '') {
+          issueType = 'mismatch';
+          cardClass = 'issue-mismatch';
+          badgeStyle = 'background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3);';
+          badgeText = 'Suspect Loading 🔄';
+          issueDesc = `🔄 <b>Suspect Layar Loading / URL Belum Terekam:</b> Halaman pengujian belum selesai dimuat sempurna atau masih dalam proses transisi spinner saat tangkapan layar diambil.`;
+          issueStyle = 'background:rgba(239,68,68,0.12); color:#fca5a5; border:1px solid rgba(239,68,68,0.25);';
+          diagnosisNote = 'Gunakan waitForSelector pada elemen tabel/modal dan pastikan loading spinner selesai sebelum captureStep.';
+          mismatchSteps++;
+        }
         // Heuristik 3: Screenshot Duplikat Persis pada Test Case yang Sama (Content Hash Fingerprint)
         else {
           const sig = computeImageSignature(img);
