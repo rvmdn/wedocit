@@ -1,6 +1,7 @@
 import { test as base, Page, Locator } from '@playwright/test';
 
 export interface WeDocItMetadata {
+  docId?: string;
   title?: string;
   module?: string;
   systemName?: string;
