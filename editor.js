@@ -1280,6 +1280,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ${tc.role ? `<span class="tc-role-pill" style="font-size:10.5px; color:#38bdf8; background:rgba(2,132,199,0.15); border:1px solid rgba(2,132,199,0.3); padding:2px 7px; border-radius:12px; white-space:nowrap;">👤 ${escapeHtml(tc.role)}</span>` : ''}
           </div>
           <div class="tc-controls">
+            <button type="button" class="btn btn-xs btn-run-single-tc" data-tc="${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))}" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; border: 1px solid rgba(255,255,255,0.18); padding: 4px 10px; border-radius: 5px; font-weight: 700; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 5px rgba(2,132,199,0.35); transition: all 0.15s ease;" title="Jalankan skenario ${escapeHtml(tc.tcNumberStr || ('TC ' + (tc.tcNumber || (tcIndex + 1))))} &amp; rekam bukti otomatis">
+              <span>⚡ Jalankan TC Ini</span>
+            </button>
             <select class="tc-status-select ${(tc.status || 'OK').toLowerCase()}">
               <option value="OK" ${tc.status === 'OK' ? 'selected' : ''}>✅ OK</option>
               <option value="NOK" ${tc.status === 'NOK' ? 'selected' : ''}>❌ NOK</option>
@@ -1482,6 +1485,13 @@ document.addEventListener('DOMContentLoaded', () => {
           saveActiveDocState();
           renderTestCases();
         }
+      });
+
+      tcCard.querySelector('.btn-run-single-tc')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        const curTcNo = tc.tcNumberStr || `TC-${String(tcIndex + 1).padStart(3, '0')}`;
+        await runSingleTestCase(curTcNo, btn);
       });
 
       addSubstepBtn?.addEventListener('click', () => {
@@ -3883,6 +3893,47 @@ ${tcListStr}
     });
   }
 
+  async function runSingleTestCase(tcNo, btnElement) {
+    const origHtml = btnElement ? btnElement.innerHTML : '';
+    if (btnElement) {
+      btnElement.disabled = true;
+      btnElement.innerHTML = `<span>⏳ Menjalankan...</span>`;
+      btnElement.style.background = '#64748b';
+    }
+
+    try {
+      const doc = getActiveDoc();
+      const docId = doc ? doc.id : '';
+
+      const res = await fetch('/api/auto-repair-tc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId,
+          tcNo,
+          module: doc?.metadata?.module || doc?.title || ''
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Gagal menjalankan pengujian skenario.');
+      }
+
+      loadFreshState(() => {
+        alert(`🎉 Sukses!\n\nSkenario [${tcNo}] telah selesai dieksekusi secara otomatis.\nSeluruh bukti tangkapan layar baru otomatis diperbarui dan disinkronkan ke Dokumen Studio!`);
+      });
+    } catch (err) {
+      alert(`⚠️ Gagal Menjalankan [${tcNo}]: ${err.message}`);
+    } finally {
+      if (btnElement) {
+        btnElement.disabled = false;
+        btnElement.innerHTML = origHtml;
+        btnElement.style.background = 'linear-gradient(135deg, #0284c7, #2563eb)';
+      }
+    }
+  }
+
   async function triggerAutoFixTc(tcNo, btnElement) {
     const origHtml = btnElement ? btnElement.innerHTML : '';
     if (btnElement) {
@@ -3900,7 +3951,7 @@ ${tcListStr}
         body: JSON.stringify({
           docId,
           tcNo,
-          specFile: 'tests/08-rmis-admin-management.spec.ts'
+          module: doc?.metadata?.module || doc?.title || ''
         })
       });
 

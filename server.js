@@ -225,13 +225,37 @@ function handleApiRequest(req, res, pathname) {
     readRequestBody(req, (body) => {
       try {
         const payload = JSON.parse(body || '{}');
-        const tcNo = payload.tcNo || 'TC-008';
+        const tcNo = payload.tcNo || 'TC-001';
         const docId = payload.docId || '';
-        const specFile = payload.specFile || 'tests/08-rmis-admin-management.spec.ts';
+        let specFile = payload.specFile || '';
 
-        console.log(`[Auto-Repair] Memulai Auto-Fix & Re-run untuk ${tcNo} (${specFile})...`);
+        // Deteksi cerdas file skenario modular jika menggunakan V2 atau file spec spesifik
+        const isV2 = docId.includes('v2') || (payload.module || '').includes('V2') || (specFile && specFile.includes('v2'));
+        const v2Dir = path.join(ROOT_DIR, 'tests/09-rmis-admin-management-v2');
 
-        const child = spawn('npx.cmd', ['playwright', 'test', specFile, '-g', tcNo], {
+        const numMatch = tcNo.match(/\d+/);
+        const padNum = numMatch ? String(parseInt(numMatch[0])).padStart(3, '0') : null;
+
+        if (isV2 && padNum && fs.existsSync(v2Dir)) {
+          const v2Files = fs.readdirSync(v2Dir).filter(f => f.startsWith(`tc-${padNum}`) && f.endsWith('.spec.ts'));
+          if (v2Files.length > 0) {
+            specFile = `tests/09-rmis-admin-management-v2/${v2Files[0]}`;
+          }
+        }
+
+        if (!specFile) {
+          specFile = isV2 ? 'tests/09-rmis-admin-management-v2' : 'tests/08-rmis-admin-management.spec.ts';
+        }
+
+        console.log(`[Auto-Repair] Memulai Run Skenario untuk ${tcNo} (${specFile})...`);
+
+        const args = ['playwright', 'test', specFile];
+        const isSingleTcSpec = specFile.includes('tc-') && specFile.endsWith('.spec.ts') && !specFile.includes('08-');
+        if (!isSingleTcSpec) {
+          args.push('-g', tcNo);
+        }
+
+        const child = spawn('npx.cmd', args, {
           cwd: ROOT_DIR,
           shell: true,
           env: { ...process.env, CI: '1' }
@@ -246,8 +270,9 @@ function handleApiRequest(req, res, pathname) {
           const syncRes = syncResultsInternal();
           return sendJson(res, 200, {
             success: code === 0,
-            message: code === 0 ? `Skenario ${tcNo} berhasil diperbaiki dan bukti tangkapan layar baru telah tersinkronisasi!` : `Pengujian ${tcNo} selesai dengan kode ${code}`,
+            message: code === 0 ? `Skenario ${tcNo} berhasil dijalankan dan bukti tangkapan layar baru telah tersinkronisasi!` : `Pengujian ${tcNo} selesai dengan kode ${code}`,
             tcNo,
+            specFile,
             exitCode: code,
             syncRes,
             outputSnippet: testOutput.slice(-500)
@@ -266,8 +291,9 @@ function handleApiRequest(req, res, pathname) {
       const testsDir = path.join(ROOT_DIR, 'tests');
       let specs = [];
       if (fs.existsSync(testsDir)) {
-        const files = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
-        specs = files.map(f => {
+        // 1. Top-level files
+        const topFiles = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+        topFiles.forEach(f => {
           let label = f;
           let count = 0;
           try {
@@ -275,10 +301,8 @@ function handleApiRequest(req, res, pathname) {
             const matches = content.match(/\btest\s*\(\s*['"`]/g);
             count = matches ? matches.length : 0;
           } catch {}
-
           const tcStr = count > 0 ? ` (${count} TC)` : '';
-
-          if (f.includes('08-rmis-admin-management') || f.includes('08-orms-admin-management')) label = `🎯 [RMIS] Administration Management Master Data CRUD${tcStr}`;
+          if (f.includes('08-rmis-admin-management') || f.includes('08-orms-admin-management')) label = `🎯 [V1.0 Full Suite] Administration Management Master Data CRUD${tcStr}`;
           else if (f.includes('07-orms-login-security')) label = `🎯 [ORMS] Login & Security Management${tcStr}`;
           else if (f.includes('06-orms-ldap')) label = `🎯 [ORMS] Integrasi LDAP Active Directory${tcStr}`;
           else if (f.includes('01-ap-non-kredit')) label = `Modul 1: AP Non-Kredit Offline${tcStr}`;
@@ -286,12 +310,35 @@ function handleApiRequest(req, res, pathname) {
           else if (f.includes('03-ap-kredit')) label = `Modul 3: AP Kredit Offline${tcStr}`;
           else if (f.includes('04-rha')) label = `Modul 4: RHA Offline${tcStr}`;
           else if (f.includes('05-pelaksanaan-audit')) label = `Modul 5: Pelaksanaan Audit Online${tcStr}`;
-          return {
-            path: `tests/${f}`,
-            name: f,
-            label
-          };
+          specs.push({ path: `tests/${f}`, name: f, label });
         });
+
+        // 2. Subfolders (e.g. 09-rmis-admin-management-v2)
+        const entries = fs.readdirSync(testsDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            const subDirPath = path.join(testsDir, entry.name);
+            const subFiles = fs.readdirSync(subDirPath).filter(f => f.endsWith('.spec.ts') && !f.startsWith('_'));
+            subFiles.forEach(sf => {
+              const fullSubPath = path.join(subDirPath, sf);
+              let label = `${entry.name}/${sf}`;
+              try {
+                const content = fs.readFileSync(fullSubPath, 'utf8');
+                const tcMatch = content.match(/test\s*\(\s*['"`](.*?)['"`]/);
+                if (tcMatch && tcMatch[1]) {
+                  label = `⚡ [V2.0] ${tcMatch[1]}`;
+                } else {
+                  label = `⚡ [V2.0] ${sf.replace('.spec.ts', '')}`;
+                }
+              } catch {}
+              specs.push({
+                path: `tests/${entry.name}/${sf}`,
+                name: sf,
+                label
+              });
+            });
+          }
+        }
       }
       return sendJson(res, 200, { specs });
     } catch (err) {
