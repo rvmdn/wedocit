@@ -3113,21 +3113,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnFileMenu = document.getElementById('btn-file-menu');
   const fileMenuDropdown = document.getElementById('file-menu-dropdown');
+  const btnSyncMenu = document.getElementById('btn-sync-menu');
+  const syncMenuDropdown = document.getElementById('sync-menu-dropdown');
+  const btnAiMenu = document.getElementById('btn-ai-menu');
+  const aiMenuDropdown = document.getElementById('ai-menu-dropdown');
 
-  btnFileMenu?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    fileMenuDropdown?.classList.toggle('show');
+  const allHeaderDropdowns = [
+    { btn: btnFileMenu, menu: fileMenuDropdown },
+    { btn: btnExportDropdown, menu: exportMenuDropdown },
+    { btn: btnSyncMenu, menu: syncMenuDropdown },
+    { btn: btnAiMenu, menu: aiMenuDropdown }
+  ];
+
+  allHeaderDropdowns.forEach(({ btn, menu }) => {
+    btn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willShow = !menu?.classList.contains('show');
+      allHeaderDropdowns.forEach(d => d.menu?.classList.remove('show'));
+      if (willShow) {
+        menu?.classList.add('show');
+      }
+    });
   });
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.dropdown-wrapper')) {
-      fileMenuDropdown?.classList.remove('show');
+      allHeaderDropdowns.forEach(d => d.menu?.classList.remove('show'));
     }
   });
 
-  fileMenuDropdown?.querySelectorAll('.dropdown-item').forEach(item => {
+  document.querySelectorAll('.dropdown-menu .dropdown-item').forEach(item => {
     item.addEventListener('click', () => {
-      fileMenuDropdown?.classList.remove('show');
+      allHeaderDropdowns.forEach(d => d.menu?.classList.remove('show'));
     });
   });
 
@@ -3834,6 +3851,11 @@ ${tcListStr}
           <span style="font-size:11px; color:#94a3b8; line-height:1.35;">
             ${item.diagnosisNote}
           </span>
+          ${item.issueType !== 'ok' ? `
+            <button class="btn btn-xs btn-auto-fix-single" data-tc="${escapeHtml(item.tcNo)}" style="margin-top:6px; background:linear-gradient(135deg, #7c3aed, #4f46e5); color:#fff; border:none; padding:4px 9px; border-radius:5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(124,58,237,0.35);" title="Perbaiki &amp; Uji Ulang ${escapeHtml(item.tcNo)}">
+              <span>⚡ Auto-Fix ${escapeHtml(item.tcNo)}</span>
+            </button>
+          ` : ''}
         </div>
       </div>
     `).join('');
@@ -3850,6 +3872,71 @@ ${tcListStr}
         }
       });
     });
+
+    // Attach Auto-Fix Single TC button listener
+    auditItemsContainer.querySelectorAll('.btn-auto-fix-single').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const tcNo = btn.dataset.tc;
+        await triggerAutoFixTc(tcNo, btn);
+      });
+    });
+  }
+
+  async function triggerAutoFixTc(tcNo, btnElement) {
+    const origHtml = btnElement ? btnElement.innerHTML : '';
+    if (btnElement) {
+      btnElement.disabled = true;
+      btnElement.innerHTML = `<span>⏳ Menjalankan Auto-Fix...</span>`;
+    }
+
+    try {
+      const doc = getActiveDoc();
+      const docId = doc ? doc.id : 'doc_administration_management_cr60133';
+
+      const res = await fetch('/api/auto-repair-tc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docId,
+          tcNo,
+          specFile: 'tests/08-rmis-admin-management.spec.ts'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Gagal menjalankan perbaikan otomatis.');
+      }
+
+      loadFreshState(() => {
+        openScreenshotAuditModal();
+        alert(`🎉 ${data.message || 'Auto-Fix Berhasil!'}\n\nSeluruh bukti tangkapan layar untuk ${tcNo} telah diperbarui dengan alur dan data riil.`);
+      });
+    } catch (err) {
+      alert(`⚠️ Auto-Fix Gagal: ${err.message}`);
+    } finally {
+      if (btnElement) {
+        btnElement.disabled = false;
+        btnElement.innerHTML = origHtml;
+      }
+    }
+  }
+
+  function computeImageSignature(str) {
+    if (!str) return '';
+    const len = str.length;
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c64e6d;
+    const step = Math.max(1, Math.floor(len / 512));
+    for (let i = 0; i < len; i += step) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return `${len}_${(h1 >>> 0).toString(16)}${(h2 >>> 0).toString(16)}`;
   }
 
   function openScreenshotAuditModal() {
@@ -3920,17 +4007,17 @@ ${tcListStr}
           diagnosisNote = 'Periksa locator tombol dan pastikan modal/halaman target sudah terlihat (waitFor visible) sebelum captureStep.';
           mismatchSteps++;
         }
-        // Heuristik 3: Screenshot Duplikat Persis pada Test Case yang Sama
+        // Heuristik 3: Screenshot Duplikat Persis pada Test Case yang Sama (Content Hash Fingerprint)
         else {
-          const imgLen = img.length;
-          const key = `${tcIdx}_${imgLen}`;
+          const sig = computeImageSignature(img);
+          const key = `${tcIdx}_${sig}`;
           if (sIdx > 0 && seenImageSignatures.has(key)) {
             issueType = 'duplicate';
             cardClass = 'issue-duplicate';
             badgeStyle = 'background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3);';
             badgeText = 'Duplikat 🟣';
             const prevStep = seenImageSignatures.get(key);
-            issueDesc = `🟣 <b>Duplikat Persis:</b> Ukuran gambar identik (${imgLen.toLocaleString()} bytes) dengan Langkah ${prevStep}. Kemungkinan layar belum berubah atau aksi belum dieksekusi sebelum capture.`;
+            issueDesc = `🟣 <b>Duplikat Persis:</b> Konten screenshot identik (${img.length.toLocaleString()} bytes) dengan Langkah ${prevStep}. Kemungkinan layar belum berubah atau aksi belum dieksekusi sebelum capture.`;
             issueStyle = 'background:rgba(168,85,247,0.12); color:#d8b4fe; border:1px solid rgba(168,85,247,0.25);';
             diagnosisNote = 'Pastikan ada interaksi UI (input/klik) yang terlihat sebelum mengambil screenshot langkah selanjutnya.';
             dupSteps++;
@@ -4081,5 +4168,15 @@ ${tcListStr}
     btn.addEventListener('click', () => {
       renderAuditCards(btn.dataset.filter);
     });
+  });
+
+  const btnAutoFixAll = document.getElementById('btn-auto-fix-all');
+  btnAutoFixAll?.addEventListener('click', async () => {
+    const firstIssue = currentAuditItems.find(it => it.issueType !== 'ok');
+    if (!firstIssue) {
+      alert('Semua screenshot langkah uji saat ini sudah sesuai dan valid!');
+      return;
+    }
+    await triggerAutoFixTc(firstIssue.tcNo, btnAutoFixAll);
   });
 });
