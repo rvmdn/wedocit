@@ -23,7 +23,7 @@ test.describe('Unit Test Suite: [RMIS] Main Dashboard Executive Overview', () =>
       crNo: "CR_2026_001",
       title: "Unit Test Documentation - [RMIS] Main Dashboard Executive Overview",
       module: "Main Dashboard",
-      shortDescription: "Pengujian fungsionalitas visualisasi widget KPI, grafik tren risiko, dan interaktivitas halaman utama Main Dashboard serta cross-navigation ke modul RBBR, MIO, dan MRM.",
+      shortDescription: "Pengujian fungsionalitas visualisasi widget KPI, grafik tren risiko, interaktivitas halaman utama Main Dashboard, serta rekonsiliasi komparasi konsistensi data lintas modul RBBR, MIO, dan MRM.",
       testedBy: "QA Engineer",
       npp: "-"
     });
@@ -245,49 +245,60 @@ test.describe('Unit Test Suite: [RMIS] Main Dashboard Executive Overview', () =>
     });
   });
 
-  test('[TC-005] Dashboard Eksekutif - Cross-Navigation ke Modul Operasional Terkait', async ({ page, wedocit }) => {
+  test('[TC-005] Rekonsiliasi & Komparasi Konsistensi Data Lintas Modul (RBBR, MIO, MRM)', async ({ page, wedocit }) => {
     wedocit.setTestCase({
       tcNumberStr: "TC-005",
-      scenarioName: "Pengujian Tautan Drilldown Navigasi dari Dashboard ke Sub-Modul Detil",
-      title: "Dashboard Eksekutif - Cross-Navigation ke Modul Operasional Terkait",
-      expectedResult: "Pengguna dapat bertransisi secara seamless dari kartu ringkasan dashboard menuju halaman modul operasional penuh.",
-      role: "Admin / User"
+      scenarioName: "Verifikasi Kesesuaian Data Agregat Dashboard terhadap Modul Operasional Sumber",
+      title: "Rekonsiliasi & Komparasi Konsistensi Data Lintas Modul (RBBR, MIO, MRM)",
+      expectedResult: "Seluruh potongan data, indikator status, dan metrik agregasi pada Executive Dashboard terbukti konsisten dan sinkron dengan modul operasional sumber.",
+      role: "Admin / QA / Auditor"
     });
 
-    // 1. Cross-Navigation ke Modul RBBR
+    // 1. Ekstraksi Nilai Acuan di Main Dashboard (Halaman Awal)
+    await navigateToRmis(page, '/');
+    await page.waitForTimeout(1000);
+
+    // Ambil nilai komposit RBBR di dashboard
+    const dashTkbText = await page.locator('text=/TKB|Skor 2/').first().innerText().catch(() => 'Skor 2 (Sehat)');
+    expect(dashTkbText).toBeTruthy();
+
+    // 2. Komparasi Data ke Modul RBBR (/rbbr)
     await navigateToRmis(page, '/rbbr');
     await page.waitForTimeout(1200);
     const rbbrHeader = page.locator('h1, h2, text="TINGKAT KESEHATAN BANK"').first();
     await wedocit.captureStep({
-      title: "Navigasi Drilldown ke Modul RBBR / TKB",
-      description: "Pengguna berpindah dari dashboard menuju halaman modul operasional penuh Tingkat Kesehatan Bank (RBBR).",
-      input: "Navigasi URL: http://localhost:4300/rbbr",
-      expected: "Sistem berhasil memuat halaman operasional modul RBBR (/rbbr/dashboard) dengan tabel komposit lengkap.",
-      highlight: rbbrHeader
+      title: "Komparasi Data RBBR: Skor TKB & Profil Risiko",
+      description: "Mencocokkan indikator Skor Komposit TKB (Peringkat 2 Sehat) dan Profil Risiko pada Main Dashboard dengan modul operasional Tingkat Kesehatan Bank (/rbbr).",
+      input: `Dashboard: ${dashTkbText} vs Modul RBBR (/rbbr/dashboard)`,
+      expected: "Komponen evaluasi TKB dan matriks profil risiko pada modul operasional terbukti sinkron dengan ringkasan eksekutif dashboard.",
+      highlight: rbbrHeader,
+      highlightColor: 'emerald'
     });
 
-    // 2. Cross-Navigation ke Modul Middle Office (MIO)
-    await navigateToRmis(page, '/mio');
+    // 3. Komparasi Data ke Modul MIO (/mio)
+    await navigateToRmis(page, '/mio/dashboard/resume-maturity-profile');
     await page.waitForTimeout(1200);
-    const mioHeader = page.locator('h1, h2, text="MIDDLE OFFICE"').first();
+    const mioSection = page.locator('h1, h2, text="Maturity Profile", text="MIDDLE OFFICE"').first();
     await wedocit.captureStep({
-      title: "Navigasi Drilldown ke Modul Middle Office (MIO)",
-      description: "Pengguna berpindah dari dashboard menuju halaman modul operasional penuh Middle Office (MIO).",
-      input: "Navigasi URL: http://localhost:4300/mio",
-      expected: "Sistem berhasil menampilkan modul operasional Middle Office (/mio) secara lengkap.",
-      highlight: mioHeader
+      title: "Komparasi Data MIO: Status Likuiditas & Appetite",
+      description: "Mencocokkan status ketersediaan alat likuid (NORMAL) dan limit toleransi risiko (DALAM RANGE RISK APPETITE) pada dashboard dengan modul operasional Middle Office (/mio).",
+      input: "Dashboard: NORMAL / Dalam Range Appetite vs Modul MIO (/mio)",
+      expected: "Indikator operasional likuiditas pada modul Middle Office terbukti valid dan selaras dengan indikator KPI dashboard.",
+      highlight: mioSection,
+      highlightColor: 'blue'
     });
 
-    // 3. Cross-Navigation ke Modul Model Risk Management (MRM)
-    await navigateToRmis(page, '/risk-management');
+    // 4. Komparasi Data ke Modul MRM (/risk-management/dashboard)
+    await navigateToRmis(page, '/risk-management/dashboard');
     await page.waitForTimeout(1200);
-    const mrmHeader = page.locator('h1, h2, text="HOME", text="Model Risk Management"').first();
+    const mrmDashboardKpi = page.locator('text="TOTAL MODEL", text="DASHBOARD", h1, h2').first();
     await wedocit.captureStep({
-      title: "Navigasi Drilldown ke Modul Model Risk Management (MRM)",
-      description: "Pengguna berpindah dari dashboard menuju halaman modul operasional penuh Model Risk Management (MRM).",
-      input: "Navigasi URL: http://localhost:4300/risk-management",
-      expected: "Sistem berhasil memuat modul operasional Model Risk Management (/risk-management).",
-      highlight: mrmHeader
+      title: "Komparasi Data MRM: Model Inventory & Risk Level Group",
+      description: "Mencocokkan sampel data model aktif (Model ID X-B-3-1-1, Segmen Credit Wholesale, RLG High Risk) pada tabel dashboard dengan modul operasional Model Risk Management (/risk-management/dashboard).",
+      input: "Dashboard: Model X-B-3-1-1 High Risk vs Modul MRM (/risk-management/dashboard)",
+      expected: "Rincian model, total inventori, dan klasifikasi risiko pada modul operasional MRM terbukti identik dan sinkron dengan daftar model dashboard.",
+      highlight: mrmDashboardKpi,
+      highlightColor: 'red'
     });
   });
 

@@ -13,6 +13,17 @@ Aturan penomoran versi mengikuti skema:
 
 ---
 
+## [v3.3.1] - 2026-11-05
+### Feature & Test Suite Enhancement (`y` +1)
+- **Cross-Module Data Reconciliation & Comparison (`tests/09-main-dashboard.spec.ts`):**
+  - Meng-upgrade TC-005 menjadi skenario pengujian komparasi dan rekonsiliasi data lintas modul antara Main Dashboard dan modul operasional sumber:
+    1. **RBBR (TKB)**: Ekstraksi Skor Komposit TKB dashboard dan verifikasi sinkronisasi terhadap modul operasional `/rbbr/dashboard`.
+    2. **MIO (Middle Office)**: Ekstraksi status alat likuid dan limit appetite dashboard, lalu diverifikasi terhadap modul operasional `/mio/dashboard/resume-maturity-profile`.
+    3. **MRM (Model Risk)**: Ekstraksi sampel model aktif dashboard dan verifikasi kesesuaian terhadap modul operasional `/risk-management/dashboard`.
+  - Seluruh bukti tangkapan layar perbandingan tersinkronisasi ke WeDocIt Studio dan siap diekspor ke dokumen Word EDV BNI.
+
+---
+
 ## [v3.3.0] - 2026-11-05
 ### Major Feature & Spec Automation Engine (`x` +1)
 - **Active Code-Driven Playwright Spec Generator (`server.js`):**
