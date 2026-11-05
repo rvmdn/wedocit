@@ -229,7 +229,50 @@ function handleApiRequest(req, res, pathname) {
         const docId = payload.docId || '';
         let specFile = payload.specFile || '';
 
-        // Deteksi cerdas file skenario modular jika menggunakan V2 atau file spec spesifik
+        // 1. Jika specFile belum diberikan, cek apakah dokumen di workspace.json memiliki referensi specFile
+        let targetDoc = null;
+        if (fs.existsSync(WORKSPACE_FILE)) {
+          try {
+            const ws = JSON.parse(fs.readFileSync(WORKSPACE_FILE, 'utf8'));
+            targetDoc = ws.documents?.find(d => d.id === docId);
+            if (targetDoc?.metadata?.specFile && fs.existsSync(path.join(ROOT_DIR, targetDoc.metadata.specFile))) {
+              specFile = targetDoc.metadata.specFile;
+            }
+          } catch (e) {}
+        }
+
+        // 2. Jika belum ketemu, cari file spec di tests/ yang mereferensikan docId ini
+        const testsDir = path.join(ROOT_DIR, 'tests');
+        if (!specFile && docId && fs.existsSync(testsDir)) {
+          const allSpecs = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+          for (const f of allSpecs) {
+            try {
+              const content = fs.readFileSync(path.join(testsDir, f), 'utf8');
+              if (content.includes(`"${docId}"`) || content.includes(`'${docId}'`)) {
+                specFile = `tests/${f}`;
+                break;
+              }
+            } catch (e) {}
+          }
+        }
+
+        // 3. Jika belum ketemu, cocokkan slug skenario/modul dengan nama file spec
+        if (!specFile && (payload.module || targetDoc?.metadata?.scenarioName) && fs.existsSync(testsDir)) {
+          const rawMod = payload.module || targetDoc?.metadata?.scenarioName || '';
+          const modSlug = rawMod.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          if (modSlug) {
+            const allSpecs = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+            const matched = allSpecs.find(f => {
+              const fSlug = f.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+              return fSlug.includes(modSlug) || modSlug.includes(fSlug.replace(/^\d+-/, ''));
+            });
+            if (matched) {
+              specFile = `tests/${matched}`;
+            }
+          }
+        }
+
+        // 4. Deteksi modular V2 khusus Admin Management jika memang relevan
         const isV2 = docId.includes('v2') || (payload.module || '').includes('V2') || (specFile && specFile.includes('v2'));
         const v2Dir = path.join(ROOT_DIR, 'tests/09-rmis-admin-management-v2');
 
@@ -243,8 +286,15 @@ function handleApiRequest(req, res, pathname) {
           }
         }
 
-        if (!specFile) {
-          specFile = isV2 ? 'tests/09-rmis-admin-management-v2' : 'tests/08-rmis-admin-management.spec.ts';
+        // 5. Validasi: Jangan fallback buta ke modul lain!
+        if (!specFile || !fs.existsSync(path.join(ROOT_DIR, specFile))) {
+          if (docId.includes('admin') || (payload.module || '').toLowerCase().includes('administration')) {
+            specFile = isV2 ? 'tests/09-rmis-admin-management-v2' : 'tests/08-rmis-admin-management.spec.ts';
+          } else {
+            return sendJson(res, 400, {
+              error: `File script Playwright untuk modul "${payload.module || docId}" belum tersedia. Silakan buat spec otomatis terlebih dahulu dengan menekan tombol "⚡ Buat Spec dari Dokumen Ini" di dialog Jalankan Otomasi.`
+            });
+          }
         }
 
         console.log(`[Auto-Repair] Memulai Run Skenario untuk ${tcNo} (${specFile})...`);
@@ -267,7 +317,7 @@ function handleApiRequest(req, res, pathname) {
 
         child.on('close', (code) => {
           console.log(`[Auto-Repair] Eksekusi ${tcNo} selesai dengan exit code: ${code}`);
-          const syncRes = syncResultsInternal();
+          const syncRes = syncResultsInternal(docId);
           return sendJson(res, 200, {
             success: code === 0,
             message: code === 0 ? `Skenario ${tcNo} berhasil dijalankan dan bukti tangkapan layar baru telah tersinkronisasi!` : `Pengujian ${tcNo} selesai dengan kode ${code}`,
@@ -310,6 +360,15 @@ function handleApiRequest(req, res, pathname) {
           else if (f.includes('03-ap-kredit')) label = `Modul 3: AP Kredit Offline${tcStr}`;
           else if (f.includes('04-rha')) label = `Modul 4: RHA Offline${tcStr}`;
           else if (f.includes('05-pelaksanaan-audit')) label = `Modul 5: Pelaksanaan Audit Online${tcStr}`;
+          else {
+            try {
+              const content = fs.readFileSync(path.join(testsDir, f), 'utf8');
+              const descMatch = content.match(/test\.describe\(\s*['"`](?:Unit Test Suite:\s*)?(.*?)['"`]/);
+              if (descMatch && descMatch[1]) {
+                label = `⚡ ${descMatch[1].slice(0, 50)}${tcStr}`;
+              }
+            } catch {}
+          }
           specs.push({ path: `tests/${f}`, name: f, label });
         });
 
@@ -501,6 +560,23 @@ function handleApiRequest(req, res, pathname) {
         const doc = payload.doc;
         if (!doc) return sendJson(res, 400, { error: 'Data dokumen tidak ditemukan pada payload.' });
         const result = generatePlaywrightSpecFromDocument(doc);
+
+        // Simpan referensi specFile ke dokumen di workspace.json
+        if (doc.id && fs.existsSync(WORKSPACE_FILE)) {
+          try {
+            const ws = JSON.parse(fs.readFileSync(WORKSPACE_FILE, 'utf8'));
+            const target = ws.documents?.find(d => d.id === doc.id);
+            if (target) {
+              if (!target.metadata) target.metadata = {};
+              target.metadata.specFile = result.filePath;
+              target.metadata.specFileName = result.fileName;
+              fs.writeFileSync(WORKSPACE_FILE, JSON.stringify(ws, null, 2), 'utf8');
+            }
+          } catch (eWs) {
+            console.warn('[Generate-Spec] Gagal menyimpan referensi specFile ke workspace:', eWs.message);
+          }
+        }
+
         return sendJson(res, 200, {
           success: true,
           message: `Berhasil membuat spec ${result.fileName}`,
@@ -537,7 +613,7 @@ function handleApiRequest(req, res, pathname) {
   sendJson(res, 404, { error: 'Endpoint API tidak ditemukan' });
 }
 
-function syncResultsInternal() {
+function syncResultsInternal(callerDocId) {
   const resultsFile = path.join(ROOT_DIR, 'output/latest_run_results.json');
   if (!fs.existsSync(resultsFile)) {
     return { error: 'File output/latest_run_results.json belum ada.' };
@@ -547,7 +623,11 @@ function syncResultsInternal() {
 
   const runCr = (latestData.metadata?.crNo || '').replace(/[^0-9]/g, '');
   let targetDoc = null;
-  if (latestData.metadata?.docId) {
+  // 1. Prioritaskan jika callerDocId spesifik diberikan
+  if (callerDocId) {
+    targetDoc = wsData.documents.find(d => d.id === callerDocId);
+  }
+  if (!targetDoc && latestData.metadata?.docId) {
     targetDoc = wsData.documents.find(d => d.id === latestData.metadata.docId);
   }
   if (!targetDoc && runCr) {
@@ -625,7 +705,7 @@ function syncResultsInternal() {
       }));
     }
 
-    wsData.activeDocId = targetDoc.id;
+    wsData.activeDocId = callerDocId || targetDoc.id;
     fs.writeFileSync(WORKSPACE_FILE, JSON.stringify(wsData, null, 2), 'utf8');
     return {
       success: true,

@@ -3279,13 +3279,16 @@ document.addEventListener('DOMContentLoaded', () => {
           const docId = doc.id || '';
           const isOrms = docId.includes('orms') || (doc.metadata?.title || '').toLowerCase().includes('orms') || (doc.metadata?.systemName || '').toLowerCase().includes('orms');
 
+          const activeSpec = doc.metadata?.specFile;
           data.specs.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.path;
             opt.textContent = s.label;
-            if (isOrms && s.path.includes('orms')) {
+            if (activeSpec && s.path === activeSpec) {
               opt.selected = true;
-            } else if (!isOrms && currentVal === s.path) {
+            } else if (!activeSpec && currentVal === s.path) {
+              opt.selected = true;
+            } else if (!activeSpec && isOrms && s.path.includes('orms')) {
               opt.selected = true;
             }
             runnerSpecSelect.appendChild(opt);
@@ -3324,6 +3327,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await resp.json();
       if (resp.ok && data.success) {
+        if (data.filePath) {
+          if (!doc.metadata) doc.metadata = {};
+          doc.metadata.specFile = data.filePath;
+          doc.metadata.specFileName = data.fileName;
+          appStorage.set({ sessionData: sessionData });
+        }
         await loadAvailableSpecs();
         if (runnerSpecSelect && data.filePath) {
           runnerSpecSelect.value = data.filePath;
@@ -3905,6 +3914,7 @@ ${tcListStr}
     try {
       const doc = getActiveDoc();
       const docId = doc ? doc.id : '';
+      const specFile = doc?.metadata?.specFile || runnerSpecSelect?.value || '';
 
       const res = await fetch('/api/auto-repair-tc', {
         method: 'POST',
@@ -3912,7 +3922,8 @@ ${tcListStr}
         body: JSON.stringify({
           docId,
           tcNo,
-          module: doc?.metadata?.module || doc?.title || ''
+          specFile,
+          module: doc?.metadata?.module || doc?.metadata?.scenarioName || doc?.title || ''
         })
       });
 
@@ -3944,7 +3955,8 @@ ${tcListStr}
 
     try {
       const doc = getActiveDoc();
-      const docId = doc ? doc.id : 'doc_administration_management_cr60133';
+      const docId = doc ? doc.id : '';
+      const specFile = doc?.metadata?.specFile || runnerSpecSelect?.value || '';
 
       const res = await fetch('/api/auto-repair-tc', {
         method: 'POST',
@@ -3952,7 +3964,8 @@ ${tcListStr}
         body: JSON.stringify({
           docId,
           tcNo,
-          module: doc?.metadata?.module || doc?.title || ''
+          specFile,
+          module: doc?.metadata?.module || doc?.metadata?.scenarioName || doc?.title || ''
         })
       });
 

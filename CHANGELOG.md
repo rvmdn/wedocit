@@ -13,6 +13,19 @@ Aturan penomoran versi mengikuti skema:
 
 ---
 
+## [v3.2.1] - 2026-11-05
+### Bugfix & Reliability (`y` +1)
+- **Fix Auto-Fix / Single TC Runner Cross-Document Hijack:**
+  - Mengirim parameter `specFile` dokumen aktif secara eksplisit dari `editor.js` (`runSingleTestCase` & `triggerAutoFixTc`).
+  - Menghapus hardcoded fallback `tests/08-rmis-admin-management.spec.ts` di endpoint `POST /api/auto-repair-tc`.
+  - Mengimplementasikan *Dynamic Spec Resolution* di `server.js` (mencocokkan `targetDoc.metadata.specFile`, ID dokumen di dalam file `.spec.ts`, atau slug nama modul).
+  - Menyimpan referensi `specFile` ke dalam `workspace.json` saat generate spec via button `⚡ Buat Spec dari Dokumen Ini`.
+  - Memperbarui `syncResultsInternal(callerDocId)` agar mempertahankan dokumen aktif pemanggil dan tidak membajak tampilan UI ke modul lain.
+- **Enhanced Dropdown Suite Labels:**
+  - Menambahkan auto-extraction judul suite `test.describe` untuk spec yang baru di-generate pada endpoint `GET /api/specs`.
+
+---
+
 ## [v3.2.0] - 2026-11-05
 ### Major Change (`x` +1)
 - **Arsitektur Pengujian Modular V2.0 (1 File Spec per Skenario):**
