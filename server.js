@@ -1557,12 +1557,40 @@ function generatePlaywrightSpecFromDocument(doc) {
 
     const steps = tc.steps || [];
     steps.forEach((s, sIdx) => {
-      lines.push(`    await wedocit.captureStep({`);
-      lines.push(`      title: ${JSON.stringify(s.title || `Langkah ${sIdx + 1}`)},`);
-      lines.push(`      description: ${JSON.stringify(s.actionDescription || '-')},`);
-      lines.push(`      input: ${JSON.stringify(s.inputData || '-')},`);
-      lines.push(`      expected: ${JSON.stringify(s.expectedResult || 'Sesuai ekspektasi.')}`);
-      lines.push(`    });`);
+      // 1. Deteksi aksi navigasi ke sub-modul (URL: /xyz atau modul terkait)
+      const urlMatch = (s.inputData || s.actionDescription || '').match(/(?:\/|http[s]?:\/\/[^\s/]+)(\/[a-zA-Z0-9\-_/]+)/);
+      const isSubPath = s.pageUrl && s.pageUrl !== '/' && !s.pageUrl.endsWith(':4300/');
+      const targetNav = isSubPath ? s.pageUrl.replace(/^http[s]?:\/\/[^/]+/, '') : (urlMatch ? urlMatch[1] : null);
+
+      if (targetNav && targetNav !== '/') {
+        lines.push(`    await navigateToRmis(page, '${targetNav}');`);
+        lines.push(`    await page.waitForTimeout(1000);`);
+      }
+
+      // 2. Deteksi aksi interaksi klik tombol / pill switcher
+      const clickMatch = (s.inputData || '').match(/Klik:\s*(.+)/i) || (s.actionDescription || '').match(/Mengklik\s+(?:tombol|pill|menu)?\s*["'“]([^"'”]+)["'”]/i);
+      if (clickMatch) {
+        const btnText = clickMatch[1].trim();
+        lines.push(`    const btn_${sIdx} = page.locator('button, a').filter({ hasText: ${JSON.stringify(btnText)} }).first();`);
+        lines.push(`    if (await btn_${sIdx}.isVisible({ timeout: 2000 }).catch(() => false)) {`);
+        lines.push(`      await btn_${sIdx}.click();`);
+        lines.push(`      await page.waitForTimeout(600);`);
+        lines.push(`    }`);
+        lines.push(`    await wedocit.captureStep({`);
+        lines.push(`      title: ${JSON.stringify(s.title || `Langkah ${sIdx + 1}`)},`);
+        lines.push(`      description: ${JSON.stringify(s.actionDescription || '-')},`);
+        lines.push(`      input: ${JSON.stringify(s.inputData || '-')},`);
+        lines.push(`      expected: ${JSON.stringify(s.expectedResult || 'Sesuai ekspektasi.')},`);
+        lines.push(`      highlight: btn_${sIdx}`);
+        lines.push(`    });`);
+      } else {
+        lines.push(`    await wedocit.captureStep({`);
+        lines.push(`      title: ${JSON.stringify(s.title || `Langkah ${sIdx + 1}`)},`);
+        lines.push(`      description: ${JSON.stringify(s.actionDescription || '-')},`);
+        lines.push(`      input: ${JSON.stringify(s.inputData || '-')},`);
+        lines.push(`      expected: ${JSON.stringify(s.expectedResult || 'Sesuai ekspektasi.')}`);
+        lines.push(`    });`);
+      }
       lines.push(``);
     });
 

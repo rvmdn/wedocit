@@ -1,6 +1,6 @@
 {
   "name": "wedocit",
-  "version": "3.2.2",
+  "version": "3.3.0",
   "description": "WeDocIt v3.2 - Enterprise AI-Driven Playwright Automation & BNI EDV Word Documentation Studio",
   "main": "index.js",
   "scripts": {

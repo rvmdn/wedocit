@@ -13,6 +13,16 @@ Aturan penomoran versi mengikuti skema:
 
 ---
 
+## [v3.3.0] - 2026-11-05
+### Major Feature & Spec Automation Engine (`x` +1)
+- **Active Code-Driven Playwright Spec Generator (`server.js`):**
+  - Generator Playwright spec (`generatePlaywrightSpecFromDocument`) tidak lagi sekadar menghasilkan placeholder `captureStep` statis.
+  - **Dynamic Route Navigation**: Mendeteksi aksi/input pengujian yang menuju ke modul/sub-modul terkait (seperti `/rbbr`, `/mio`, `/risk-management`, `/admin`, dll.) dan secara otomatis mengompilasi perintah `navigateToRmis(page, targetUrl)`.
+  - **Interactive Element Execution & Highlight**: Mendeteksi interaksi klik tombol, pill switcher sumber data (seperti `Semua Data (3 Source)`, `RBBR`, `MIO`, `MRM`), mengeksekusi klik Playwright, dan otomatis memberikan highlight visual pada tangkapan layar.
+  - Hasil screenshot pada dokumen kini memuat evidensi riil dan berbeda-beda dari modul yang dituju, bukan screenshot halaman statis yang sama.
+
+---
+
 ## [v3.2.2] - 2026-11-05
 ### Bugfix & Reliability (`y` +1)
 - **Fix "URL Belum Terekam" False Positive & Auto-Populate `pageUrl`:**
