@@ -193,6 +193,9 @@ body {
 }
 
 .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: transparent;
   border: none;
   color: #cbd5e1;

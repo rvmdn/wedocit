@@ -13,6 +13,47 @@ Aturan penomoran versi mengikuti skema:
 
 ---
 
+## [v3.2.0] - 2026-11-05
+### Major Change (`x` +1)
+- **Arsitektur Pengujian Modular V2.0 (1 File Spec per Skenario):**
+  - Memecah suite monolitik 2.500 baris menjadi folder modular [`tests/09-rmis-admin-management-v2/`](tests/09-rmis-admin-management-v2/) dengan 15 file independen (`tc-001-manage-unit.spec.ts` s/d `tc-015-audit-trail.spec.ts`).
+  - Menyediakan file bersama [`_common.ts`](tests/09-rmis-admin-management-v2/_common.ts) untuk shared setup, helper navigasi, dan konfigurasi metadata V2.0.
+  - Mempersingkat waktu uji per skenario dari ~10 menit menjadi ~20–30 detik per skenario dan mereduksi token AI hingga ~95%.
+- **Eksekusi 1-Klik Langsung dari UI Studio:**
+  - Menambahkan tombol **`⚡ Jalankan TC Ini`** pada header setiap kartu Test Case di editor untuk menguji dan memperbarui eviden tangkapan layar skenario tertentu secara instan.
+  - Smart Routing pada endpoint `/api/auto-repair-tc` yang secara otomatis memetakan nomor TC ke file modular yang bersangkutan saat membuka dokumen V2.0.
+  - Memperbarui `/api/specs` agar secara rekursif memindai subfolder spec dan menampilkan ke-15 skenario modular pada dropdown dialog runner.
+- **Evidens Otentik Unduhan Berkas (TC-015):**
+  - Menghapus overlay buatan dan menyempurnakan penangkapan layar Sub-TC 15.4 agar menyorot Toast notifikasi asli PrimeNG RMIS (`✓ Export berhasil!`) di pojok kanan atas.
+  - Mengimplementasikan penanganan unduhan fisik berkas `.xlsx` secara riil melalui event Playwright `waitForEvent('download')`.
+- **Refactoring UI Studio Navbar:**
+  - Mengelompokkan tombol header ke dalam dropdown terorganisir: `🔄 Hasil Run ▾` (Sinkronisasi & Audit SS) dan `✨ AI Tools ▾` (Rancang via AI, Prompt Generator, Skenario Baku).
+  - Mengatasi false positive pada auditor duplikat gambar menggunakan content signature hashing 64-bit.
+
+---
+
+## [v3.1.3] - 2026-11-03
+### Minor Change (`y` +1)
+- **Perbaikan Modal Dialog Backdrop & Pointer Interceptor (TC-006):**
+  - Mengatasi error timeout pada pengujian `TC-006 (Notification - Manage Email Template)` di mana form modal `<app-email-template-form-modal>` menghalangi pointer click tombol *Search* pada tabel di belakangnya.
+  - Mengimplementasikan helper universal `closeModalIfOpen(page)` dengan multi-selector PrimeNG (`Close`, `Cancel`, `Tutup`, `.p-dialog-header-close`, `Escape`) dan penanganan *force click* guna memastikan backdrop form selalu tertutup secara tuntas pasca proses capture step.
+  - Memastikan seluruh 15 Test Case Master Data CRUD lulus 100% tanpa hambatan pointer event.
+
+---
+
+## [v3.1.2] - 2026-11-03
+### Minor Change (`y` +1)
+- **Implementasi Sub-TC CRUD Eksplisit per Skenario Master Data:**
+  - Mempertahankan **Opsi A (15 Skenario Master Data Besaran)** pada antarmuka suite runner dropdown.
+  - Memecah setiap skenario besaran menjadi sub-tahapan pengujian terstruktur menggunakan Playwright `test.step()` dan live console logger:
+    - **`Sub-TC X.1: [CREATE]`**: Input data dummy `[TEST-EDV]` dan simpan ke sistem.
+    - **`Sub-TC X.2: [READ]`**: Pencarian, pemfilteran, dan verifikasi ketersediaan data pada tabel.
+    - **`Sub-TC X.3: [UPDATE]`**: Perubahan atribut deskripsi/konfigurasi data uji.
+    - **`Sub-TC X.4: [DELETE]`**: Eksekusi pembersihan (*cleanup*) data uji agar database kembali steril.
+  - Memperbarui label penomoran langkah pada evidence generator Word BNI EDV (`3.1.X`) agar sub-langkah CRUD tercatat secara detail dan runtut.
+
+---
+
 ## [v3.1.1] - 2026-11-03
 ### Minor Change (`y` +1)
 - **Restrukturisasi Test Suite CRUD Master Data RMIS:**

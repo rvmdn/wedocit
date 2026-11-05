@@ -16,3 +16,4 @@ export async function ensureRmisAuthenticated(page: Page, options: OrmsAuthOptio
   const password = options.password || process.env.RMIS_PASSWORD || process.env.ORMS_PASSWORD || 'AdminBni1234/';
   return ensureOrmsAuthenticated(page, { ...options, username, password });
 }
+
