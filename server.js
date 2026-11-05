@@ -1412,32 +1412,38 @@ function generatePlaywrightSpecFromDocument(doc) {
   const filePath = path.join(testsDir, fileName);
 
   const lines = [];
+  const isRmis = (meta.systemName || '').toLowerCase().includes('rmis') || (meta.projectName || '').toLowerCase().includes('rmis') || true;
   lines.push(`import { test, expect, Page } from '../src/fixtures/wedocit';`);
-  lines.push(`import { ensureOrmsAuthenticated } from '../src/helpers/orms-auth';`);
+  lines.push(`import { ensureRmisAuthenticated, navigateToRmis } from '../src/helpers/rmis-auth';`);
   lines.push(`import * as path from 'path';`);
   lines.push(`import * as fs from 'fs';`);
   lines.push(``);
-  lines.push(`const ormsAuthFile = path.resolve(process.cwd(), '.auth/user_orms_admin.json');`);
+  lines.push(`const rmisAuthFile = path.resolve(process.cwd(), '.auth/user_rmis_admin.json');`);
+  lines.push(`const legacyAuthFile = path.resolve(process.cwd(), '.auth/user_orms_admin.json');`);
+  lines.push(`const activeAuthFile = fs.existsSync(rmisAuthFile) ? rmisAuthFile : (fs.existsSync(legacyAuthFile) ? legacyAuthFile : undefined);`);
   lines.push(``);
   lines.push(`test.use({`);
-  lines.push(`  baseURL: process.env.ORMS_BASE_URL || '${meta.testUrl || 'http://localhost:4300'}',`);
+  lines.push(`  baseURL: process.env.RMIS_BASE_URL || process.env.ORMS_BASE_URL || '${meta.testUrl || 'http://localhost:4300'}',`);
   lines.push(`  viewport: { width: 1366, height: 768 },`);
-  lines.push(`  storageState: fs.existsSync(ormsAuthFile) ? ormsAuthFile : undefined`);
+  lines.push(`  storageState: activeAuthFile`);
   lines.push(`});`);
   lines.push(``);
   lines.push(`test.describe('Unit Test Suite: ${meta.title || meta.scenarioName || 'Automated Unit Test'}', () => {`);
   lines.push(``);
   lines.push(`  test.beforeEach(async ({ page, wedocit }) => {`);
   lines.push(`    wedocit.setMetadata({`);
-  lines.push(`      systemName: ${JSON.stringify(meta.systemName || 'Web Application')},`);
-  lines.push(`      projectName: ${JSON.stringify(meta.projectName || meta.systemName || 'Application')},`);
-  lines.push(`      crNo: ${JSON.stringify(meta.testCaseId || 'CR_UNIT_TEST')},`);
+  lines.push(`      docId: ${JSON.stringify(doc.id || '')},`);
+  lines.push(`      systemName: ${JSON.stringify(meta.systemName || 'Risk Management Information System (RMIS)')},`);
+  lines.push(`      projectName: ${JSON.stringify(meta.projectName || meta.systemName || 'Risk Management Information System (RMIS)')},`);
+  lines.push(`      crNo: ${JSON.stringify(meta.testCaseId || meta.projectNo || 'CR 60133')},`);
   lines.push(`      title: ${JSON.stringify(meta.title || 'Unit Test Documentation')},`);
-  lines.push(`      module: ${JSON.stringify(meta.scenarioName || 'Modul Aplikasi')},`);
+  lines.push(`      module: ${JSON.stringify(meta.scenarioName || meta.module || 'Modul Aplikasi')},`);
   lines.push(`      shortDescription: ${JSON.stringify(meta.shortDescription || 'Pengujian dan verifikasi modul aplikasi.')},`);
   lines.push(`      testedBy: ${JSON.stringify(meta.testedBy || 'QA Engineer')},`);
   lines.push(`      npp: ${JSON.stringify(meta.npp || '-')}`);
   lines.push(`    });`);
+  lines.push(``);
+  lines.push(`    await ensureRmisAuthenticated(page);`);
   lines.push(`  });`);
   lines.push(``);
 
@@ -1453,7 +1459,7 @@ function generatePlaywrightSpecFromDocument(doc) {
     lines.push(`      role: ${JSON.stringify(tc.role || 'Admin / User')}`);
     lines.push(`    });`);
     lines.push(``);
-    lines.push(`    await page.goto('${meta.testUrl ? '/login' : '/'}', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/'));`);
+    lines.push(`    await navigateToRmis(page, '${meta.testUrl ? meta.testUrl : '/'}');`);
     lines.push(`    await page.waitForTimeout(800);`);
     lines.push(``);
 
