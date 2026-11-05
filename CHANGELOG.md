@@ -13,6 +13,15 @@ Aturan penomoran versi mengikuti skema:
 
 ---
 
+## [v3.2.2] - 2026-11-05
+### Bugfix & Reliability (`y` +1)
+- **Fix "URL Belum Terekam" False Positive & Auto-Populate `pageUrl`:**
+  - `analyzeComponentAndBuildTestCases` di `server.js` kini otomatis menyertakan `pageUrl: targetUrl` pada setiap langkah yang dirancang dari source code (AI Chat).
+  - Modal audit screenshot (`openScreenshotAuditModal` di `editor.js`) kini memiliki fallback cerdas ke `doc.metadata.testUrl` atau `http://localhost:4300/` jika `st.pageUrl` belum terisi, mencegah deteksi salah (*false positive*) sebagai "Suspect Loading".
+  - Heuristik loading disempurnakan hanya untuk layar yang benar-benar tertahan di status `about:blank`.
+
+---
+
 ## [v3.2.1] - 2026-11-05
 ### Bugfix & Reliability (`y` +1)
 - **Fix Auto-Fix / Single TC Runner Cross-Document Hijack:**

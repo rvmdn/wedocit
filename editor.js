@@ -4032,7 +4032,7 @@ ${tcListStr}
         const title = st.title || `Langkah ${stepNo}`;
         const action = st.actionDescription || title || '';
         const expected = st.expectedResult || '';
-        const pageUrl = st.pageUrl || '';
+        const pageUrl = st.pageUrl || doc?.metadata?.testUrl || 'http://localhost:4300/';
         const img = st.screenshot || st.image || '';
 
         let issueType = 'ok';
@@ -4073,12 +4073,12 @@ ${tcListStr}
           mismatchSteps++;
         }
         // Heuristik 2.5: URL Belum Terekam / Layar Transisi Loading
-        else if (!pageUrl || pageUrl === 'about:blank' || pageUrl.trim() === '') {
+        else if (pageUrl === 'about:blank' || pageUrl.trim() === '') {
           issueType = 'mismatch';
           cardClass = 'issue-mismatch';
           badgeStyle = 'background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3);';
           badgeText = 'Suspect Loading 🔄';
-          issueDesc = `🔄 <b>Suspect Layar Loading / URL Belum Terekam:</b> Halaman pengujian belum selesai dimuat sempurna atau masih dalam proses transisi spinner saat tangkapan layar diambil.`;
+          issueDesc = `🔄 <b>Suspect Layar Loading / about:blank:</b> Halaman pengujian belum selesai dimuat sempurna atau masih dalam transisi blank screen saat tangkapan layar diambil.`;
           issueStyle = 'background:rgba(239,68,68,0.12); color:#fca5a5; border:1px solid rgba(239,68,68,0.25);';
           diagnosisNote = 'Gunakan waitForSelector pada elemen tabel/modal dan pastikan loading spinner selesai sebelum captureStep.';
           mismatchSteps++;

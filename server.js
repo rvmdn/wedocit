@@ -1074,6 +1074,12 @@ function analyzeComponentAndBuildTestCases(codePath, options = {}) {
       }
     ];
 
+    dashTcs.forEach(tc => {
+      (tc.steps || []).forEach(s => {
+        if (!s.pageUrl) s.pageUrl = targetUrl;
+      });
+    });
+
     return {
       summary: {
         filesCount: files.length,
@@ -1441,6 +1447,12 @@ function analyzeComponentAndBuildTestCases(codePath, options = {}) {
       ]
     });
   }
+
+  tcs.forEach(tc => {
+    (tc.steps || []).forEach(s => {
+      if (!s.pageUrl) s.pageUrl = targetUrl;
+    });
+  });
 
   return {
     summary: {
