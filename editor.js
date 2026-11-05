@@ -2114,19 +2114,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let code = meta.codePath || '';
     const role = meta.testRole || 'Admin / User';
 
-    // Jika path kode sumber belum ditentukan, minta input dari pengguna
+    // Selalu tampilkan dialog konfirmasi/ubah path dengan nilai default dari path yang pernah dimasukkan
+    const defaultPlaceholder = code || 'e:\\BNI\\RMIS\\rmis-fe\\src\\app\\modules\\welcome\\pages';
+    const inputPath = prompt(
+      `Masukkan atau ubah lokasi folder komponen source code untuk modul "${sc}":\n\n(Tekan OK untuk langsung memproses path ini, atau edit jika ingin menganalisis folder lain)`,
+      defaultPlaceholder
+    );
+    if (inputPath === null) return; // Pengguna menekan Cancel
+    code = inputPath.trim();
     if (!code) {
-      const inputPath = prompt(
-        `Path folder source code belum ditentukan untuk modul "${sc}".\n\nMasukkan lokasi folder komponen frontend/backend aplikasi ini:\n(Contoh: e:\\BNI\\RMIS\\rmis-fe\\src\\app\\modules\\auth\\pages\\login)`,
-        code
-      );
-      if (inputPath === null) return;
-      code = inputPath.trim();
-      if (code) {
-        doc.metadata.codePath = code;
-        saveActiveDocState();
-      }
+      alert('Lokasi path folder source code tidak boleh kosong.');
+      return;
     }
+    doc.metadata.codePath = code;
+    saveActiveDocState();
 
     const btnBridge = document.getElementById('btn-ai-bridge-chat');
     const origHtml = btnBridge ? btnBridge.innerHTML : '';
