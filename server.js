@@ -815,6 +815,320 @@ function analyzeComponentAndBuildTestCases(codePath, options = {}) {
   // Tables
   const hasTable = /<p-table|<table/i.test(combinedHtml);
 
+  // 1. Deteksi Khusus: RMIS Executive Main Dashboard (Multi-Source Portal: RBBR, MIO, MRM)
+  const isExecutiveWelcome = /welcome/i.test(codePath) 
+    || scenarioName.toLowerCase().includes('main dashboard')
+    || scenarioName.toLowerCase().includes('executive')
+    || (combinedHtml.includes('setSource') || (/rbbr/i.test(combinedHtml) && /mio/i.test(combinedHtml) && /mrm/i.test(combinedHtml)));
+
+  if (isExecutiveWelcome) {
+    const dashTcs = [
+      {
+        tcNumberStr: 'TC-001',
+        title: 'Filter & Switcher Sumber Data Eksekutif (All, RBBR, MIO, MRM)',
+        scenarioName: 'Pengujian Interaktivitas Pill Switcher Sumber Data Dashboard',
+        expectedResult: 'Kontainer dashboard berhasil memfilter dan menampilkan kartu risiko sesuai sumber data yang dipilih secara responsif.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Akses Halaman Utama Executive Dashboard',
+            actionDescription: `Pengguna membuka halaman utama RMIS pada URL ${targetUrl}.`,
+            inputData: `URL: ${targetUrl}`,
+            expectedResult: 'Halaman dashboard berhasil dimuat dengan banner sapaan dan tombol switcher sumber data aktif.'
+          },
+          {
+            stepNumber: 2,
+            title: 'Uji Switcher: Semua Data (3 Source)',
+            actionDescription: 'Mengklik tombol pill switcher "Semua Data (3 Source)" pada header dashboard.',
+            inputData: 'Klik: Semua Data (3 Source)',
+            expectedResult: 'Grid dashboard menampilkan seluruh kartu risiko dari 3 sumber terintegrasi (RBBR, MIO, dan MRM).'
+          },
+          {
+            stepNumber: 3,
+            title: 'Uji Switcher: Filter Khusus Modul RBBR',
+            actionDescription: 'Mengklik tombol pill switcher "RBBR".',
+            inputData: 'Klik: RBBR',
+            expectedResult: 'Tampilan dashboard menyaring konten dan hanya menampilkan seksi matriks profil risiko dan TKB RBBR.'
+          },
+          {
+            stepNumber: 4,
+            title: 'Uji Switcher: Filter Khusus Modul MIO',
+            actionDescription: 'Mengklik tombol pill switcher "MIO".',
+            inputData: 'Klik: MIO',
+            expectedResult: 'Tampilan dashboard hanya menyajikan indikator ketersediaan alat likuid dan chart tren limit MIO.'
+          },
+          {
+            stepNumber: 5,
+            title: 'Uji Switcher: Filter Khusus Modul MRM',
+            actionDescription: 'Mengklik tombol pill switcher "MRM".',
+            inputData: 'Klik: MRM',
+            expectedResult: 'Tampilan dashboard menyaring dan menampilkan ringkasan Model Risk Management.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-002',
+        title: 'Dashboard Eksekutif - Ringkasan Potongan Data RBBR & Tingkat Kesehatan Bank',
+        scenarioName: 'Verifikasi Visualisasi Matriks Profil Risiko, Rentabilitas, dan Donut Chart TKB',
+        expectedResult: 'Seluruh komponen kartu RBBR ter-render sempurna dengan nilai matriks tren dan chart TKB yang proporsional.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Periksa Ringkasan Profil Risiko & Rentabilitas',
+            actionDescription: 'Memeriksa deskripsi teks dan badge status profil risiko serta rentabilitas bank.',
+            inputData: '-',
+            expectedResult: 'Teks narasi profil risiko dan rentabilitas tampil jelas dan sesuai data backend.'
+          },
+          {
+            stepNumber: 2,
+            title: 'Verifikasi Matriks Tata Kelola (GCG) & Permodalan',
+            actionDescription: 'Memeriksa tabel perbandingan nilai semester (Jun vs Des) dan indikator tren naik/turun/stabil.',
+            inputData: '-',
+            expectedResult: 'Tabel matriks menampilkan baris komponen, nilai perbandingan semester, serta simbol arah tren yang valid.'
+          },
+          {
+            stepNumber: 3,
+            title: 'Verifikasi Visualisasi Donut Chart Peringkat TKB',
+            actionDescription: 'Memeriksa render grafik donut Tingkat Kesehatan Bank beserta label kompositnya.',
+            inputData: '-',
+            expectedResult: 'Grafik donut TKB tampil utuh di tengah kartu dengan pewarnaan peringkat komposit yang tepat.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-003',
+        title: 'Dashboard Eksekutif - Ringkasan Potongan Data MIO (Middle Office)',
+        scenarioName: 'Verifikasi Status Ketersediaan Alat Likuid, Risk Appetite, dan Grafik Likuiditas',
+        expectedResult: 'Indikator status operasional likuiditas dan chart ECharts MIO tersaji lengkap tanpa kendala rendering.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Verifikasi Badge Status Ketersediaan Alat Likuid',
+            actionDescription: 'Memeriksa kotak indikator alat likuid di kolom pertama kartu MIO.',
+            inputData: '-',
+            expectedResult: 'Badge status menampilkan label kondisi likuiditas (NORMAL/WASPADA) dengan warna kontras standar.'
+          },
+          {
+            stepNumber: 2,
+            title: 'Verifikasi Indikator Range Risk Appetite',
+            actionDescription: 'Memeriksa kotak status kesesuaian operasional terhadap limit toleransi risiko.',
+            inputData: '-',
+            expectedResult: 'Status toleransi risiko tampil jelas (contoh: "DALAM RANGE RISK APPETITE").'
+          },
+          {
+            stepNumber: 3,
+            title: 'Verifikasi Grafik ECharts Ketahanan & Kualitas Likuiditas',
+            actionDescription: 'Memeriksa visualisasi grafik chart pada kolom kedua dan ketiga kartu MIO.',
+            inputData: '-',
+            expectedResult: 'Grafik ECharts ketahanan likuiditas dan tren limit ter-render rapi dengan sumbu dan legenda aktif.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-004',
+        title: 'Dashboard Eksekutif - Ringkasan Potongan Data MRM (Model Risk Management)',
+        scenarioName: 'Verifikasi Metrik Model Inventory, Status Validasi, dan Matriks Life Cycle',
+        expectedResult: 'Metrik agregasi model risiko kuantitatif terdisplay akurat sesuai klasifikasi tiering perbankan.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Verifikasi Metrik Total Model Inventory',
+            actionDescription: 'Memeriksa angka rekapitulasi jumlah model aktif dan dalam pengembangan.',
+            inputData: '-',
+            expectedResult: 'Angka total model risiko terdata dan tersaji pada tile ringkasan.'
+          },
+          {
+            stepNumber: 2,
+            title: 'Verifikasi Distribusi Tiering & Tingkat Risiko Model',
+            actionDescription: 'Memeriksa visualisasi proporsi model berdasarkan Tier 1, Tier 2, dan Tier 3.',
+            inputData: '-',
+            expectedResult: 'Distribusi tier model risiko terpetakan proporsional sesuai data master model.'
+          },
+          {
+            stepNumber: 3,
+            title: 'Verifikasi Siklus Hidup & Kepatuhan Validasi Model',
+            actionDescription: 'Memeriksa ringkasan kepatuhan validasi berkala model risiko perbankan.',
+            inputData: '-',
+            expectedResult: 'Status tahapan life cycle dan indikator kepatuhan validasi model terdisplay dengan benar.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-005',
+        title: 'Dashboard Eksekutif - Cross-Navigation ke Modul Operasional Terkait',
+        scenarioName: 'Pengujian Tautan Drilldown Navigasi dari Dashboard ke Sub-Modul Detil',
+        expectedResult: 'Pengguna dapat bertransisi secara seamless dari kartu ringkasan dashboard menuju halaman modul operasional penuh.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Navigasi Drilldown ke Modul RBBR / TKB',
+            actionDescription: 'Pengguna mengklik tombol atau tautan navigasi detail pada kartu RBBR.',
+            inputData: 'Klik: Navigasi Modul RBBR',
+            expectedResult: 'Sistem mengalihkan tampilan ke modul operasional RBBR (/rbbr).'
+          },
+          {
+            stepNumber: 2,
+            title: 'Navigasi Drilldown ke Modul Middle Office (MIO)',
+            actionDescription: 'Pengguna mengklik tombol atau tautan navigasi detail pada kartu MIO.',
+            inputData: 'Klik: Navigasi Modul MIO',
+            expectedResult: 'Sistem mengalihkan tampilan ke modul operasional Middle Office (/mio).'
+          },
+          {
+            stepNumber: 3,
+            title: 'Navigasi Drilldown ke Modul Model Risk Management (MRM)',
+            actionDescription: 'Pengguna mengklik tombol atau tautan navigasi detail pada kartu MRM.',
+            inputData: 'Klik: Navigasi Modul MRM',
+            expectedResult: 'Sistem mengalihkan tampilan ke modul operasional Model Risk Management (/risk-management).'
+          }
+        ]
+      }
+    ];
+
+    return {
+      summary: {
+        filesCount: files.length,
+        inputs: inputs.length,
+        buttons: buttons.length,
+        validations: validations.length,
+        dashboardType: 'RMIS Executive Multi-Source Portal (RBBR, MIO, MRM)',
+        scannedPath: codePath
+      },
+      testCases: dashTcs
+    };
+  }
+
+  // 2. Deteksi Khusus: Widget Dashboard (misal src/app/pages/dashboard)
+  const isWidgetDashboard = /pages[\\\/]dashboard/i.test(codePath) 
+    || combinedHtml.includes('app-stats-widget') 
+    || combinedHtml.includes('app-recent-sales-widget')
+    || combinedHtml.includes('app-revenue-stream-widget');
+
+  if (isWidgetDashboard) {
+    const widgetTcs = [
+      {
+        tcNumberStr: 'TC-001',
+        title: 'Verifikasi Widget Statistik & Key Performance Indicators (KPI)',
+        scenarioName: 'Pengujian Metrik Ringkasan Utama pada Dashboard',
+        expectedResult: 'Widget statistik menampilkan angka kalkulasi metrik utama secara real-time dan akurat.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Akses Halaman Dashboard Utama',
+            actionDescription: `Membuka halaman dashboard pada URL ${targetUrl}/dashboard.`,
+            inputData: `URL: ${targetUrl}/dashboard`,
+            expectedResult: 'Halaman dashboard termuat sempurna beserta seluruh grid widget statistik.'
+          },
+          {
+            stepNumber: 2,
+            title: 'Verifikasi Tile Metrik Statistik (Stats Widget)',
+            actionDescription: 'Memeriksa ketersediaan kartu metrik, angka pertumbuhan, dan ikon indikator.',
+            inputData: '-',
+            expectedResult: 'Seluruh kartu metrik KPI ter-render rapi dengan label dan nilai yang proporsional.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-002',
+        title: 'Verifikasi Grafik Visualisasi Tren & Alur Pendapatan (Revenue Stream)',
+        scenarioName: 'Pengujian Render Grafik Bar/Line Chart Alur Risiko & Finansial',
+        expectedResult: 'Grafik tren berhasil ter-render lengkap dengan sumbu horizontal, vertikal, dan tooltip data.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Periksa Komponen Grafik Revenue Stream',
+            actionDescription: 'Mengidentifikasi kontainer grafik tren pada sisi kanan dashboard.',
+            inputData: '-',
+            expectedResult: 'Grafik bar/line chart tampil interaktif dengan skala data yang terbaca jelas.'
+          },
+          {
+            stepNumber: 2,
+            title: 'Uji Interaktivitas Hover pada Grafik',
+            actionDescription: 'Mengarahkan kursor mouse ke salah satu titik data atau batang grafik.',
+            inputData: '-',
+            expectedResult: 'Tooltip informasi nilai detail titik data muncul secara dinamis di layar.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-003',
+        title: 'Verifikasi Tabel Ringkasan Transaksi / Aktivitas Terkini (Recent Activity)',
+        scenarioName: 'Pengujian Tampilan Daftar Transaksi Operasional Terbaru',
+        expectedResult: 'Tabel menyajikan daftar aktivitas terkini secara kronologis dengan data atribut valid.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Tinjau Daftar Baris Transaksi Terkini',
+            actionDescription: 'Memeriksa baris-baris data aktivitas terbaru pada widget Recent Activity.',
+            inputData: '-',
+            expectedResult: 'Daftar aktivitas terkini tampil lengkap beserta status dan timestamp.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-004',
+        title: 'Verifikasi Panel Kategori & Peringkat Tertinggi (Best Performing)',
+        scenarioName: 'Pengujian Agregasi Kategori Produk / Entitas Risiko Teratas',
+        expectedResult: 'Daftar entitas peringkat teratas terurut sesuai urutan volume atau eksposur risiko.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Periksa Daftar Peringkat Entitas Teratas',
+            actionDescription: 'Memeriksa pemeringkatan kategori/produk pada widget Best Performing.',
+            inputData: '-',
+            expectedResult: 'Entitas tersusun secara descending sesuai besaran volume atau skor risiko.'
+          }
+        ]
+      },
+      {
+        tcNumberStr: 'TC-005',
+        title: 'Verifikasi Panel Notifikasi & Peringatan Sistem (Notifications Feed)',
+        scenarioName: 'Pengujian Alur Pemberitahuan Penting & Log Peringatan Sistem',
+        expectedResult: 'Panel notifikasi menampilkan daftar peringatan dengan indikator urgensi yang sesuai.',
+        role: userRole,
+        status: 'OK',
+        steps: [
+          {
+            stepNumber: 1,
+            title: 'Tinjau Log Pemberitahuan Sistem Terkini',
+            actionDescription: 'Memeriksa feed pesan notifikasi, badge kategori, dan waktu diterbitkan.',
+            inputData: '-',
+            expectedResult: 'Pesan notifikasi dan alert ter-render jelas dengan warna status yang kontras.'
+          }
+        ]
+      }
+    ];
+
+    return {
+      summary: {
+        filesCount: files.length,
+        inputs: inputs.length,
+        buttons: buttons.length,
+        validations: validations.length,
+        dashboardType: 'RMIS Executive Widgets Dashboard',
+        scannedPath: codePath
+      },
+      testCases: widgetTcs
+    };
+  }
+
   // Now assemble dynamic test cases based on actual components:
   const tcs = [];
   let tcIdx = 1;
