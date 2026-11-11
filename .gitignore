@@ -70,3 +70,21 @@ data/*.json
 !data/.gitkeep
 wedocit_workspace_cleansed.json
 
+
+# Temporary / Backup files from modularization
+*.bak
+*.slim
+
+# Business flow diagrams (local documentation, not committed to repo)
+*.drawio
+*.drawio.png
+*-flow.html
+*-flow-only.html
+*-business-flow.html
+*_flow.png
+*_flow_pure.png
+*_flow_diagram.png
+*_business_flow.png
+*_business_flow.drawio
+*_business_flow.drawio.png
+admin-tools-flow.html
